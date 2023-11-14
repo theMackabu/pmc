@@ -8,7 +8,7 @@ namespace process {
   class Runner {
   public:
     void New(const std::string &name, const std::string &logPath);
-    uint64_t Run(const std::string &command);
+    int64_t Run(const std::string &command);
     ~Runner();
 
   private:

@@ -22,7 +22,7 @@ Runner::~Runner() {
   }
 }
 
-uint64_t Runner::Run(const std::string &command) {
+int64_t Runner::Run(const std::string &command) {
   pid_t pid = fork();
 
   if (pid == -1) {
