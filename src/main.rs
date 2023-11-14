@@ -1,10 +1,12 @@
-use macros_rs::{crashln, ternary};
-use std::collections::HashMap;
-use std::sync::atomic::{AtomicUsize, Ordering};
+mod id;
+mod process;
+
+use crate::process::Runner;
+use macros_rs::ternary;
 use std::{thread, time::Duration};
 
 #[cxx::bridge]
-pub mod process {
+pub mod service {
     unsafe extern "C++" {
         include!("pmc/src/include/process.h");
         include!("pmc/src/include/bridge.h");
@@ -12,56 +14,6 @@ pub mod process {
         pub fn stop(pid: i64) -> i64;
         pub fn run(name: &str, log_path: &str, command: &str) -> i64;
     }
-}
-
-struct AutoIncrementId {
-    counter: AtomicUsize,
-}
-
-impl AutoIncrementId {
-    fn new() -> Self { AutoIncrementId { counter: AtomicUsize::new(0) } }
-    fn next(&self) -> usize { self.counter.fetch_add(1, Ordering::SeqCst) }
-}
-
-#[derive(Clone, Debug)]
-struct Process<'a> {
-    pid: i64,
-    name: &'a str,
-    running: bool,
-}
-
-struct Runner<'a> {
-    log_path: &'a str,
-    id: AutoIncrementId,
-    process_list: HashMap<usize, Process<'a>>,
-}
-
-impl<'a> Runner<'a> {
-    fn new(path: &'a str) -> Self {
-        Runner {
-            log_path: path,
-            id: AutoIncrementId::new(),
-            process_list: HashMap::new(),
-        }
-    }
-
-    fn start(&mut self, name: &'a str, command: &'a str) {
-        let pid = process::run(&name, &self.log_path, &command);
-        self.process_list.insert(self.id.next(), Process { pid, name, running: true });
-    }
-
-    fn stop(&mut self, id: usize) {
-        if let Some(item) = self.process_list.get_mut(&id) {
-            let pid = item.pid;
-            process::stop(pid);
-            item.running = false;
-        } else {
-            crashln!("process with {id} does not exist");
-        }
-    }
-
-    fn info(&self, id: usize) -> Option<&Process> { self.process_list.get(&id) }
-    fn list(&self) -> &HashMap<usize, Process<'a>> { &self.process_list }
 }
 
 fn main() {
