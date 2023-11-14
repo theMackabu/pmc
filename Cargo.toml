@@ -1,0 +1,10 @@
+[package]
+name = "pmc"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+cxx = "1.0.110"
+
+[build-dependencies]
+cxx-build = "1.0.110"
