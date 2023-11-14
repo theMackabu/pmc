@@ -2,6 +2,9 @@
 name = "pmc"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
+repository = "https://lab.themackabu.dev/crates/pmc"
+description = "Process management controller"
 
 [dependencies]
 cxx = "1.0.110"
