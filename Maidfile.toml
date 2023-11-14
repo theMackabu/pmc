@@ -1,3 +1,15 @@
 [project]
 name = "pmc"
 version = "0.1.0"
+
+
+[tasks]
+run = { script = ["maid build -q", "./bin/pmc"] }
+clean = { script = ["rm -rf bin", "mkdir bin"] }
+
+[tasks.build]
+depends = ["clean"]
+script = [
+   "cargo zigbuild --release", 
+   "cp target/release/pmc bin/pmc"
+]
