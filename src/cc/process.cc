@@ -1,10 +1,9 @@
-#include "include/cmd.h"
+#include "../include/process.h"
 #include <fcntl.h>
 #include <unistd.h>
-#include <stdio.h>
-#include <signal.h>
+#include <iostream>
 
-namespace cmd {
+namespace process {
 void Runner::New(const std::string &name, const std::string &logPath) {
   std::string stdoutFileName = logPath + "/" + name + "-stdout.log";
   std::string stderrFileName = logPath + "/" + name + "-stderr.log";
@@ -53,12 +52,3 @@ uint64_t Runner::Run(const std::string &command) {
   return -1;
 }}
 
-uint64_t run_command(Str name, Str log_path, Str command) {
-  cmd::Runner runner;
-  runner.New(std::string(name), std::string(log_path));
-  return runner.Run(std::string(command));
-}
-
-uint64_t kill_pid(uint64_t pid) {
-  return kill(pid, SIGTERM);
-}

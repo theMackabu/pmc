@@ -32,7 +32,7 @@ class impl;
 
 #ifndef CXXBRIDGE1_RUST_STRING
 #define CXXBRIDGE1_RUST_STRING
-// https://cxx.rs/binding/string.html
+
 class String final {
 public:
   String() noexcept;
@@ -46,7 +46,6 @@ public:
   String(const char16_t *);
   String(const char16_t *, std::size_t);
 
-  // Replace invalid Unicode data with the replacement character (U+FFFD).
   static String lossy(const std::string &) noexcept;
   static String lossy(const char *) noexcept;
   static String lossy(const char *, std::size_t) noexcept;
@@ -58,7 +57,6 @@ public:
 
   explicit operator std::string() const;
 
-  // Note: no null terminator.
   const char *data() const noexcept;
   std::size_t size() const noexcept;
   std::size_t length() const noexcept;
@@ -88,7 +86,6 @@ public:
 
   void swap(String &) noexcept;
 
-  // Internal API only intended for the cxxbridge code generator.
   String(unsafe_bitcopy_t, const String &) noexcept;
 
 private:
@@ -97,14 +94,13 @@ private:
   String(lossy_t, const char16_t *, std::size_t) noexcept;
   friend void swap(String &lhs, String &rhs) noexcept { lhs.swap(rhs); }
 
-  // Size and alignment statically verified by rust_string.rs.
   std::array<std::uintptr_t, 3> repr;
 };
-#endif // CXXBRIDGE1_RUST_STRING
+#endif 
 
 #ifndef CXXBRIDGE1_RUST_STR
 #define CXXBRIDGE1_RUST_STR
-// https://cxx.rs/binding/str.html
+
 class Str final {
 public:
   Str() noexcept;
@@ -117,13 +113,11 @@ public:
 
   explicit operator std::string() const;
 
-  // Note: no null terminator.
   const char *data() const noexcept;
   std::size_t size() const noexcept;
   std::size_t length() const noexcept;
   bool empty() const noexcept;
 
-  // Important in order for System V ABI to pass in registers.
   Str(const Str &) noexcept = default;
   ~Str() noexcept = default;
 
@@ -150,7 +144,7 @@ private:
 
   std::array<std::uintptr_t, 2> repr;
 };
-#endif // CXXBRIDGE1_RUST_STR
+#endif 
 
 #ifndef CXXBRIDGE1_RUST_SLICE
 namespace detail {
@@ -164,9 +158,8 @@ struct copy_assignable_if<false> {
   copy_assignable_if &operator=(const copy_assignable_if &) &noexcept = delete;
   copy_assignable_if &operator=(copy_assignable_if &&) &noexcept = default;
 };
-} // namespace detail
+} 
 
-// https://cxx.rs/binding/slice.html
 template <typename T>
 class Slice final
     : private detail::copy_assignable_if<std::is_const<T>::value> {
@@ -189,7 +182,6 @@ public:
   T &front() const noexcept;
   T &back() const noexcept;
 
-  // Important in order for System V ABI to pass in registers.
   Slice(const Slice<T> &) noexcept = default;
   ~Slice() noexcept = default;
 
@@ -246,10 +238,10 @@ private:
   void *pos;
   std::size_t stride;
 };
-#endif // CXXBRIDGE1_RUST_SLICE
+#endif 
 
 #ifndef CXXBRIDGE1_RUST_BOX
-// https://cxx.rs/binding/box.html
+
 template <typename T>
 class Box final {
 public:
@@ -277,13 +269,11 @@ public:
 
   void swap(Box &) noexcept;
 
-  // Important: requires that `raw` came from an into_raw call. Do not pass a
-  // pointer from `new` or any other source.
   static Box from_raw(T *) noexcept;
 
   T *into_raw() noexcept;
 
-  /* Deprecated */ using value_type = element_type;
+  using value_type = element_type;
 
 private:
   class uninit;
@@ -295,10 +285,10 @@ private:
 
   T *ptr;
 };
-#endif // CXXBRIDGE1_RUST_BOX
+#endif 
 
 #ifndef CXXBRIDGE1_RUST_VEC
-// https://cxx.rs/binding/vec.html
+
 template <typename T>
 class Vec final {
 public:
@@ -349,7 +339,6 @@ public:
 
   void swap(Vec &) noexcept;
 
-  // Internal API only intended for the cxxbridge code generator.
   Vec(unsafe_bitcopy_t, const Vec &) noexcept;
 
 private:
@@ -359,13 +348,12 @@ private:
 
   friend void swap(Vec &lhs, Vec &rhs) noexcept { lhs.swap(rhs); }
 
-  // Size and alignment statically verified by rust_vec.rs.
   std::array<std::uintptr_t, 3> repr;
 };
-#endif // CXXBRIDGE1_RUST_VEC
+#endif 
 
 #ifndef CXXBRIDGE1_RUST_FN
-// https://cxx.rs/binding/fn.html
+
 template <typename Signature>
 class Fn;
 
@@ -379,11 +367,11 @@ private:
   Ret (*trampoline)(Args..., void *fn) noexcept;
   void *fn;
 };
-#endif // CXXBRIDGE1_RUST_FN
+#endif 
 
 #ifndef CXXBRIDGE1_RUST_ERROR
 #define CXXBRIDGE1_RUST_ERROR
-// https://cxx.rs/binding/result.html
+
 class Error final : public std::exception {
 public:
   Error(const Error &);
@@ -401,7 +389,7 @@ private:
   const char *msg;
   std::size_t len;
 };
-#endif // CXXBRIDGE1_RUST_ERROR
+#endif 
 
 #ifndef CXXBRIDGE1_RUST_ISIZE
 #define CXXBRIDGE1_RUST_ISIZE
@@ -410,45 +398,27 @@ using isize = SSIZE_T;
 #else
 using isize = ssize_t;
 #endif
-#endif // CXXBRIDGE1_RUST_ISIZE
+#endif 
 
 std::ostream &operator<<(std::ostream &, const String &);
 std::ostream &operator<<(std::ostream &, const Str &);
 
 #ifndef CXXBRIDGE1_RUST_OPAQUE
 #define CXXBRIDGE1_RUST_OPAQUE
-// Base class of generated opaque Rust types.
+
 class Opaque {
 public:
   Opaque() = delete;
   Opaque(const Opaque &) = delete;
   ~Opaque() = delete;
 };
-#endif // CXXBRIDGE1_RUST_OPAQUE
+#endif 
 
 template <typename T>
 std::size_t size_of();
 template <typename T>
 std::size_t align_of();
 
-// IsRelocatable<T> is used in assertions that a C++ type passed by value
-// between Rust and C++ is soundly relocatable by Rust.
-//
-// There may be legitimate reasons to opt out of the check for support of types
-// that the programmer knows are soundly Rust-movable despite not being
-// recognized as such by the C++ type system due to a move constructor or
-// destructor. To opt out of the relocatability check, do either of the
-// following things in any header used by `include!` in the bridge.
-//
-//      --- if you define the type:
-//      struct MyType {
-//        ...
-//    +   using IsRelocatable = std::true_type;
-//      };
-//
-//      --- otherwise:
-//    + template <>
-//    + struct rust::IsRelocatable<MyType> : std::true_type {};
 template <typename T>
 struct IsRelocatable;
 
@@ -456,7 +426,7 @@ using u8 = std::uint8_t;
 using u16 = std::uint16_t;
 using u32 = std::uint32_t;
 using u64 = std::uint64_t;
-using usize = std::size_t; // see static asserts in cxx.cc
+using usize = std::size_t; 
 using i8 = std::int8_t;
 using i16 = std::int16_t;
 using i32 = std::int32_t;
@@ -464,7 +434,6 @@ using i64 = std::int64_t;
 using f32 = float;
 using f64 = double;
 
-// Snake case aliases for use in code that uses this style for type names.
 using string = String;
 using str = Str;
 template <typename T>
@@ -479,16 +448,11 @@ using fn = Fn<Signature>;
 template <typename T>
 using is_relocatable = IsRelocatable<T>;
 
-
-
-////////////////////////////////////////////////////////////////////////////////
-/// end public API, begin implementation details
-
 #ifndef CXXBRIDGE1_PANIC
 #define CXXBRIDGE1_PANIC
 template <typename Exception>
 void panic [[noreturn]] (const char *msg);
-#endif // CXXBRIDGE1_PANIC
+#endif 
 
 #ifndef CXXBRIDGE1_RUST_FN
 #define CXXBRIDGE1_RUST_FN
@@ -501,19 +465,19 @@ template <typename Ret, typename... Args>
 Fn<Ret(Args...)> Fn<Ret(Args...)>::operator*() const noexcept {
   return *this;
 }
-#endif // CXXBRIDGE1_RUST_FN
+#endif 
 
 #ifndef CXXBRIDGE1_RUST_BITCOPY_T
 #define CXXBRIDGE1_RUST_BITCOPY_T
 struct unsafe_bitcopy_t final {
   explicit unsafe_bitcopy_t() = default;
 };
-#endif // CXXBRIDGE1_RUST_BITCOPY_T
+#endif 
 
 #ifndef CXXBRIDGE1_RUST_BITCOPY
 #define CXXBRIDGE1_RUST_BITCOPY
 constexpr unsafe_bitcopy_t unsafe_bitcopy{};
-#endif // CXXBRIDGE1_RUST_BITCOPY
+#endif 
 
 #ifndef CXXBRIDGE1_RUST_SLICE
 #define CXXBRIDGE1_RUST_SLICE
@@ -712,7 +676,7 @@ template <typename T>
 void Slice<T>::swap(Slice &rhs) noexcept {
   std::swap(*this, rhs);
 }
-#endif // CXXBRIDGE1_RUST_SLICE
+#endif 
 
 #ifndef CXXBRIDGE1_RUST_BOX
 #define CXXBRIDGE1_RUST_BOX
@@ -824,7 +788,7 @@ T *Box<T>::into_raw() noexcept {
 
 template <typename T>
 Box<T>::Box(uninit) noexcept {}
-#endif // CXXBRIDGE1_RUST_BOX
+#endif 
 
 #ifndef CXXBRIDGE1_RUST_VEC
 #define CXXBRIDGE1_RUST_VEC
@@ -998,10 +962,9 @@ void Vec<T>::swap(Vec &rhs) noexcept {
   swap(this->repr, rhs.repr);
 }
 
-// Internal API only intended for the cxxbridge code generator.
 template <typename T>
 Vec<T>::Vec(unsafe_bitcopy_t, const Vec &bits) noexcept : repr(bits.repr) {}
-#endif // CXXBRIDGE1_RUST_VEC
+#endif 
 
 #ifndef CXXBRIDGE1_IS_COMPLETE
 #define CXXBRIDGE1_IS_COMPLETE
@@ -1011,9 +974,9 @@ template <typename T, typename = std::size_t>
 struct is_complete : std::false_type {};
 template <typename T>
 struct is_complete<T, decltype(sizeof(T))> : std::true_type {};
-} // namespace
-} // namespace detail
-#endif // CXXBRIDGE1_IS_COMPLETE
+} 
+} 
+#endif 
 
 #ifndef CXXBRIDGE1_LAYOUT
 #define CXXBRIDGE1_LAYOUT
@@ -1069,7 +1032,7 @@ template <typename T>
 std::size_t align_of() {
   return layout::align_of<T>();
 }
-#endif // CXXBRIDGE1_LAYOUT
+#endif 
 
 #ifndef CXXBRIDGE1_RELOCATABLE
 #define CXXBRIDGE1_RELOCATABLE
@@ -1096,7 +1059,7 @@ using detect_IsRelocatable = typename T::IsRelocatable;
 template <typename T>
 struct get_IsRelocatable
     : std::is_same<typename T::IsRelocatable, std::true_type> {};
-} // namespace detail
+} 
 
 template <typename T>
 struct IsRelocatable
@@ -1106,7 +1069,6 @@ struct IsRelocatable
           std::integral_constant<
               bool, std::is_trivially_move_constructible<T>::value &&
                         std::is_trivially_destructible<T>::value>>::type {};
-#endif // CXXBRIDGE1_RELOCATABLE
+#endif 
 
-} // namespace cxxbridge1
-} // namespace rust
+}} 

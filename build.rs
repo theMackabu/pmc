@@ -1,7 +1,10 @@
 fn main() {
-    cxx_build::bridge("src/main.rs").file("src/cmd.cc").flag_if_supported("-std=c++14").compile("cmd");
+    cxx_build::bridge("src/main.rs")
+        .file("src/cc/bridge.cc")
+        .file("src/cc/process.cc")
+        .flag_if_supported("-std=c++14")
+        .compile("bridge");
 
-    println!("cargo:rerun-if-changed=src/main.rs");
-    println!("cargo:rerun-if-changed=src/cmd.cc");
-    println!("cargo:rerun-if-changed=src/include/cmd.h");
+    let watched = vec!["main.rs", "cc/bridge.cc", "cc/process.cc", "include/process.h"];
+    watched.iter().for_each(|file| println!("cargo:rerun-if-changed=src/{}", file));
 }
