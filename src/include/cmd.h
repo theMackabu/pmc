@@ -26,5 +26,6 @@ namespace cmd {
 }
 
 uint64_t run_command(Str name, Str log_path, Str command);
+uint64_t kill_pid(uint64_t pid);
 
 #endif

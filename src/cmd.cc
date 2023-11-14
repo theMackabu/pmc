@@ -1,6 +1,8 @@
 #include "include/cmd.h"
 #include <fcntl.h>
 #include <unistd.h>
+#include <stdio.h>
+#include <signal.h>
 
 namespace cmd {
 void Runner::New(const std::string &name, const std::string &logPath) {
@@ -55,4 +57,8 @@ uint64_t run_command(Str name, Str log_path, Str command) {
   cmd::Runner runner;
   runner.New(std::string(name), std::string(log_path));
   return runner.Run(std::string(command));
+}
+
+uint64_t kill_pid(uint64_t pid) {
+  return kill(pid, SIGTERM);
 }
