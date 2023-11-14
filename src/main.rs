@@ -17,12 +17,13 @@ pub mod service {
 }
 
 fn main() {
-    // save in .pmc/dump.toml
+    // save in ~/.pmc/dump.toml
+    // logs in ~/.pmc/logs
     // use global placeholders for home crate
     // use psutil for memory and cpu usage (in PAW)
     // create log dir if not exist
     // use clap cli and rataui for ui
-    //    (pmc ls, pmc list, pmc ls --json, pmc list --json)
+    //    (pmc ls, pmc list, pmc ls --type=json, pmc list --type=json)
     //    [use clap command alias]
 
     let mut runner = Runner::new("tests/logs");

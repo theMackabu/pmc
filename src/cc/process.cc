@@ -26,7 +26,7 @@ int64_t Runner::Run(const std::string &command) {
   pid_t pid = fork();
 
   if (pid == -1) {
-    std::cerr << "Error: Unable to fork.\n";
+    std::cerr << "[cc] error: unable to fork!\n";
     return -1;
   } else if (pid == 0) {
     setsid();
@@ -39,7 +39,7 @@ int64_t Runner::Run(const std::string &command) {
     dup2(stderr_fd, STDERR_FILENO);
 
     if (execl("/bin/bash", "bash", "-c", command.c_str(), (char *)nullptr) == -1) {
-      std::cerr << "Error: Unable to execute the command.\n";
+      std::cerr << "[cc] error: unable to execute the command!\n";
       exit(EXIT_FAILURE);
     }
   } else {
