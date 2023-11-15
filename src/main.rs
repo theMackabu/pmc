@@ -53,8 +53,8 @@ fn main() {
 
     match &cli.command {
         Commands::Start { name, args } => cli::start(name, args),
-        Commands::Stop { id } => println!("{id}"),
-        Commands::List { format } => println!("{format}"),
+        Commands::Stop { id } => cli::stop(id),
+        Commands::List { format } => cli::list(),
     }
 
     // save in ~/.pmc/dump.toml
