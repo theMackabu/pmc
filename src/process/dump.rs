@@ -41,8 +41,6 @@ pub fn write(dump: &Runner) {
         log::info!("created pmc base dir");
     }
 
-    println!("{:?}", dump);
-
     let contents = match toml::to_string(dump) {
         Ok(contents) => contents,
         Err(err) => crashln!("Cannot parse dump.\n{}", string!(err).white()),

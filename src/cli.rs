@@ -21,7 +21,7 @@ pub fn start(name: &Option<String>, args: &Option<Args>) {
     };
 
     match args {
-        Some(Args::Id(id)) => println!("{}", id),
+        Some(Args::Id(id)) => runner.restart(*id),
         Some(Args::Script(script)) => runner.start(name, script),
         None => {}
     }

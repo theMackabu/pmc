@@ -11,6 +11,7 @@ use std::collections::BTreeMap;
 pub struct Process {
     pub pid: i64,
     pub name: String,
+    pub script: String,
     pub running: bool,
 }
 
@@ -37,7 +38,15 @@ impl Runner {
 
     pub fn start(&mut self, name: String, command: &String) {
         let pid = run(&name, &self.log_path, &command);
-        self.process_list.insert(string!(self.id.next()), Process { pid, name, running: true });
+        self.process_list.insert(
+            string!(self.id.next()),
+            Process {
+                pid,
+                name,
+                script: string!(command),
+                running: true,
+            },
+        );
         dump::write(&self);
     }
 
@@ -52,6 +61,21 @@ impl Runner {
             dump::write(&self);
         } else {
             crashln!("Process with {id} does not exist");
+        }
+    }
+
+    pub fn restart(&mut self, id: usize) {
+        if let Some(item) = self.info(id) {
+            let name = item.name.clone();
+            let script = item.script.clone();
+
+            self.stop(id);
+            let pid = run(&name, &self.log_path, &script);
+
+            self.process_list.insert(string!(id), Process { pid, name, script, running: true });
+            dump::write(&self);
+        } else {
+            crashln!("Failed to restart process with id {}", id);
         }
     }
 
