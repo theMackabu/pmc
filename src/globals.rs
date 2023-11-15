@@ -4,7 +4,7 @@ use macros_rs::crashln;
 pub fn init() {
     match home::home_dir() {
         Some(path) => {
-            let logs = format!("{}/.pmc/logs/{{}}", path.display());
+            let logs = format!("{}/.pmc/logs/", path.display());
             let dump = format!("{}/.pmc/dump.toml", path.display());
 
             init!("pmc.logs", logs);
