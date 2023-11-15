@@ -2,12 +2,20 @@ mod cli;
 mod globals;
 mod helpers;
 mod process;
+mod structs;
 
-use crate::process::Runner;
+use crate::structs::Args;
 use clap::{Parser, Subcommand};
 use clap_verbosity_flag::Verbosity;
-use macros_rs::{str, string, ternary};
-use std::{thread, time::Duration};
+use macros_rs::{str, string};
+
+fn validate_id_script(s: &str) -> Result<Args, String> {
+    if let Ok(id) = s.parse::<usize>() {
+        Ok(Args::Id(id))
+    } else {
+        Ok(Args::Script(s.to_owned()))
+    }
+}
 
 #[derive(Parser)]
 #[command(version = str!(cli::get_version(false)))]
@@ -20,12 +28,17 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    #[command(alias = "restart")]
     Start {
-        id: usize,
+        #[arg(long, help = "process name")]
+        name: Option<String>,
+        #[clap(value_parser = validate_id_script)]
+        args: Option<Args>,
     },
     Stop {
         id: usize,
     },
+    #[command(alias = "ls")]
     List {
         #[arg(long, default_value_t = string!("default"), help = "format output")]
         format: String,
@@ -39,7 +52,7 @@ fn main() {
     env_logger::Builder::new().filter_level(cli.verbose.log_level_filter()).init();
 
     match &cli.command {
-        Commands::Start { id } => println!("{id}"),
+        Commands::Start { name, args } => cli::start(name, args),
         Commands::Stop { id } => println!("{id}"),
         Commands::List { format } => println!("{format}"),
     }
@@ -52,22 +65,6 @@ fn main() {
     // use clap cli and rataui for ui
     //    (pmc ls, pmc list, pmc ls --format=json, pmc list --format=json)
     //    [use clap command alias]
-
-    let mut runner = Runner::new("tests/logs");
-
-    runner.start("example", "node tests/index.js");
-    println!("{:?}", runner.info(0));
-
-    thread::sleep(Duration::from_millis(1000));
-
-    runner.stop(0);
-    println!("{:?}", runner.info(0));
-
-    // runner.list().iter().for_each(|(id, item)| println!("id: {}\nname: {}", id, item.name));
-
-    for (id, item) in runner.list() {
-        println!("id: {id}\nname: {}\npid: {}\nstatus: {}", item.name, item.pid, ternary!(item.running, "online", "offline"));
-    }
 }
 
 #[cxx::bridge]
