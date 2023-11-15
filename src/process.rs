@@ -1,4 +1,4 @@
-use crate::id::AutoIncrement;
+use crate::helpers::Id;
 use crate::service::{run, stop};
 use macros_rs::crashln;
 use std::collections::HashMap;
@@ -11,7 +11,7 @@ pub struct Process<'a> {
 }
 
 pub struct Runner<'a> {
-    id: AutoIncrement,
+    id: Id,
     log_path: &'a str,
     process_list: HashMap<usize, Process<'a>>,
 }
@@ -21,7 +21,7 @@ impl<'a> Runner<'a> {
         Runner {
             log_path: path,
             // start at highest id in dump
-            id: AutoIncrement::new(0),
+            id: Id::new(0),
             process_list: HashMap::new(),
         }
     }
