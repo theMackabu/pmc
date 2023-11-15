@@ -25,14 +25,16 @@ pub fn start(name: &Option<String>, args: &Option<Args>) {
         Some(Args::Script(script)) => runner.start(name, script),
         None => {}
     }
+}
 
-    println!("{:?}", runner.info(0));
+pub fn stop(id: &usize) {
+    let mut runner = Runner::new(global!("pmc.logs"));
+    runner.stop(*id);
+    println!("Stopped process");
+}
 
-    runner.stop(0);
-    println!("{:?}", runner.info(0));
-
-    // runner.list().iter().for_each(|(id, item)| println!("id: {}\nname: {}", id, item.name));
-
+pub fn list() {
+    let runner = Runner::new(global!("pmc.logs"));
     for (id, item) in runner.list() {
         println!("id: {id}\nname: {}\npid: {}\nstatus: {}", item.name, item.pid, item.running);
     }

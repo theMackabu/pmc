@@ -1,8 +1,10 @@
 use anyhow::Error;
 use macros_rs::str;
+use serde_derive::{Deserialize, Serialize};
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Id {
     pub counter: AtomicUsize,
 }
