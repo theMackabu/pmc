@@ -79,6 +79,12 @@ impl Runner {
         }
     }
 
+    pub fn remove(&mut self, id: usize) {
+        self.stop(id);
+        self.process_list.remove(&string!(id));
+        dump::write(&self);
+    }
+
     pub fn info(&self, id: usize) -> Option<&Process> { self.process_list.get(&string!(id)) }
     pub fn list(&self) -> &BTreeMap<String, Process> { &self.process_list }
 }

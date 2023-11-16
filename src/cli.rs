@@ -33,9 +33,23 @@ pub fn stop(id: &usize) {
     println!("Stopped process");
 }
 
-pub fn list() {
+pub fn remove(id: &usize) {
+    let mut runner = Runner::new(global!("pmc.logs"));
+    runner.remove(*id);
+    println!("Removed process");
+}
+
+pub fn list(format: &String) {
     let runner = Runner::new(global!("pmc.logs"));
-    for (id, item) in runner.list() {
-        println!("id: {id}\nname: {}\npid: {}\nstatus: {}", item.name, item.pid, item.running);
-    }
+
+    match format.as_str() {
+        "raw" => println!("{:?}", runner.list()),
+        "toml" => println!("{}", toml::to_string(runner.list()).unwrap()),
+        "json" => println!("{}", serde_json::to_string(runner.list()).unwrap()),
+        _ => {
+            for (id, item) in runner.list() {
+                println!("id: {id}\nname: {}\npid: {}\nstatus: {}", item.name, item.pid, item.running);
+            }
+        }
+    };
 }

@@ -35,12 +35,13 @@ enum Commands {
         #[clap(value_parser = validate_id_script)]
         args: Option<Args>,
     },
-    Stop {
-        id: usize,
-    },
+    #[command(alias = "kill")]
+    Stop { id: usize },
+    #[command(alias = "rm")]
+    Remove { id: usize },
     #[command(alias = "ls")]
     List {
-        #[arg(long, default_value_t = string!("default"), help = "format output")]
+        #[arg(long, default_value_t = string!(""), help = "format output")]
         format: String,
     },
 }
@@ -54,7 +55,8 @@ fn main() {
     match &cli.command {
         Commands::Start { name, args } => cli::start(name, args),
         Commands::Stop { id } => cli::stop(id),
-        Commands::List { format } => cli::list(),
+        Commands::Remove { id } => cli::remove(id),
+        Commands::List { format } => cli::list(format),
     }
 
     // save in ~/.pmc/dump.toml
