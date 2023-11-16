@@ -49,6 +49,7 @@ enum Commands {
     #[command(alias = "rm")]
     Remove { id: usize },
     #[command(alias = "info")]
+    // pmc restore command
     Details { id: usize },
     #[command(alias = "ls")]
     List {
@@ -72,7 +73,7 @@ fn main() {
 
     if !Exists::folder(global!("pmc.logs")).unwrap() {
         std::fs::create_dir_all(global!("pmc.logs")).unwrap();
-        log::info!("created pmc log dir");
+        log::info!("created PMC log directory");
     }
 
     match &cli.command {

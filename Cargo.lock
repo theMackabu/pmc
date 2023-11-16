@@ -650,6 +650,7 @@ dependencies = [
  "home",
  "log",
  "macros-rs",
+ "once_cell",
  "pretty_env_logger",
  "psutil",
  "regex",
