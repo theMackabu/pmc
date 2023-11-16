@@ -1,8 +1,10 @@
+use crate::helpers;
 use crate::process::Runner;
 use crate::structs::Args;
 
 use global_placeholders::global;
 use macros_rs::string;
+use psutil::process::{MemoryInfo, Process};
 use std::env;
 
 pub fn get_version(short: bool) -> String {
@@ -48,7 +50,13 @@ pub fn list(format: &String) {
         "json" => println!("{}", serde_json::to_string(runner.list()).unwrap()),
         _ => {
             for (id, item) in runner.list() {
-                println!("id: {id}\nname: {}\npid: {}\nstatus: {}", item.name, item.pid, item.running);
+                println!(
+                    "id: {id}\nname: {}\npid: {}\nstatus: {}\nuptime: {}",
+                    item.name,
+                    item.pid,
+                    item.running,
+                    helpers::format_duration(item.started)
+                );
             }
         }
     };

@@ -3,6 +3,8 @@ mod dump;
 use crate::helpers::Id;
 use crate::service::{run, stop};
 
+use chrono::serde::ts_milliseconds;
+use chrono::{DateTime, Utc};
 use macros_rs::{crashln, string};
 use serde_derive::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -12,6 +14,8 @@ pub struct Process {
     pub pid: i64,
     pub name: String,
     pub script: String,
+    #[serde(with = "ts_milliseconds")]
+    pub started: DateTime<Utc>,
     pub running: bool,
 }
 
@@ -43,6 +47,7 @@ impl Runner {
             Process {
                 pid,
                 name,
+                started: Utc::now(),
                 script: string!(command),
                 running: true,
             },
@@ -72,7 +77,16 @@ impl Runner {
             self.stop(id);
             let pid = run(&name, &self.log_path, &script);
 
-            self.process_list.insert(string!(id), Process { pid, name, script, running: true });
+            self.process_list.insert(
+                string!(id),
+                Process {
+                    pid,
+                    name,
+                    script,
+                    started: Utc::now(),
+                    running: true,
+                },
+            );
             dump::write(&self);
         } else {
             crashln!("Failed to restart process with id {}", id);
