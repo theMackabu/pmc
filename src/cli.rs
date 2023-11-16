@@ -7,15 +7,16 @@ use colored::Colorize;
 use global_placeholders::global;
 use macros_rs::{crashln, string, ternary};
 use psutil::process::{MemoryInfo, Process};
+use serde::Serialize;
 use serde_json::json;
 use std::env;
 
 use tabled::{
     settings::{
-        object::Rows,
+        object::{Columns, Rows},
         style::{BorderColor, Style},
         themes::Colorization,
-        Color,
+        Color, Rotate,
     },
     Table, Tabled,
 };
@@ -73,7 +74,83 @@ pub fn remove(id: &usize) {
 
 pub fn info(id: &usize) {
     let runner = Runner::new();
-    println!("{:?}", runner.info(*id));
+
+    #[derive(Tabled, Serialize)]
+    struct Info {
+        #[tabled(rename = "error log path ")]
+        log_error: String,
+        #[tabled(rename = "out log path")]
+        log_out: String,
+        #[tabled(rename = "cpu percent")]
+        cpu_percent: String,
+        #[tabled(rename = "memory usage")]
+        memory_usage: String,
+        #[tabled(rename = "script command ")]
+        command: String,
+        #[tabled(rename = "exec cwd")]
+        path: String,
+        #[tabled(rename = "script id")]
+        id: String,
+        uptime: String,
+        pid: String,
+        name: String,
+        status: ColoredString,
+    }
+
+    if let Some(home) = home::home_dir() {
+        if let Some(item) = runner.info(*id) {
+            let mut memory_usage: Option<MemoryInfo> = None;
+            let mut cpu_percent: Option<f32> = None;
+
+            if let Ok(mut process) = Process::new(item.pid as u32) {
+                memory_usage = process.memory_info().ok();
+                cpu_percent = process.cpu_percent().ok();
+            }
+
+            let cpu_percent = match cpu_percent {
+                Some(percent) => format!("{:.2}%", percent),
+                None => string!("0%"),
+            };
+
+            let memory_usage = match memory_usage {
+                Some(usage) => helpers::format_memory(usage.rss()),
+                None => string!("0b"),
+            };
+
+            let path = file::make_relative(&item.path, &home)
+                .map(|relative_path| relative_path.to_string_lossy().into_owned())
+                .unwrap_or_else(|| crashln!("{} Unable to get your current directory", *helpers::FAIL));
+
+            let data = vec![Info {
+                cpu_percent,
+                memory_usage,
+                id: string!(id),
+                name: item.name.clone(),
+                command: format!("/bin/bash -c '{}'", item.script.clone()),
+                path: format!("{} ", path),
+                log_out: global!("pmc.logs.out", item.name.as_str()),
+                log_error: global!("pmc.logs.error", item.name.as_str()),
+                pid: ternary!(item.running, format!("{}", item.pid), string!("n/a")),
+                status: ColoredString(ternary!(item.running, "online".green().bold(), "stopped".red().bold())),
+                uptime: ternary!(item.running, format!("{}", helpers::format_duration(item.started)), string!("none")),
+            }];
+
+            let table = Table::new(data)
+                .with(Rotate::Left)
+                .with(Style::rounded().remove_horizontals())
+                .with(Colorization::exact([Color::FG_CYAN], Columns::first()))
+                .with(BorderColor::filled(Color::FG_BRIGHT_BLACK))
+                .to_string();
+
+            println!("{}\n{table}\n", format!("Describing process with id ({id})").on_bright_white().black());
+            println!(" {}", format!("Use `pmc logs {id} [--lines <num>]` to display logs").white());
+            println!(" {}", format!("Use `pmc env {id}`  to display environment variables").white());
+        } else {
+            crashln!("{} Process ({id}) not found", *helpers::FAIL);
+        }
+    } else {
+        crashln!("{} Impossible to get your home directory", *helpers::FAIL);
+    }
 }
 
 pub fn logs(id: &usize, lines: &usize) {
@@ -87,6 +164,19 @@ pub fn logs(id: &usize, lines: &usize) {
 
         file::logs(*lines, &log_error, *id, "error", &item.name);
         file::logs(*lines, &log_out, *id, "out", &item.name);
+    } else {
+        crashln!("{} Process ({id}) not found", *helpers::FAIL);
+    }
+}
+
+#[cfg(target_os = "macos")]
+pub fn env(id: &usize) {
+    let runner = Runner::new();
+
+    if let Some(item) = runner.info(*id) {
+        for (key, value) in item.env.iter() {
+            println!("{}: {}", key, value.green());
+        }
     } else {
         crashln!("{} Process ({id}) not found", *helpers::FAIL);
     }
@@ -135,7 +225,7 @@ pub fn list(format: &String) {
             }
 
             let cpu_percent = match cpu_percent {
-                Some(percent) => format!("{:.1}%", percent),
+                Some(percent) => format!("{:.0}%", percent),
                 None => string!("0%"),
             };
 
@@ -155,17 +245,17 @@ pub fn list(format: &String) {
             });
         }
 
-        let mut table = Table::new(&processes);
-        table
+        let table = Table::new(&processes)
             .with(Style::rounded().remove_verticals())
             .with(BorderColor::filled(Color::FG_BRIGHT_BLACK))
-            .with(Colorization::exact([Color::FG_BRIGHT_CYAN], Rows::first()));
+            .with(Colorization::exact([Color::FG_BRIGHT_CYAN], Rows::first()))
+            .to_string();
 
         if let Ok(json) = serde_json::to_string(&processes) {
             match format.as_str() {
                 "raw" => println!("{:?}", processes),
                 "json" => println!("{json}"),
-                _ => println!("{}", table.to_string()),
+                _ => println!("{table}"),
             };
         };
     }

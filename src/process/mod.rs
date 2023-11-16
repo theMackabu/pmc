@@ -8,7 +8,8 @@ use chrono::serde::ts_milliseconds;
 use chrono::{DateTime, Utc};
 use macros_rs::{crashln, string};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
+use std::env;
 use std::path::PathBuf;
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -17,6 +18,7 @@ pub struct Process {
     pub name: String,
     pub path: PathBuf,
     pub script: String,
+    pub env: HashMap<String, String>,
     #[serde(with = "ts_milliseconds")]
     pub started: DateTime<Utc>,
     pub running: bool,
@@ -50,6 +52,7 @@ impl Runner {
             Process {
                 pid,
                 name,
+                env: env::vars().collect(),
                 path: file::cwd(),
                 started: Utc::now(),
                 script: string!(command),
@@ -73,6 +76,8 @@ impl Runner {
         if let Some(item) = self.info(id) {
             let script = item.script.clone();
             let path = item.path.clone();
+            let env = item.env.clone();
+
             let name = match name {
                 Some(name) => string!(name.trim()),
                 None => string!(item.name.clone()),
@@ -91,6 +96,7 @@ impl Runner {
                     pid,
                     name,
                     path,
+                    env,
                     script,
                     started: Utc::now(),
                     running: true,

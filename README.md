@@ -36,7 +36,7 @@ For more commands, check out `pmc --help`
 
 ### Installation
 
-Pre-built binaries for Linux, MacOS, and Windows can be found on the [releases](releases) page.
+Pre-built binaries for Linux, MacOS, and WSL can be found on the [releases](releases) page. There is no windows support yet.
 Install from crates.io using `cargo install pmc`
 
 #### Building

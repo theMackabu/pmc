@@ -7,7 +7,7 @@ use std::{
     env,
     fs::File,
     io::{self, BufRead, BufReader},
-    path::{Path, PathBuf},
+    path::{Path, PathBuf, StripPrefixError},
 };
 
 pub fn logs(lines_to_tail: usize, log_file: &str, id: usize, log_type: &str, item_name: &str) {
@@ -28,6 +28,13 @@ pub fn cwd() -> PathBuf {
     match env::current_dir() {
         Ok(path) => path,
         Err(_) => crashln!("{} Unable to find current working directory", *helpers::FAIL),
+    }
+}
+
+pub fn make_relative(current: &Path, home: &Path) -> Option<std::path::PathBuf> {
+    match current.strip_prefix(home) {
+        Ok(relative_path) => Some(Path::new("~").join(relative_path)),
+        Err(StripPrefixError { .. }) => None,
     }
 }
 
