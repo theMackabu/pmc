@@ -50,12 +50,22 @@ pub fn list(format: &String) {
         "json" => println!("{}", serde_json::to_string(runner.list()).unwrap()),
         _ => {
             for (id, item) in runner.list() {
+                let mut memory_usage: Option<MemoryInfo> = None;
+                let mut cpu_percent: Option<f32> = None;
+
+                if let Ok(mut process) = Process::new(item.pid as u32) {
+                    memory_usage = process.memory_info().ok();
+                    cpu_percent = process.cpu_percent().ok();
+                }
+
                 println!(
-                    "id: {id}\nname: {}\npid: {}\nstatus: {}\nuptime: {}",
+                    "id: {id}, name: {}, pid: {}, status: {}, uptime: {}, memory: {:?}, cpu: {:?}",
                     item.name,
                     item.pid,
                     item.running,
-                    helpers::format_duration(item.started)
+                    helpers::format_duration(item.started),
+                    memory_usage,
+                    cpu_percent
                 );
             }
         }
