@@ -1,5 +1,6 @@
 mod dump;
 
+use crate::file;
 use crate::helpers::{self, Id};
 use crate::service::{run, stop};
 
@@ -8,11 +9,13 @@ use chrono::{DateTime, Utc};
 use macros_rs::{crashln, string};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+use std::path::PathBuf;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Process {
     pub pid: i64,
     pub name: String,
+    pub path: PathBuf,
     pub script: String,
     #[serde(with = "ts_milliseconds")]
     pub started: DateTime<Utc>,
@@ -47,6 +50,7 @@ impl Runner {
             Process {
                 pid,
                 name,
+                path: file::cwd(),
                 started: Utc::now(),
                 script: string!(command),
                 running: true,
@@ -68,9 +72,14 @@ impl Runner {
     pub fn restart(&mut self, id: usize, name: &Option<String>) {
         if let Some(item) = self.info(id) {
             let script = item.script.clone();
+            let path = item.path.clone();
             let name = match name {
                 Some(name) => string!(name.trim()),
                 None => string!(item.name.clone()),
+            };
+
+            if let Err(err) = std::env::set_current_dir(&path) {
+                crashln!("{} Failed to set working directory {:?}\nError: {:#?}", *helpers::FAIL, path, err);
             };
 
             self.stop(id);
@@ -81,6 +90,7 @@ impl Runner {
                 Process {
                     pid,
                     name,
+                    path,
                     script,
                     started: Utc::now(),
                     running: true,
