@@ -6,7 +6,7 @@ use crate::service::{run, stop};
 use chrono::serde::ts_milliseconds;
 use chrono::{DateTime, Utc};
 use macros_rs::{crashln, string};
-use serde_derive::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 #[derive(Debug, Deserialize, Serialize)]
