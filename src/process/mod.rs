@@ -27,12 +27,12 @@ pub struct Runner {
 }
 
 impl Runner {
-    pub fn new(path: String) -> Self {
+    pub fn new() -> Self {
         let dump = dump::read();
 
         let runner = Runner {
-            log_path: path,
             id: dump.id,
+            log_path: dump.log_path,
             process_list: dump.process_list,
         };
 
@@ -65,10 +65,13 @@ impl Runner {
         }
     }
 
-    pub fn restart(&mut self, id: usize) {
+    pub fn restart(&mut self, id: usize, name: &Option<String>) {
         if let Some(item) = self.info(id) {
-            let name = item.name.clone();
             let script = item.script.clone();
+            let name = match name {
+                Some(name) => string!(name.trim()),
+                None => string!(item.name.clone()),
+            };
 
             self.stop(id);
             let pid = run(&name, &self.log_path, &script);

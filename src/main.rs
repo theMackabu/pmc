@@ -1,10 +1,11 @@
 mod cli;
+mod file;
 mod globals;
 mod helpers;
 mod process;
 mod structs;
 
-use crate::helpers::Exists;
+use crate::file::Exists;
 use crate::structs::Args;
 
 use clap::{Parser, Subcommand};
@@ -31,12 +32,20 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Daemon {
+    /// Start all processes
     StartAll,
+    /// Stop all processes
     StopAll,
+    /// Reset process index
+    ResetIndex,
+    /// Check daemon
+    Health,
 }
 
+// add pmc restore command
 #[derive(Subcommand)]
 enum Commands {
+    /// Start/Restart a process
     #[command(alias = "restart")]
     Start {
         #[arg(long, help = "process name")]
@@ -44,18 +53,34 @@ enum Commands {
         #[clap(value_parser = validate_id_script)]
         args: Option<Args>,
     },
+
+    /// Stop/Kill a process
     #[command(alias = "kill")]
     Stop { id: usize },
+
+    /// Stop then remove a process
     #[command(alias = "rm")]
     Remove { id: usize },
+
+    /// Get information of a process
     #[command(alias = "info")]
-    // pmc restore command
     Details { id: usize },
+
+    /// List all processes
     #[command(alias = "ls")]
     List {
         #[arg(long, default_value_t = string!(""), help = "format output")]
         format: String,
     },
+
+    /// Get logs from a process
+    Logs {
+        id: usize,
+        #[arg(long, default_value_t = 15, help = "")]
+        lines: usize,
+    },
+
+    /// Daemon management
     Daemon {
         #[command(subcommand)]
         command: Daemon,
@@ -82,9 +107,12 @@ fn main() {
         Commands::Remove { id } => cli::remove(id),
         Commands::Details { id } => cli::info(id),
         Commands::List { format } => cli::list(format),
+        Commands::Logs { id, lines } => cli::logs(id, lines),
         Commands::Daemon { command } => match command {
             Daemon::StartAll => {}
             Daemon::StopAll => {}
+            Daemon::ResetIndex => {}
+            Daemon::Health => {}
         },
     }
 }

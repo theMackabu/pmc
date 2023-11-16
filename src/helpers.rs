@@ -1,12 +1,9 @@
-use anyhow::Error;
 use chrono::{DateTime, Utc};
 use colored::Colorize;
 use core::fmt;
-use macros_rs::str;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 pub static SUCCESS: Lazy<colored::ColoredString> = Lazy::new(|| "[PMC]".green());
@@ -36,12 +33,6 @@ pub struct Id {
 impl Id {
     pub fn new(start: usize) -> Self { Id { counter: AtomicUsize::new(start) } }
     pub fn next(&self) -> usize { self.counter.fetch_add(1, Ordering::SeqCst) }
-}
-
-pub struct Exists;
-impl Exists {
-    pub fn folder(dir_name: String) -> Result<bool, Error> { Ok(Path::new(str!(dir_name)).is_dir()) }
-    pub fn file(file_name: String) -> Result<bool, Error> { Ok(Path::new(str!(file_name)).exists()) }
 }
 
 pub fn format_duration(datetime: DateTime<Utc>) -> String {

@@ -12,6 +12,10 @@ script = [
    "cp target/release/pmc bin/pmc"
 ]
 
+[tasks.build.cache]
+path = "src"
+target = ["bin/pmc"]
+
 [tasks.install]
 script = [
    "maid build -q", 
