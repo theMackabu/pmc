@@ -2,7 +2,7 @@
 
 ## Overview
 
-PMC (Process Management Controller) is a simple process management tool written in Rust. It provides a command-line interface to start, stop, restart, and manage processes. PMC is designed to be extensible, allowing users to define and manage their processes efficiently.
+PMC (Process Management Controller) is a simple PM2 alternative written in Rust. It provides a command-line interface to start, stop, restart, and manage fork processes
 
 ## Features
 
@@ -10,54 +10,41 @@ PMC (Process Management Controller) is a simple process management tool written 
 - List all running processes with customizable output formats.
 - Retrieve detailed information about a specific process.
 
-## Installation
-
-`cargo install pmc`
-
 ## Usage
 
-### Start/Restart a Process
-
 ```bash
+# Start/Restart a process
 pmc start <id> or <script> [--name <name>]
-```
 
-### Stop/Kill a Process
-
-```bash
+# Stop/Kill a process
 pmc stop <id>
-```
 
-### Remove a Process
-
-```bash
+# Remove a process
 pmc remove <id>
-```
 
-### Get Information of a Process
-
-```bash
+# Get process info
 pmc info <id>
-```
 
-### List All Processes
-
-```bash
+# List all processes
 pmc list [--format <raw|json|default>]
-```
 
-### Get Logs from a Process
-
-```bash
+# Get process logs
 pmc logs <id> [--lines <num_lines>]
 ```
 
-## Building from Source
+For more commands, check out `pmc --help`
 
-If you want to build PMC from source, make sure you have Rust and Cargo installed on your system. Clone the repository, navigate to the project directory, and use the following commands:
+### Installation
 
-```bash
-cargo build --release
-```
+Pre-built binaries for Linux, MacOS, and Windows can be found on the [releases](releases) page.
+Install from crates.io using `cargo install pmc`
 
-The compiled binary will be available in the `target/release` directory.
+#### Building
+
+- Clone the project
+- Open a terminal in the project folder
+- Check if you have cargo (Rust's package manager) installed, just type in `cargo`
+- If cargo is installed, run `cargo build --release`
+- Put the executable into one of your PATH entries
+  - Linux: usually /bin/ or /usr/bin/
+  - Windows: C:\Windows\System32 is good for it but don't use windows
