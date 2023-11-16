@@ -11,3 +11,10 @@ script = [
    "cargo zigbuild --release", 
    "cp target/release/pmc bin/pmc"
 ]
+
+[tasks.install]
+script = [
+   "maid build -q", 
+   "sudo cp bin/pmc /usr/local/bin",
+    "echo Copied binary!"
+]
