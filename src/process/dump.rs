@@ -1,4 +1,5 @@
-use crate::helpers::{self, Exists, Id};
+use crate::file::Exists;
+use crate::helpers::{self, Id};
 use crate::process::Runner;
 
 use colored::Colorize;
@@ -14,8 +15,8 @@ pub fn read() -> Runner {
 
     if !Exists::file(global!("pmc.dump")).unwrap() {
         let runner = Runner {
-            log_path: string!(""),
             id: Id::new(0),
+            log_path: global!("pmc.logs"),
             process_list: BTreeMap::new(),
         };
 

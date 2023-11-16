@@ -5,8 +5,8 @@
 
 namespace process {
 void Runner::New(const std::string &name, const std::string &logPath) {
-  std::string stdoutFileName = logPath + "/" + name + "-stdout.log";
-  std::string stderrFileName = logPath + "/" + name + "-stderr.log";
+  std::string stdoutFileName = logPath + "/" + name + "-out.log";
+  std::string stderrFileName = logPath + "/" + name + "-error.log";
   
   stdout_fd = open(stdoutFileName.c_str(), O_WRONLY | O_CREAT | O_APPEND, 0644);
   stderr_fd = open(stderrFileName.c_str(), O_WRONLY | O_CREAT | O_APPEND, 0644);
