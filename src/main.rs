@@ -4,9 +4,12 @@ mod helpers;
 mod process;
 mod structs;
 
+use crate::helpers::Exists;
 use crate::structs::Args;
+
 use clap::{Parser, Subcommand};
 use clap_verbosity_flag::Verbosity;
+use global_placeholders::global;
 use macros_rs::{str, string};
 
 fn validate_id_script(s: &str) -> Result<Args, String> {
@@ -27,6 +30,12 @@ struct Cli {
 }
 
 #[derive(Subcommand)]
+enum Daemon {
+    StartAll,
+    StopAll,
+}
+
+#[derive(Subcommand)]
 enum Commands {
     #[command(alias = "restart")]
     Start {
@@ -39,34 +48,44 @@ enum Commands {
     Stop { id: usize },
     #[command(alias = "rm")]
     Remove { id: usize },
+    #[command(alias = "info")]
+    Details { id: usize },
     #[command(alias = "ls")]
     List {
         #[arg(long, default_value_t = string!(""), help = "format output")]
         format: String,
     },
+    Daemon {
+        #[command(subcommand)]
+        command: Daemon,
+    },
 }
 
 fn main() {
+    // make sure process is running, if not, restart
+    // make this daemon based.
+
     let cli = Cli::parse();
 
     globals::init();
     env_logger::Builder::new().filter_level(cli.verbose.log_level_filter()).init();
 
+    if !Exists::folder(global!("pmc.logs")).unwrap() {
+        std::fs::create_dir_all(global!("pmc.logs")).unwrap();
+        log::info!("created pmc log dir");
+    }
+
     match &cli.command {
         Commands::Start { name, args } => cli::start(name, args),
         Commands::Stop { id } => cli::stop(id),
         Commands::Remove { id } => cli::remove(id),
+        Commands::Details { id } => cli::info(id),
         Commands::List { format } => cli::list(format),
+        Commands::Daemon { command } => match command {
+            Daemon::StartAll => {}
+            Daemon::StopAll => {}
+        },
     }
-
-    // save in ~/.pmc/dump.toml
-    // logs in ~/.pmc/logs
-    // use global placeholders for home crate
-    // use psutil for memory and cpu usage (in PAW)
-    // create log dir if not exist
-    // use clap cli and rataui for ui
-    //    (pmc ls, pmc list, pmc ls --format=json, pmc list --format=json)
-    //    [use clap command alias]
 }
 
 #[cxx::bridge]
