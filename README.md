@@ -25,6 +25,9 @@ pmc remove <id>
 # Get process info
 pmc info <id>
 
+# Get process env
+pmc env <id>
+
 # List all processes
 pmc list [--format <raw|json|default>]
 
