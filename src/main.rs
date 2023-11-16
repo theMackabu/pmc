@@ -62,6 +62,10 @@ enum Commands {
     #[command(alias = "rm")]
     Remove { id: usize },
 
+    /// Get env of a process
+    #[command(alias = "cmdline")]
+    Env { id: usize },
+
     /// Get information of a process
     #[command(alias = "info")]
     Details { id: usize },
@@ -105,6 +109,7 @@ fn main() {
         Commands::Start { name, args } => cli::start(name, args),
         Commands::Stop { id } => cli::stop(id),
         Commands::Remove { id } => cli::remove(id),
+        Commands::Env { id } => cli::env(id),
         Commands::Details { id } => cli::info(id),
         Commands::List { format } => cli::list(format),
         Commands::Logs { id, lines } => cli::logs(id, lines),
