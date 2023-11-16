@@ -29,11 +29,6 @@ pub fn get_version(short: bool) -> String {
 pub fn start(name: &Option<String>, args: &Option<Args>) {
     let mut runner = Runner::new(global!("pmc.logs"));
 
-    let name = match name {
-        Some(name) => string!(name),
-        None => string!(""),
-    };
-
     match args {
         Some(Args::Id(id)) => {
             println!("{} Applying action restartProcess on ({id})", *helpers::SUCCESS);
@@ -43,6 +38,11 @@ pub fn start(name: &Option<String>, args: &Option<Args>) {
             list(&string!(""));
         }
         Some(Args::Script(script)) => {
+            let name = match name {
+                Some(name) => string!(name),
+                None => string!(script.split_whitespace().next().unwrap_or_default()),
+            };
+
             println!("{} Creating process with ({name})", *helpers::SUCCESS);
             runner.start(name.clone(), script);
 
