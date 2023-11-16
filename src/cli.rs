@@ -135,7 +135,7 @@ pub fn list(format: &String) {
             }
 
             let cpu_percent = match cpu_percent {
-                Some(percent) => format!("{percent}%"),
+                Some(percent) => format!("{:.1}%", percent),
                 None => string!("0%"),
             };
 
