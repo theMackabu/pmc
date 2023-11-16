@@ -1,5 +1,4 @@
-use crate::helpers::Exists;
-use crate::helpers::Id;
+use crate::helpers::{self, Exists, Id};
 use crate::process::Runner;
 
 use colored::Colorize;
@@ -26,12 +25,12 @@ pub fn read() -> Runner {
 
     let contents = match fs::read_to_string(global!("pmc.dump")) {
         Ok(contents) => contents,
-        Err(err) => crashln!("Cannot find dumpfile.\n{}", string!(err).white()),
+        Err(err) => crashln!("{} Cannot find dumpfile.\n{}", *helpers::FAIL, string!(err).white()),
     };
 
     match toml::from_str(&contents).map_err(|err| string!(err)) {
         Ok(parsed) => parsed,
-        Err(err) => crashln!("Cannot read dumpfile.\n{}", err.white()),
+        Err(err) => crashln!("{} Cannot read dumpfile.\n{}", *helpers::FAIL, err.white()),
     }
 }
 
@@ -43,10 +42,10 @@ pub fn write(dump: &Runner) {
 
     let contents = match toml::to_string(dump) {
         Ok(contents) => contents,
-        Err(err) => crashln!("Cannot parse dump.\n{}", string!(err).white()),
+        Err(err) => crashln!("{} Cannot parse dump.\n{}", *helpers::FAIL, string!(err).white()),
     };
 
     if let Err(err) = fs::write(global!("pmc.dump"), contents) {
-        crashln!("Error writing dumpfile.\n{}", string!(err).white())
+        crashln!("{} Error writing dumpfile.\n{}", *helpers::FAIL, string!(err).white())
     }
 }

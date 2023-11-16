@@ -1,11 +1,16 @@
 use anyhow::Error;
 use chrono::{DateTime, Utc};
+use colored::Colorize;
 use core::fmt;
 use macros_rs::str;
+use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
+
+pub static SUCCESS: Lazy<colored::ColoredString> = Lazy::new(|| "[PMC]".green());
+pub static FAIL: Lazy<colored::ColoredString> = Lazy::new(|| "[PMC]".red());
 
 #[derive(Debug)]
 pub struct ColoredString(pub colored::ColoredString);

@@ -1,3 +1,4 @@
+use crate::helpers;
 use global_placeholders::init;
 use macros_rs::crashln;
 
@@ -12,6 +13,6 @@ pub fn init() {
             init!("pmc.logs", logs);
             init!("pmc.dump", dump);
         }
-        None => crashln!("Impossible to get your home dir."),
+        None => crashln!("{} Impossible to get your home directory", *helpers::FAIL),
     }
 }

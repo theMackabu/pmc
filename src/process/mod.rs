@@ -1,6 +1,6 @@
 mod dump;
 
-use crate::helpers::Id;
+use crate::helpers::{self, Id};
 use crate::service::{run, stop};
 
 use chrono::serde::ts_milliseconds;
@@ -57,15 +57,11 @@ impl Runner {
 
     pub fn stop(&mut self, id: usize) {
         if let Some(item) = self.process_list.get_mut(&string!(id)) {
-            let pid = item.pid;
-
-            // add error catching in cc
-            // to allow match Err() here
-            stop(pid);
+            stop(item.pid);
             item.running = false;
             dump::write(&self);
         } else {
-            crashln!("Process with {id} does not exist");
+            crashln!("{} Process ({id}) not found", *helpers::FAIL);
         }
     }
 
@@ -89,7 +85,7 @@ impl Runner {
             );
             dump::write(&self);
         } else {
-            crashln!("Failed to restart process with id {}", id);
+            crashln!("{} Failed to restart process ({})", *helpers::FAIL, id);
         }
     }
 

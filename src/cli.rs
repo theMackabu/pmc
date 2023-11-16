@@ -1,4 +1,4 @@
-use crate::helpers::{format_duration, format_memory, ColoredString};
+use crate::helpers::{self, ColoredString};
 use crate::process::Runner;
 use crate::structs::Args;
 
@@ -35,22 +35,39 @@ pub fn start(name: &Option<String>, args: &Option<Args>) {
     };
 
     match args {
-        Some(Args::Id(id)) => runner.restart(*id),
-        Some(Args::Script(script)) => runner.start(name, script),
+        Some(Args::Id(id)) => {
+            println!("{} Applying action restartProcess on ({id})", *helpers::SUCCESS);
+            runner.restart(*id);
+
+            println!("{} restarted ({id}) ✓", *helpers::SUCCESS);
+            list(&string!(""));
+        }
+        Some(Args::Script(script)) => {
+            println!("{} Creating process with ({name})", *helpers::SUCCESS);
+            runner.start(name.clone(), script);
+
+            println!("{} created ({name}) ✓", *helpers::SUCCESS);
+            list(&string!(""));
+        }
         None => {}
     }
 }
 
 pub fn stop(id: &usize) {
+    println!("{} Applying action stopProcess on ({id})", *helpers::SUCCESS);
     let mut runner = Runner::new(global!("pmc.logs"));
     runner.stop(*id);
-    println!("Stopped process");
+    println!("{} stopped ({id}) ✓", *helpers::SUCCESS);
+    list(&string!(""));
 }
 
 pub fn remove(id: &usize) {
+    println!("{} Applying action removeProcess on ({id})", *helpers::SUCCESS);
     let mut runner = Runner::new(global!("pmc.logs"));
     runner.remove(*id);
-    println!("Removed process");
+
+    println!("{} removed ({id}) ✓", *helpers::SUCCESS);
+    list(&string!(""));
 }
 
 pub fn info(id: &usize) {
@@ -103,7 +120,7 @@ pub fn list(format: &String) {
         };
 
         let memory_usage = match memory_usage {
-            Some(usage) => format_memory(usage.rss()),
+            Some(usage) => helpers::format_memory(usage.rss()),
             None => string!("0b"),
         };
 
@@ -114,7 +131,7 @@ pub fn list(format: &String) {
             mem: format!("{memory_usage}   "),
             name: format!("{}   ", item.name.clone()),
             status: ColoredString(ternary!(item.running, "online   ".green().bold(), "stopped   ".red().bold())),
-            uptime: ternary!(item.running, format!("{}   ", format_duration(item.started)), string!("none")),
+            uptime: ternary!(item.running, format!("{}   ", helpers::format_duration(item.started)), string!("none")),
         });
     }
 
