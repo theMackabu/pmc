@@ -152,7 +152,7 @@ pub fn stop() {
             Ok(pid) => {
                 service::stop(pid as i64);
                 pid::remove();
-                println!("{} PMC daemon stopped, waiting...", *helpers::SUCCESS);
+                println!("{} PMC daemon stopped", *helpers::SUCCESS);
             }
             Err(err) => crashln!("{} Failed to read PID file: {}", *helpers::FAIL, err),
         }
