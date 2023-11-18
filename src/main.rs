@@ -1,4 +1,5 @@
 mod cli;
+mod daemon;
 mod file;
 mod globals;
 mod helpers;
@@ -12,6 +13,7 @@ use clap::{Parser, Subcommand};
 use clap_verbosity_flag::Verbosity;
 use global_placeholders::global;
 use macros_rs::{str, string};
+use std::process::exit;
 
 fn validate_id_script(s: &str) -> Result<Args, String> {
     if let Ok(id) = s.parse::<usize>() {
@@ -38,6 +40,8 @@ enum Daemon {
     StopAll,
     /// Reset process index
     ResetIndex,
+    /// Restore daemon
+    Restore,
     /// Check daemon
     Health,
 }
@@ -92,34 +96,39 @@ enum Commands {
 }
 
 fn main() {
-    // make sure process is running, if not, restart
-    // make this daemon based.
+    globals::init();
 
     let cli = Cli::parse();
-
-    globals::init();
-    env_logger::Builder::new().filter_level(cli.verbose.log_level_filter()).init();
+    let mut env = env_logger::Builder::new();
+    env.filter_level(cli.verbose.log_level_filter()).init();
 
     if !Exists::folder(global!("pmc.logs")).unwrap() {
         std::fs::create_dir_all(global!("pmc.logs")).unwrap();
-        log::info!("created PMC log directory");
+        log::info!("Created PMC log directory");
     }
 
-    match &cli.command {
-        Commands::Start { name, args } => cli::start(name, args),
-        Commands::Stop { id } => cli::stop(id),
-        Commands::Remove { id } => cli::remove(id),
-        Commands::Env { id } => cli::env(id),
-        Commands::Details { id } => cli::info(id),
-        Commands::List { format } => cli::list(format),
-        Commands::Logs { id, lines } => cli::logs(id, lines),
-        Commands::Daemon { command } => match command {
-            Daemon::StartAll => {}
-            Daemon::StopAll => {}
-            Daemon::ResetIndex => {}
-            Daemon::Health => {}
-        },
-    }
+    daemon::start(move |pid| {
+        log::trace!("Parent process started with PID {pid}");
+
+        match &cli.command {
+            Commands::Start { name, args } => cli::start(name, args),
+            Commands::Stop { id } => cli::stop(id),
+            Commands::Remove { id } => cli::remove(id),
+            Commands::Env { id } => cli::env(id),
+            Commands::Details { id } => cli::info(id),
+            Commands::List { format } => cli::list(format),
+            Commands::Logs { id, lines } => cli::logs(id, lines),
+            Commands::Daemon { command } => match command {
+                Daemon::StartAll => {}
+                Daemon::StopAll => {}
+                Daemon::ResetIndex => {}
+                Daemon::Restore => {}
+                Daemon::Health => {}
+            },
+        };
+
+        exit(0);
+    });
 }
 
 #[cxx::bridge]
