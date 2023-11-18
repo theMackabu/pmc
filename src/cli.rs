@@ -67,9 +67,7 @@ pub fn remove(id: &usize) {
     println!("{} Applying action removeProcess on ({id})", *helpers::SUCCESS);
     let mut runner = Runner::new();
     runner.remove(*id);
-
     println!("{} removed ({id}) ✓", *helpers::SUCCESS);
-    list(&string!(""));
 }
 
 pub fn info(id: &usize) {

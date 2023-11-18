@@ -7,8 +7,10 @@ pub fn init() {
         Some(path) => {
             let base = format!("{}/.pmc/", path.display());
             let logs = format!("{}/.pmc/logs/", path.display());
+            let pid = format!("{}/.pmc/daemon.pid", path.display());
             let dump = format!("{}/.pmc/dump.toml", path.display());
 
+            init!("pmc.pid", pid);
             init!("pmc.base", base);
             init!("pmc.logs", logs);
             init!("pmc.dump", dump);
