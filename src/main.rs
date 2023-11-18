@@ -128,19 +128,17 @@ fn main() {
         Commands::List { format } => cli::list(format),
         Commands::Logs { id, lines } => cli::logs(id, lines),
 
-        Commands::Daemon { command } => {
-            match command {
-                Daemon::Reset => {}
-                Daemon::Stop => daemon::stop(),
-                Daemon::Restore => daemon::restart(),
-                Daemon::Health { format } => daemon::health(format),
-            };
-
-            if !matches!(command, Daemon::Stop | Daemon::Health { .. }) {
-                then!(!daemon::pid::exists(), daemon::start());
-            }
-        }
+        Commands::Daemon { command } => match command {
+            Daemon::Reset => {}
+            Daemon::Stop => daemon::stop(),
+            Daemon::Restore => daemon::restart(),
+            Daemon::Health { format } => daemon::health(format),
+        },
     };
+
+    if !matches!(&cli.command, Commands::Daemon { .. }) {
+        then!(!daemon::pid::exists(), daemon::start());
+    }
 }
 
 #[cxx::bridge]
