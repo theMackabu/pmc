@@ -9,7 +9,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 pub static SUCCESS: Lazy<colored::ColoredString> = Lazy::new(|| "[PMC]".green());
 pub static FAIL: Lazy<colored::ColoredString> = Lazy::new(|| "[PMC]".red());
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ColoredString(pub colored::ColoredString);
 
 impl serde::Serialize for ColoredString {
