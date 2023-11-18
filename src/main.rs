@@ -12,7 +12,7 @@ use crate::structs::Args;
 use clap::{Parser, Subcommand};
 use clap_verbosity_flag::Verbosity;
 use global_placeholders::global;
-use macros_rs::{str, string};
+use macros_rs::{str, string, then};
 
 fn validate_id_script(s: &str) -> Result<Args, String> {
     if let Ok(id) = s.parse::<usize>() {
@@ -33,16 +33,22 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Daemon {
-    /// Start all processes
-    StartAll,
-    /// Stop all processes
-    StopAll,
     /// Reset process index
-    ResetIndex,
-    /// Restore daemon
+    #[command(alias = "clean")]
+    Reset,
+    /// Stop daemon
+    #[command(alias = "kill")]
+    Stop,
+    /// Restart daemon
+    #[command(alias = "restart", alias = "start")]
     Restore,
     /// Check daemon
-    Health,
+    #[command(alias = "info")]
+    Health {
+        /// Format output
+        #[arg(long, default_value_t = string!("default"))]
+        format: String,
+    },
 }
 
 // add pmc restore command
@@ -71,12 +77,18 @@ enum Commands {
 
     /// Get information of a process
     #[command(alias = "info")]
-    Details { id: usize },
+    Details {
+        id: usize,
+        /// Format output
+        #[arg(long, default_value_t = string!("default"))]
+        format: String,
+    },
 
     /// List all processes
     #[command(alias = "ls")]
     List {
-        #[arg(long, default_value_t = string!(""), help = "format output")]
+        /// Format output
+        #[arg(long, default_value_t = string!("default"))]
         format: String,
     },
 
@@ -107,20 +119,27 @@ fn main() {
     }
 
     match &cli.command {
+        // add --watch
         Commands::Start { name, args } => cli::start(name, args),
         Commands::Stop { id } => cli::stop(id),
         Commands::Remove { id } => cli::remove(id),
         Commands::Env { id } => cli::env(id),
-        Commands::Details { id } => cli::info(id),
+        Commands::Details { id, format } => cli::info(id, format),
         Commands::List { format } => cli::list(format),
         Commands::Logs { id, lines } => cli::logs(id, lines),
-        Commands::Daemon { command } => match command {
-            Daemon::StartAll => {}
-            Daemon::StopAll => {}
-            Daemon::ResetIndex => {}
-            Daemon::Restore => daemon::restore(),
-            Daemon::Health => {}
-        },
+
+        Commands::Daemon { command } => {
+            match command {
+                Daemon::Reset => {}
+                Daemon::Stop => daemon::stop(),
+                Daemon::Restore => daemon::restart(),
+                Daemon::Health { format } => daemon::health(format),
+            };
+
+            if !matches!(command, Daemon::Stop | Daemon::Health { .. }) {
+                then!(!daemon::pid::exists(), daemon::start());
+            }
+        }
     };
 }
 

@@ -70,10 +70,10 @@ pub fn remove(id: &usize) {
     println!("{} removed ({id}) ✓", *helpers::SUCCESS);
 }
 
-pub fn info(id: &usize) {
+pub fn info(id: &usize, format: &String) {
     let runner = Runner::new();
 
-    #[derive(Tabled, Serialize)]
+    #[derive(Clone, Debug, Tabled)]
     struct Info {
         #[tabled(rename = "error log path ")]
         log_error: String,
@@ -93,6 +93,26 @@ pub fn info(id: &usize) {
         pid: String,
         name: String,
         status: ColoredString,
+    }
+
+    impl Serialize for Info {
+        fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+            let trimmed_json = json!({
+                "id": &self.id.trim(),
+                "name": &self.name.trim(),
+                "pid": &self.pid.trim(),
+                "uptime": &self.uptime.trim(),
+                "status": &self.status.0.trim(),
+                "log_error": &self.log_error.trim(),
+                "log_out": &self.log_out.trim(),
+                "cpu": &self.cpu_percent.trim(),
+                "mem": &self.memory_usage.trim(),
+                "command": &self.command.trim(),
+                "path": &self.path.trim(),
+            });
+
+            trimmed_json.serialize(serializer)
+        }
     }
 
     if let Some(home) = home::home_dir() {
@@ -133,16 +153,24 @@ pub fn info(id: &usize) {
                 uptime: ternary!(item.running, format!("{}", helpers::format_duration(item.started)), string!("none")),
             }];
 
-            let table = Table::new(data)
+            let table = Table::new(data.clone())
                 .with(Rotate::Left)
                 .with(Style::rounded().remove_horizontals())
                 .with(Colorization::exact([Color::FG_CYAN], Columns::first()))
                 .with(BorderColor::filled(Color::FG_BRIGHT_BLACK))
                 .to_string();
 
-            println!("{}\n{table}\n", format!("Describing process with id ({id})").on_bright_white().black());
-            println!(" {}", format!("Use `pmc logs {id} [--lines <num>]` to display logs").white());
-            println!(" {}", format!("Use `pmc env {id}`  to display environment variables").white());
+            if let Ok(json) = serde_json::to_string(&data[0]) {
+                match format.as_str() {
+                    "raw" => println!("{:?}", data[0]),
+                    "json" => println!("{json}"),
+                    _ => {
+                        println!("{}\n{table}\n", format!("Describing process with id ({id})").on_bright_white().black());
+                        println!(" {}", format!("Use `pmc logs {id} [--lines <num>]` to display logs").white());
+                        println!(" {}", format!("Use `pmc env {id}`  to display environment variables").white());
+                    }
+                };
+            };
         } else {
             crashln!("{} Process ({id}) not found", *helpers::FAIL);
         }
@@ -253,7 +281,8 @@ pub fn list(format: &String) {
             match format.as_str() {
                 "raw" => println!("{:?}", processes),
                 "json" => println!("{json}"),
-                _ => println!("{table}"),
+                "default" => println!("{table}"),
+                _ => {}
             };
         };
     }

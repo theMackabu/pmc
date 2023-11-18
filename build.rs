@@ -1,8 +1,13 @@
 use chrono::Datelike;
-use std::env;
-use std::process::Command;
+use std::{env, process::Command};
 
 fn main() {
+    #[cfg(windows)]
+    {
+        println!("cargo:warning=This project is not supported on Windows.");
+        std::process::exit(1);
+    }
+
     /* version attributes */
     let date = chrono::Utc::now();
     let profile = env::var("PROFILE").unwrap();
