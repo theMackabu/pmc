@@ -6,7 +6,7 @@ use std::fs;
 pub fn exists() -> bool { fs::metadata(global!("pmc.pid")).is_ok() }
 pub fn running(pid: i32) -> bool { unsafe { libc::kill(pid, 0) == 0 } }
 
-pub fn write(pid: i32) {
+pub fn write(pid: u32) {
     if let Err(err) = fs::write(global!("pmc.pid"), pid.to_string()) {
         crashln!("{} Failed to write PID to file: {}", *helpers::FAIL, err);
     }

@@ -1,5 +1,5 @@
 use global_placeholders::global;
-use std::ffi::CString;
+use std::{ffi::CString, process::exit};
 
 pub enum Fork {
     Parent(libc::pid_t),
@@ -42,5 +42,21 @@ pub fn close_fd() -> Result<(), i32> {
                 _ => Ok(()),
             },
         },
+    }
+}
+
+pub fn daemon(nochdir: bool, noclose: bool) -> Result<Fork, i32> {
+    match fork() {
+        Ok(Fork::Parent(_)) => exit(0),
+        Ok(Fork::Child) => setsid().and_then(|_| {
+            if !nochdir {
+                chdir()?;
+            }
+            if !noclose {
+                close_fd()?;
+            }
+            fork()
+        }),
+        Err(n) => Err(n),
     }
 }
