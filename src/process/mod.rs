@@ -8,7 +8,7 @@ use crate::service::{run, stop, ProcessMetadata};
 
 use chrono::serde::ts_milliseconds;
 use chrono::{DateTime, Utc};
-use macros_rs::{crashln, string};
+use macros_rs::{crashln, string, ternary};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
 use std::env;
@@ -23,7 +23,7 @@ pub struct Process {
     pub env: HashMap<String, String>,
     #[serde(with = "ts_milliseconds")]
     pub started: DateTime<Utc>,
-    // pub restarts: u64,
+    pub restarts: u64,
     pub running: bool,
 }
 
@@ -60,6 +60,7 @@ impl Runner {
             string!(self.id.next()),
             Process {
                 pid,
+                restarts: 0,
                 running: true,
                 path: file::cwd(),
                 name: name.clone(),
@@ -81,11 +82,12 @@ impl Runner {
         }
     }
 
-    pub fn restart(&mut self, id: usize, name: &Option<String>) {
+    pub fn restart(&mut self, id: usize, name: &Option<String>, dead: bool) {
         if let Some(item) = self.info(id) {
-            let script = item.script.clone();
-            let path = item.path.clone();
             let env = item.env.clone();
+            let path = item.path.clone();
+            let script = item.script.clone();
+            let restarts = ternary!(dead, item.restarts.clone() + 1, item.restarts.clone());
 
             let name = match name {
                 Some(name) => string!(name.trim()),
@@ -115,6 +117,7 @@ impl Runner {
                     name,
                     path,
                     script,
+                    restarts,
                     running: true,
                     started: Utc::now(),
                 },

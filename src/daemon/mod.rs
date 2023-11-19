@@ -43,7 +43,7 @@ fn restart_process(runner: Runner) {
         then!(!item.running || pid::running(item.pid as i32), continue);
         let name = &Some(item.name.clone());
         let mut runner_instance = Runner::new();
-        runner_instance.restart(id, name);
+        runner_instance.restart(id, name, true);
         log.write(format!("restarted {} ({id})", item.name).as_str());
     }
 }
