@@ -1,13 +1,15 @@
 use crate::helpers;
 use anyhow::Error;
 use colored::Colorize;
-use macros_rs::{crashln, str, ternary};
+use macros_rs::{crashln, str, string, ternary};
 
 use std::{
     env,
-    fs::File,
+    fs::{self, File},
     io::{self, BufRead, BufReader},
     path::{Path, PathBuf, StripPrefixError},
+    thread::sleep,
+    time::Duration,
 };
 
 pub fn logs(lines_to_tail: usize, log_file: &str, id: usize, log_type: &str, item_name: &str) {
@@ -42,4 +44,41 @@ pub struct Exists;
 impl Exists {
     pub fn folder(dir_name: String) -> Result<bool, Error> { Ok(Path::new(str!(dir_name)).is_dir()) }
     pub fn file(file_name: String) -> Result<bool, Error> { Ok(Path::new(str!(file_name)).exists()) }
+}
+
+pub fn read<T: serde::de::DeserializeOwned>(path: String) -> T {
+    let mut retry_count = 0;
+    let max_retries = 5;
+
+    let contents = loop {
+        match fs::read_to_string(&path) {
+            Ok(contents) => break contents,
+            Err(err) => {
+                retry_count += 1;
+                if retry_count >= max_retries {
+                    crashln!("{} Cannot find dumpfile.\n{}", *helpers::FAIL, string!(err).white());
+                } else {
+                    println!("{} Error reading dumpfile. Retrying... (Attempt {}/{})", *helpers::FAIL, retry_count, max_retries);
+                }
+            }
+        }
+        sleep(Duration::from_secs(1));
+    };
+
+    retry_count = 0;
+
+    loop {
+        match toml::from_str(&contents).map_err(|err| string!(err)) {
+            Ok(parsed) => break parsed,
+            Err(err) => {
+                retry_count += 1;
+                if retry_count >= max_retries {
+                    crashln!("{} Cannot parse dumpfile.\n{}", *helpers::FAIL, err.white());
+                } else {
+                    println!("{} Error parsing dumpfile. Retrying... (Attempt {}/{})", *helpers::FAIL, retry_count, max_retries);
+                }
+            }
+        }
+        sleep(Duration::from_secs(1));
+    }
 }
