@@ -1,8 +1,10 @@
-pub mod fork;
+mod fork;
+mod log;
 pub mod pid;
 
 use crate::config;
-use crate::helpers::{self, ColoredString};
+use crate::file;
+use crate::helpers::{self, ColoredString, Id};
 use crate::process::Runner;
 use crate::service;
 
@@ -10,7 +12,8 @@ use chrono::{DateTime, Utc};
 use colored::Colorize;
 use fork::{daemon, Fork};
 use global_placeholders::global;
-use macros_rs::{crashln, string, ternary, then};
+use log::Logger;
+use macros_rs::{crashln, str, string, ternary, then};
 use psutil::process::{MemoryInfo, Process};
 use serde::Serialize;
 use serde_json::json;
@@ -28,25 +31,29 @@ use tabled::{
 
 extern "C" fn handle_termination_signal(_: libc::c_int) {
     pid::remove();
+    let mut log = Logger::new().unwrap();
+    log.write(format!("daemon killed (pid={})", process::id()).as_str());
     unsafe { libc::_exit(0) }
 }
 
 fn restart_process(runner: Runner) {
+    let mut log = Logger::new().unwrap();
     let items = runner.list().iter().filter_map(|(id, item)| Some((id.trim().parse::<usize>().ok()?, item)));
     for (id, item) in items {
         then!(!item.running || pid::running(item.pid as i32), continue);
         let name = &Some(item.name.clone());
         let mut runner_instance = Runner::new();
         runner_instance.restart(id, name);
+        log.write(format!("restarted {} ({id})", item.name).as_str());
     }
 }
 
 pub fn health(format: &String) {
-    let runner = Runner::new();
     let mut pid: Option<i32> = None;
     let mut cpu_percent: Option<f32> = None;
     let mut uptime: Option<DateTime<Utc>> = None;
     let mut memory_usage: Option<MemoryInfo> = None;
+    let runner: Runner = file::read(global!("pmc.dump"));
 
     #[derive(Clone, Debug, Tabled)]
     struct Info {
@@ -150,12 +157,14 @@ pub fn health(format: &String) {
 
 pub fn stop() {
     if pid::exists() {
+        let mut log = Logger::new().unwrap();
         println!("{} Stopping PMC daemon", *helpers::SUCCESS);
 
         match pid::read() {
             Ok(pid) => {
                 service::stop(pid as i64);
                 pid::remove();
+                log.write(format!("daemon stopped (pid={pid})").as_str());
                 println!("{} PMC daemon stopped", *helpers::SUCCESS);
             }
             Err(err) => crashln!("{} Failed to read PID file: {}", *helpers::FAIL, err),
@@ -186,11 +195,14 @@ pub fn start() {
 
     extern "C" fn init() {
         let config = config::read();
+        let mut log = Logger::new().unwrap();
+
         unsafe { libc::signal(libc::SIGTERM, handle_termination_signal as usize) };
         pid::write(process::id());
+        log.write(format!("new daemon forked (pid={})", process::id()).as_str());
 
         loop {
-            let runner = Runner::new();
+            let runner: Runner = file::read(global!("pmc.dump"));
             then!(!runner.list().is_empty(), restart_process(runner));
             sleep(Duration::from_millis(config.daemon.interval));
         }
@@ -214,4 +226,16 @@ pub fn restart() {
         stop();
     }
     start();
+}
+
+pub fn reset() {
+    let mut runner = Runner::new();
+    let largest = runner.list().keys().last().cloned();
+
+    match largest {
+        Some(id) => runner.set_id(Id::from(str!(id))),
+        None => println!("{} Cannot reset index, no ID found", *helpers::FAIL),
+    }
+
+    println!("{} PMC Successfully reset (index={})", *helpers::SUCCESS, runner.id);
 }

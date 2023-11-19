@@ -123,8 +123,8 @@ fn main() {
         Commands::Logs { id, lines } => cli::logs(id, lines),
 
         Commands::Daemon { command } => match command {
-            Daemon::Reset => {}
             Daemon::Stop => daemon::stop(),
+            Daemon::Reset => daemon::reset(),
             Daemon::Restore => daemon::restart(),
             Daemon::Health { format } => daemon::health(format),
         },

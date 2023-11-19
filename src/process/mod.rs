@@ -1,4 +1,5 @@
 mod dump;
+mod log;
 
 use crate::config;
 use crate::file;
@@ -22,13 +23,14 @@ pub struct Process {
     pub env: HashMap<String, String>,
     #[serde(with = "ts_milliseconds")]
     pub started: DateTime<Utc>,
+    // pub restarts: u64,
     pub running: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Runner {
-    id: Id,
-    process_list: BTreeMap<String, Process>,
+    pub id: Id,
+    pub process_list: BTreeMap<String, Process>,
 }
 
 impl Runner {
@@ -126,6 +128,12 @@ impl Runner {
     pub fn remove(&mut self, id: usize) {
         self.stop(id);
         self.process_list.remove(&string!(id));
+        dump::write(&self);
+    }
+
+    pub fn set_id(&mut self, id: Id) {
+        self.id = id;
+        self.id.next();
         dump::write(&self);
     }
 
