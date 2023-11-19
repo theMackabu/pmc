@@ -1,10 +1,6 @@
 mod cli;
-mod config;
 mod daemon;
-mod file;
 mod globals;
-mod helpers;
-mod process;
 mod structs;
 
 use crate::structs::Args;
