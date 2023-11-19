@@ -34,7 +34,7 @@ pub fn start(name: &Option<String>, args: &Option<Args>) {
     match args {
         Some(Args::Id(id)) => {
             println!("{} Applying action restartProcess on ({id})", *helpers::SUCCESS);
-            runner.restart(*id, name);
+            runner.restart(*id, name, false);
 
             println!("{} restarted ({id}) ✓", *helpers::SUCCESS);
             list(&string!("default"));
@@ -89,6 +89,7 @@ pub fn info(id: &usize, format: &String) {
         path: String,
         #[tabled(rename = "script id")]
         id: String,
+        restarts: u64,
         uptime: String,
         pid: String,
         name: String,
@@ -99,16 +100,17 @@ pub fn info(id: &usize, format: &String) {
         fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
             let trimmed_json = json!({
                 "id": &self.id.trim(),
-                "name": &self.name.trim(),
                 "pid": &self.pid.trim(),
+                "name": &self.name.trim(),
+                "path": &self.path.trim(),
+                "restarts": &self.restarts,
                 "uptime": &self.uptime.trim(),
                 "status": &self.status.0.trim(),
-                "log_error": &self.log_error.trim(),
                 "log_out": &self.log_out.trim(),
                 "cpu": &self.cpu_percent.trim(),
-                "mem": &self.memory_usage.trim(),
                 "command": &self.command.trim(),
-                "path": &self.path.trim(),
+                "mem": &self.memory_usage.trim(),
+                "log_error": &self.log_error.trim(),
             });
 
             trimmed_json.serialize(serializer)
@@ -143,6 +145,7 @@ pub fn info(id: &usize, format: &String) {
                 cpu_percent,
                 memory_usage,
                 id: string!(id),
+                restarts: item.restarts,
                 name: item.name.clone(),
                 command: format!("/bin/bash -c '{}'", item.script.clone()),
                 path: format!("{} ", path),
@@ -218,6 +221,8 @@ pub fn list(format: &String) {
         name: String,
         pid: String,
         uptime: String,
+        #[tabled(rename = "↺")]
+        restarts: String,
         status: ColoredString,
         cpu: String,
         mem: String,
@@ -226,13 +231,14 @@ pub fn list(format: &String) {
     impl serde::Serialize for ProcessItem {
         fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
             let trimmed_json = json!({
-                "id": &self.id.0.trim(),
-                "name": &self.name.trim(),
-                "pid": &self.pid.trim(),
-                "uptime": &self.uptime.trim(),
-                "status": &self.status.0.trim(),
                 "cpu": &self.cpu.trim(),
                 "mem": &self.mem.trim(),
+                "id": &self.id.0.trim(),
+                "pid": &self.pid.trim(),
+                "name": &self.name.trim(),
+                "uptime": &self.uptime.trim(),
+                "status": &self.status.0.trim(),
+                "restarts": &self.restarts.trim(),
             });
             trimmed_json.serialize(serializer)
         }
@@ -261,6 +267,7 @@ pub fn list(format: &String) {
             };
 
             processes.push(ProcessItem {
+                restarts: format!("{}  ", item.restarts),
                 id: ColoredString(id.cyan().bold()),
                 pid: ternary!(item.running, format!("{}  ", item.pid), string!("n/a  ")),
                 cpu: format!("{cpu_percent}   "),
