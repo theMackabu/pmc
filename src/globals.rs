@@ -22,15 +22,12 @@ pub fn init() {
             }
 
             init!("pmc.base", format!("{path}/.pmc/"));
+            init!("pmc.log", format!("{path}/.pmc/pmc.log"));
             init!("pmc.pid", format!("{path}/.pmc/daemon.pid"));
             init!("pmc.dump", format!("{path}/.pmc/process.dump"));
 
-            init!("pmc.config.shell", config.runner.shell);
-            init!("pmc.config.log_path", config.runner.log_path);
-
             init!("pmc.daemon.kind", config.daemon.kind);
-            init!("pmc.daemon.interval", config.daemon.interval);
-            init!("pmc.daemon.logs", format!("{path}/.pmc/daemon.log"));
+            init!("pmc.daemon.log", format!("{path}/.pmc/daemon.log"));
 
             let out = format!("{}/{{}}-out.log", config.runner.log_path);
             let error = format!("{}/{{}}-error.log", config.runner.log_path);
