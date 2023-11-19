@@ -1,4 +1,5 @@
 mod cli;
+mod config;
 mod daemon;
 mod file;
 mod globals;
@@ -6,12 +7,10 @@ mod helpers;
 mod process;
 mod structs;
 
-use crate::file::Exists;
 use crate::structs::Args;
-
 use clap::{Parser, Subcommand};
 use clap_verbosity_flag::Verbosity;
-use global_placeholders::global;
+use cxx::{type_id, ExternType};
 use macros_rs::{str, string, then};
 
 fn validate_id_script(s: &str) -> Result<Args, String> {
@@ -113,11 +112,6 @@ fn main() {
     let mut env = env_logger::Builder::new();
     env.filter_level(cli.verbose.log_level_filter()).init();
 
-    if !Exists::folder(global!("pmc.logs")).unwrap() {
-        std::fs::create_dir_all(global!("pmc.logs")).unwrap();
-        log::info!("Created PMC log directory");
-    }
-
     match &cli.command {
         // add --watch
         Commands::Start { name, args } => cli::start(name, args),
@@ -141,13 +135,39 @@ fn main() {
     }
 }
 
+#[repr(transparent)]
+pub struct Callback(pub extern "C" fn());
+
+unsafe impl ExternType for Callback {
+    type Id = type_id!("Callback");
+    type Kind = cxx::kind::Trivial;
+}
+
 #[cxx::bridge]
 pub mod service {
+
+    #[repr(u8)]
+    enum Fork {
+        Parent,
+        Child,
+    }
+
+    pub struct ProcessMetadata {
+        pub name: String,
+        pub shell: String,
+        pub command: String,
+        pub log_path: String,
+        pub args: Vec<String>,
+    }
+
     unsafe extern "C++" {
         include!("pmc/src/include/process.h");
         include!("pmc/src/include/bridge.h");
+        include!("pmc/src/include/fork.h");
+        type Callback = crate::Callback;
 
         pub fn stop(pid: i64) -> i64;
-        pub fn run(name: &str, log_path: &str, command: &str) -> i64;
+        pub fn run(metadata: ProcessMetadata) -> i64;
+        pub fn try_fork(nochdir: bool, noclose: bool, callback: Callback) -> i32;
     }
 }

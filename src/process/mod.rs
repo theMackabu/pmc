@@ -1,8 +1,9 @@
 mod dump;
 
+use crate::config;
 use crate::file;
 use crate::helpers::{self, Id};
-use crate::service::{run, stop};
+use crate::service::{run, stop, ProcessMetadata};
 
 use chrono::serde::ts_milliseconds;
 use chrono::{DateTime, Utc};
@@ -27,7 +28,6 @@ pub struct Process {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Runner {
     id: Id,
-    log_path: String,
     process_list: BTreeMap<String, Process>,
 }
 
@@ -37,7 +37,6 @@ impl Runner {
 
         let runner = Runner {
             id: dump.id,
-            log_path: dump.log_path,
             process_list: dump.process_list,
         };
 
@@ -45,18 +44,26 @@ impl Runner {
         return runner;
     }
 
-    pub fn start(&mut self, name: String, command: &String) {
-        let pid = run(&name, &self.log_path, &command);
+    pub fn start(&mut self, name: &String, command: &String) {
+        let config = config::read().runner;
+        let pid = run(ProcessMetadata {
+            name: name.clone(),
+            log_path: config.log_path,
+            command: command.clone(),
+            shell: config.shell,
+            args: config.args,
+        });
+
         self.process_list.insert(
             string!(self.id.next()),
             Process {
                 pid,
-                name,
-                env: env::vars().collect(),
-                path: file::cwd(),
-                started: Utc::now(),
-                script: string!(command),
                 running: true,
+                path: file::cwd(),
+                name: name.clone(),
+                started: Utc::now(),
+                script: command.clone(),
+                env: env::vars().collect(),
             },
         );
         dump::write(&self);
@@ -88,18 +95,26 @@ impl Runner {
             };
 
             self.stop(id);
-            let pid = run(&name, &self.log_path, &script);
+
+            let config = config::read().runner;
+            let pid = run(ProcessMetadata {
+                name: name.clone(),
+                log_path: config.log_path,
+                command: script.clone(),
+                shell: config.shell,
+                args: config.args,
+            });
 
             self.process_list.insert(
                 string!(id),
                 Process {
                     pid,
+                    env,
                     name,
                     path,
-                    env,
                     script,
-                    started: Utc::now(),
                     running: true,
+                    started: Utc::now(),
                 },
             );
             dump::write(&self);

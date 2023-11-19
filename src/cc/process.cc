@@ -4,9 +4,20 @@
 #include <sys/wait.h>
 #include <signal.h>
 #include <iostream>
+using namespace std;
 
 namespace process {
 volatile sig_atomic_t childExitStatus = 0;
+
+pair<std::string, std::string> split(const std::string& str) {
+    size_t length = str.length();
+    size_t midpoint = length / 2;
+
+    std::string firstHalf = str.substr(0, midpoint);
+    std::string secondHalf = str.substr(midpoint);
+
+    return make_pair(firstHalf, secondHalf);
+}
 
 void sigchld_handler(int signo) {
   (void)signo;
@@ -42,7 +53,7 @@ Runner::~Runner() {
   }
 }
 
-int64_t Runner::Run(const std::string &command) {
+int64_t Runner::Run(const std::string &command, const std::string &shell, Vec<String> args) {
   pid_t pid = fork();
 
   if (pid == -1) {
@@ -58,7 +69,7 @@ int64_t Runner::Run(const std::string &command) {
     dup2(stdout_fd, STDOUT_FILENO);
     dup2(stderr_fd, STDERR_FILENO);
 
-    if (execl("/bin/bash", "bash", "-c", command.c_str(), (char *)nullptr) == -1) {
+    if (execl(shell.c_str(), args[0].c_str(), args[1].c_str(), command.c_str(), (char *)nullptr) == -1) {
       std::cerr << "[PMC] (cc) Unable to execute the command\n";
       exit(EXIT_FAILURE);
     }

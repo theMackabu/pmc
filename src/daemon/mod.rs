@@ -1,6 +1,7 @@
 pub mod fork;
 pub mod pid;
 
+use crate::config;
 use crate::helpers::{self, ColoredString};
 use crate::process::Runner;
 use crate::service;
@@ -57,6 +58,8 @@ pub fn health(format: &String) {
         cpu_percent: String,
         #[tabled(rename = "memory usage")]
         memory_usage: String,
+        #[tabled(rename = "daemon type")]
+        external: String,
         #[tabled(rename = "process count")]
         process_count: usize,
         uptime: String,
@@ -118,8 +121,9 @@ pub fn health(format: &String) {
         memory_usage,
         uptime: uptime,
         path: global!("pmc.base"),
-        pid_file: format!("{}  ", global!("pmc.pid")),
+        external: global!("pmc.daemon.kind"),
         process_count: runner.list().keys().len(),
+        pid_file: format!("{}  ", global!("pmc.pid")),
         status: ColoredString(ternary!(pid::exists(), "online".green().bold(), "stopped".red().bold())),
     }];
 
@@ -162,8 +166,16 @@ pub fn stop() {
 }
 
 pub fn start() {
+    let external = match global!("pmc.daemon.kind").as_str() {
+        "external" => true,
+        "default" => false,
+        "rust" => false,
+        "cc" => true,
+        _ => false,
+    };
+
     pid::name("PMC Restart Handler Daemon");
-    println!("{} Spawning PMC daemon with pmc_home={}", *helpers::SUCCESS, global!("pmc.base"));
+    println!("{} Spawning PMC daemon (pmc_base={})", *helpers::SUCCESS, global!("pmc.base"));
 
     if pid::exists() {
         match pid::read() {
@@ -172,21 +184,27 @@ pub fn start() {
         }
     }
 
-    println!("{} PMC Successfully daemonized", *helpers::SUCCESS);
-    match daemon(false, false) {
-        Ok(Fork::Parent(_)) => {}
-        Ok(Fork::Child) => {
-            unsafe { libc::signal(libc::SIGTERM, handle_termination_signal as usize) };
-            pid::write(process::id());
+    extern "C" fn init() {
+        let config = config::read();
+        unsafe { libc::signal(libc::SIGTERM, handle_termination_signal as usize) };
+        pid::write(process::id());
 
-            loop {
-                let runner = Runner::new();
-                then!(!runner.list().is_empty(), restart_process(runner));
-                sleep(Duration::from_secs(1));
-            }
+        loop {
+            let runner = Runner::new();
+            then!(!runner.list().is_empty(), restart_process(runner));
+            sleep(Duration::from_millis(config.daemon.interval));
         }
-        Err(err) => {
-            crashln!("{} Daemon creation failed with code {err}", *helpers::FAIL)
+    }
+
+    println!("{} PMC Successfully daemonized (type={})", *helpers::SUCCESS, global!("pmc.daemon.kind"));
+    if external {
+        let callback = crate::Callback(init);
+        crate::service::try_fork(false, false, callback);
+    } else {
+        match daemon(false, false) {
+            Ok(Fork::Parent(_)) => {}
+            Ok(Fork::Child) => init(),
+            Err(err) => crashln!("{} Daemon creation failed with code {err}", *helpers::FAIL),
         }
     }
 }

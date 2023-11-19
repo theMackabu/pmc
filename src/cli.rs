@@ -37,7 +37,7 @@ pub fn start(name: &Option<String>, args: &Option<Args>) {
             runner.restart(*id, name);
 
             println!("{} restarted ({id}) ✓", *helpers::SUCCESS);
-            list(&string!(""));
+            list(&string!("default"));
         }
         Some(Args::Script(script)) => {
             let name = match name {
@@ -46,10 +46,10 @@ pub fn start(name: &Option<String>, args: &Option<Args>) {
             };
 
             println!("{} Creating process with ({name})", *helpers::SUCCESS);
-            runner.start(name.clone(), script);
+            runner.start(&name, script);
 
             println!("{} created ({name}) ✓", *helpers::SUCCESS);
-            list(&string!(""));
+            list(&string!("default"));
         }
         None => {}
     }
@@ -60,7 +60,7 @@ pub fn stop(id: &usize) {
     let mut runner = Runner::new();
     runner.stop(*id);
     println!("{} stopped ({id}) ✓", *helpers::SUCCESS);
-    list(&string!(""));
+    list(&string!("default"));
 }
 
 pub fn remove(id: &usize) {
