@@ -27,13 +27,13 @@ pub fn get_version(short: bool) -> String {
     };
 }
 
-pub fn start(name: &Option<String>, args: &Option<Args>) {
+pub fn start(name: &Option<String>, args: &Option<Args>, watch: &Option<String>) {
     let mut runner = Runner::new();
 
     match args {
         Some(Args::Id(id)) => {
             println!("{} Applying action restartProcess on ({id})", *helpers::SUCCESS);
-            runner.restart(*id, name, false);
+            runner.restart(*id, name, watch, false);
 
             println!("{} restarted ({id}) ✓", *helpers::SUCCESS);
             list(&string!("default"));
@@ -45,7 +45,7 @@ pub fn start(name: &Option<String>, args: &Option<Args>) {
             };
 
             println!("{} Creating process with ({name})", *helpers::SUCCESS);
-            runner.start(&name, script);
+            runner.start(&name, script, watch);
 
             println!("{} created ({name}) ✓", *helpers::SUCCESS);
             list(&string!("default"));
@@ -82,10 +82,12 @@ pub fn info(id: &usize, format: &String) {
         cpu_percent: String,
         #[tabled(rename = "memory usage")]
         memory_usage: String,
-        #[tabled(rename = "script command ")]
-        command: String,
+        #[tabled(rename = "watching")]
+        watch: String,
         #[tabled(rename = "exec cwd")]
         path: String,
+        #[tabled(rename = "script command ")]
+        command: String,
         #[tabled(rename = "script id")]
         id: String,
         restarts: u64,
@@ -103,6 +105,7 @@ pub fn info(id: &usize, format: &String) {
                 "name": &self.name.trim(),
                 "path": &self.path.trim(),
                 "restarts": &self.restarts,
+                "watch": &self.watch.trim(),
                 "uptime": &self.uptime.trim(),
                 "status": &self.status.0.trim(),
                 "log_out": &self.log_out.trim(),
@@ -146,12 +149,13 @@ pub fn info(id: &usize, format: &String) {
                 id: string!(id),
                 restarts: item.restarts,
                 name: item.name.clone(),
-                command: format!("/bin/bash -c '{}'", item.script.clone()),
                 path: format!("{} ", path),
                 log_out: global!("pmc.logs.out", item.name.as_str()),
                 log_error: global!("pmc.logs.error", item.name.as_str()),
+                command: format!("/bin/bash -c '{}'", item.script.clone()),
                 pid: ternary!(item.running, format!("{}", item.pid), string!("n/a")),
                 status: ColoredString(ternary!(item.running, "online".green().bold(), "stopped".red().bold())),
+                watch: ternary!(item.watch.enabled, format!("{path}/{}  ", item.watch.path), string!("disabled  ")),
                 uptime: ternary!(item.running, format!("{}", helpers::format_duration(item.started)), string!("none")),
             }];
 
@@ -225,6 +229,8 @@ pub fn list(format: &String) {
         status: ColoredString,
         cpu: String,
         mem: String,
+        #[tabled(rename = "watching")]
+        watch: String,
     }
 
     impl serde::Serialize for ProcessItem {
@@ -235,6 +241,7 @@ pub fn list(format: &String) {
                 "id": &self.id.0.trim(),
                 "pid": &self.pid.trim(),
                 "name": &self.name.trim(),
+                "watch": &self.watch.trim(),
                 "uptime": &self.uptime.trim(),
                 "status": &self.status.0.trim(),
                 "restarts": &self.restarts.trim(),
@@ -266,12 +273,13 @@ pub fn list(format: &String) {
             };
 
             processes.push(ProcessItem {
-                restarts: format!("{}  ", item.restarts),
-                id: ColoredString(id.cyan().bold()),
-                pid: ternary!(item.running, format!("{}  ", item.pid), string!("n/a  ")),
                 cpu: format!("{cpu_percent}   "),
                 mem: format!("{memory_usage}   "),
+                id: ColoredString(id.cyan().bold()),
+                restarts: format!("{}  ", item.restarts),
                 name: format!("{}   ", item.name.clone()),
+                pid: ternary!(item.running, format!("{}  ", item.pid), string!("n/a  ")),
+                watch: ternary!(item.watch.enabled, format!("{}  ", item.watch.path), string!("disabled  ")),
                 status: ColoredString(ternary!(item.running, "online   ".green().bold(), "stopped   ".red().bold())),
                 uptime: ternary!(item.running, format!("{}  ", helpers::format_duration(item.started)), string!("none  ")),
             });

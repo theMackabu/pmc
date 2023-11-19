@@ -6,16 +6,16 @@ use colored::Colorize;
 use fork::{daemon, Fork};
 use global_placeholders::global;
 use log::Logger;
-use macros_rs::{crashln, str, string, ternary, then};
+use macros_rs::{crashln, fmtstr, str, string, ternary, then};
 use psutil::process::{MemoryInfo, Process};
 use serde::Serialize;
 use serde_json::json;
-use std::{process, thread::sleep, time::Duration};
+use std::{collections::BTreeMap, process, thread::sleep, time::Duration};
 
 use pmc::{
     config, file,
     helpers::{self, ColoredString},
-    process::{id::Id, Runner},
+    process::{hash, id::Id, Runner, Status},
 };
 
 use tabled::{
@@ -31,19 +31,42 @@ use tabled::{
 extern "C" fn handle_termination_signal(_: libc::c_int) {
     pid::remove();
     let mut log = Logger::new().unwrap();
-    log.write(format!("daemon killed (pid={})", process::id()).as_str());
+    log.write(fmtstr!("daemon killed (pid={})", process::id()));
     unsafe { libc::_exit(0) }
 }
 
-fn restart_process(runner: Runner) {
-    let mut log = Logger::new().unwrap();
-    let items = runner.list().iter().filter_map(|(id, item)| Some((id.trim().parse::<usize>().ok()?, item)));
+fn restart_process(mut log: Logger, items: &BTreeMap<String, pmc::process::Process>) {
+    let items = items.iter().filter_map(|(id, item)| Some((id.trim().parse::<usize>().ok()?, item)));
+
     for (id, item) in items {
+        if item.running {
+            let path = item.path.join(item.watch.path.clone());
+            let hash = hash::create(path);
+
+            if item.watch.enabled && hash != item.watch.hash {
+                let name = &Some(item.name.clone());
+                let watch = &Some(item.watch.path.clone());
+                let mut runner_instance = Runner::new();
+
+                runner_instance.restart(id, name, watch, false);
+                log.write(fmtstr!("watch reload {} (id={id}, hash={hash})", item.name));
+                continue;
+            }
+        }
+
+        if !item.running && pid::running(item.pid as i32) {
+            let mut runner_instance = Runner::new();
+            runner_instance.set_status(id, Status::Running);
+            continue;
+        }
+
         then!(!item.running || pid::running(item.pid as i32), continue);
         let name = &Some(item.name.clone());
+        let watch = &Some(item.watch.path.clone());
         let mut runner_instance = Runner::new();
-        runner_instance.restart(id, name, true);
-        log.write(format!("restarted {} ({id})", item.name).as_str());
+
+        runner_instance.restart(id, name, watch, true);
+        log.write(fmtstr!("restarted {} ({id})", item.name));
     }
 }
 
@@ -163,7 +186,7 @@ pub fn stop() {
             Ok(pid) => {
                 pmc::service::stop(pid as i64);
                 pid::remove();
-                log.write(format!("daemon stopped (pid={pid})").as_str());
+                log.write(fmtstr!("daemon stopped (pid={pid})"));
                 println!("{} PMC daemon stopped", *helpers::SUCCESS);
             }
             Err(err) => crashln!("{} Failed to read PID file: {}", *helpers::FAIL, err),
@@ -198,11 +221,13 @@ pub fn start() {
 
         unsafe { libc::signal(libc::SIGTERM, handle_termination_signal as usize) };
         pid::write(process::id());
-        log.write(format!("new daemon forked (pid={})", process::id()).as_str());
+        log.write(fmtstr!("new daemon forked (pid={})", process::id()));
 
         loop {
-            let runner: Runner = file::read(global!("pmc.dump"));
-            then!(!runner.list().is_empty(), restart_process(runner));
+            let runner = Runner::new();
+            let items = runner.list();
+
+            then!(!runner.list().is_empty(), restart_process(log.clone(), items));
             sleep(Duration::from_millis(config.daemon.interval));
         }
     }

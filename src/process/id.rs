@@ -13,6 +13,14 @@ impl Id {
     pub fn next(&self) -> usize { self.counter.fetch_add(1, Ordering::SeqCst) }
 }
 
+impl Clone for Id {
+    fn clone(&self) -> Self {
+        Id {
+            counter: AtomicUsize::new(self.counter.load(Ordering::SeqCst)),
+        }
+    }
+}
+
 impl FromStr for Id {
     type Err = &'static str;
 

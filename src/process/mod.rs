@@ -11,10 +11,9 @@ use chrono::{DateTime, Utc};
 use macros_rs::{crashln, string, ternary};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
-use std::env;
-use std::path::PathBuf;
+use std::{env, path::PathBuf};
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Process {
     pub pid: i64,
     pub name: String,
@@ -25,12 +24,34 @@ pub struct Process {
     pub started: DateTime<Utc>,
     pub restarts: u64,
     pub running: bool,
+    pub watch: Watch,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct Watch {
+    pub enabled: bool,
+    pub path: String,
+    pub hash: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Runner {
     pub id: id::Id,
     pub process_list: BTreeMap<String, Process>,
+}
+
+pub enum Status {
+    Offline,
+    Running,
+}
+
+impl Status {
+    pub fn to_bool(&self) -> bool {
+        match self {
+            Status::Offline => false,
+            Status::Running => true,
+        }
+    }
 }
 
 impl Runner {
@@ -46,20 +67,35 @@ impl Runner {
         return runner;
     }
 
-    pub fn start(&mut self, name: &String, command: &String) {
+    pub fn start(&mut self, name: &String, command: &String, watch: &Option<String>) {
         let config = config::read().runner;
+
+        let watch = match watch {
+            Some(watch) => Watch {
+                enabled: true,
+                path: string!(watch),
+                hash: hash::create(file::cwd().join(watch)),
+            },
+            None => Watch {
+                enabled: false,
+                path: string!(""),
+                hash: string!(""),
+            },
+        };
+
         let pid = run(ProcessMetadata {
-            name: name.clone(),
-            log_path: config.log_path,
-            command: command.clone(),
-            shell: config.shell,
             args: config.args,
+            name: name.clone(),
+            shell: config.shell,
+            command: command.clone(),
+            log_path: config.log_path,
         });
 
         self.process_list.insert(
-            string!(self.id.next()),
+            self.id.next().to_string(),
             Process {
                 pid,
+                watch,
                 restarts: 0,
                 running: true,
                 path: file::cwd(),
@@ -75,26 +111,37 @@ impl Runner {
     pub fn stop(&mut self, id: usize) {
         if let Some(item) = self.process_list.get_mut(&string!(id)) {
             stop(item.pid);
-            item.running = false;
+            self.set_status(id, Status::Offline);
             dump::write(&self);
         } else {
             crashln!("{} Process ({id}) not found", *helpers::FAIL);
         }
     }
 
-    pub fn restart(&mut self, id: usize, name: &Option<String>, dead: bool) {
+    pub fn restart(&mut self, id: usize, name: &Option<String>, watch: &Option<String>, dead: bool) {
         if let Some(item) = self.info(id) {
-            let env = item.env.clone();
-            let path = item.path.clone();
-            let script = item.script.clone();
-            let restarts = ternary!(dead, item.restarts.clone() + 1, item.restarts.clone());
+            let Process { path, script, .. } = item.clone();
+            let restarts = ternary!(dead, item.restarts + 1, item.restarts);
+
+            let watch = match watch {
+                Some(watch) => Watch {
+                    enabled: true,
+                    path: string!(watch),
+                    hash: hash::create(path.join(watch)),
+                },
+                None => Watch {
+                    enabled: false,
+                    path: string!(""),
+                    hash: string!(""),
+                },
+            };
 
             let name = match name {
                 Some(name) => string!(name.trim()),
                 None => string!(item.name.clone()),
             };
 
-            if let Err(err) = std::env::set_current_dir(&path) {
+            if let Err(err) = std::env::set_current_dir(&item.path) {
                 crashln!("{} Failed to set working directory {:?}\nError: {:#?}", *helpers::FAIL, path, err);
             };
 
@@ -102,26 +149,17 @@ impl Runner {
 
             let config = config::read().runner;
             let pid = run(ProcessMetadata {
-                name: name.clone(),
-                log_path: config.log_path,
-                command: script.clone(),
-                shell: config.shell,
+                command: script,
                 args: config.args,
+                name: name.clone(),
+                shell: config.shell,
+                log_path: config.log_path,
             });
 
-            self.process_list.insert(
-                string!(id),
-                Process {
-                    pid,
-                    env,
-                    name,
-                    path,
-                    script,
-                    restarts,
-                    running: true,
-                    started: Utc::now(),
-                },
-            );
+            self.process_list.insert(string!(id), Process { pid, name, watch, restarts, ..item });
+            self.set_status(id, Status::Running);
+            self.set_started(id, Utc::now());
+
             dump::write(&self);
         } else {
             crashln!("{} Failed to restart process ({})", *helpers::FAIL, id);
@@ -140,8 +178,27 @@ impl Runner {
         dump::write(&self);
     }
 
-    pub fn info(&self, id: usize) -> Option<&Process> { self.process_list.get(&string!(id)) }
+    pub fn set_status(&mut self, id: usize, status: Status) {
+        if let Some(item) = self.process_list.get_mut(&string!(id)) {
+            item.running = status.to_bool();
+            dump::write(&self);
+        } else {
+            crashln!("{} Process ({id}) not found", *helpers::FAIL);
+        }
+    }
+
+    pub fn set_started(&mut self, id: usize, time: DateTime<Utc>) {
+        if let Some(item) = self.process_list.get_mut(&string!(id)) {
+            item.started = time;
+            dump::write(&self);
+        } else {
+            crashln!("{} Process ({id}) not found", *helpers::FAIL);
+        }
+    }
+
+    pub fn info(&self, id: usize) -> Option<Process> { self.process_list.get(&string!(id)).cloned() }
     pub fn list(&self) -> &BTreeMap<String, Process> { &self.process_list }
 }
 
+pub mod hash;
 pub mod id;
