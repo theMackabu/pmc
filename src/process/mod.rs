@@ -1,10 +1,10 @@
 mod dump;
 mod log;
 
-use crate::config;
-use crate::file;
-use crate::helpers::{self, Id};
-use crate::service::{run, stop, ProcessMetadata};
+use crate::{
+    config, file, helpers,
+    service::{run, stop, ProcessMetadata},
+};
 
 use chrono::serde::ts_milliseconds;
 use chrono::{DateTime, Utc};
@@ -29,7 +29,7 @@ pub struct Process {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Runner {
-    pub id: Id,
+    pub id: id::Id,
     pub process_list: BTreeMap<String, Process>,
 }
 
@@ -134,7 +134,7 @@ impl Runner {
         dump::write(&self);
     }
 
-    pub fn set_id(&mut self, id: Id) {
+    pub fn set_id(&mut self, id: id::Id) {
         self.id = id;
         self.id.next();
         dump::write(&self);
@@ -143,3 +143,5 @@ impl Runner {
     pub fn info(&self, id: usize) -> Option<&Process> { self.process_list.get(&string!(id)) }
     pub fn list(&self) -> &BTreeMap<String, Process> { &self.process_list }
 }
+
+pub mod id;

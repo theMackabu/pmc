@@ -1,11 +1,10 @@
-use crate::file;
-use crate::helpers::{self, ColoredString};
-use crate::process::Runner;
 use crate::structs::Args;
-
 use colored::Colorize;
 use global_placeholders::global;
 use macros_rs::{crashln, string, ternary};
+use pmc::file;
+use pmc::helpers::{self, ColoredString};
+use pmc::process::Runner;
 use psutil::process::{MemoryInfo, Process};
 use serde::Serialize;
 use serde_json::json;

@@ -27,13 +27,13 @@ fn main() {
     }
 
     /* cc linking */
-    cxx_build::bridge("src/main.rs")
+    cxx_build::bridge("src/lib.rs")
         .file("src/cc/bridge.cc")
         .file("src/cc/process.cc")
         .file("src/cc/fork.cc")
         .flag_if_supported("-std=c++17")
         .compile("bridge");
 
-    let watched = vec!["main.rs", "cc/bridge.cc", "cc/process.cc", "cc/fork.cc", "include/bridge.h", "include/process.h", "include/fork.h"];
+    let watched = vec!["lib.rs", "cc/bridge.cc", "cc/process.cc", "cc/fork.cc", "include/bridge.h", "include/process.h", "include/fork.h"];
     watched.iter().for_each(|file| println!("cargo:rerun-if-changed=src/{}", file));
 }

@@ -1,9 +1,8 @@
-use crate::config;
-use crate::file::Exists;
-use crate::helpers;
-
 use global_placeholders::init;
 use macros_rs::crashln;
+use pmc::config;
+use pmc::file::Exists;
+use pmc::helpers;
 use std::fs;
 
 pub fn init() {

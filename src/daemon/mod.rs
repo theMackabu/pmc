@@ -1,12 +1,5 @@
 mod fork;
 mod log;
-pub mod pid;
-
-use crate::config;
-use crate::file;
-use crate::helpers::{self, ColoredString, Id};
-use crate::process::Runner;
-use crate::service;
 
 use chrono::{DateTime, Utc};
 use colored::Colorize;
@@ -18,6 +11,12 @@ use psutil::process::{MemoryInfo, Process};
 use serde::Serialize;
 use serde_json::json;
 use std::{process, thread::sleep, time::Duration};
+
+use pmc::{
+    config, file,
+    helpers::{self, ColoredString},
+    process::{id::Id, Runner},
+};
 
 use tabled::{
     settings::{
@@ -162,7 +161,7 @@ pub fn stop() {
 
         match pid::read() {
             Ok(pid) => {
-                service::stop(pid as i64);
+                pmc::service::stop(pid as i64);
                 pid::remove();
                 log.write(format!("daemon stopped (pid={pid})").as_str());
                 println!("{} PMC daemon stopped", *helpers::SUCCESS);
@@ -210,8 +209,8 @@ pub fn start() {
 
     println!("{} PMC Successfully daemonized (type={})", *helpers::SUCCESS, global!("pmc.daemon.kind"));
     if external {
-        let callback = crate::Callback(init);
-        crate::service::try_fork(false, false, callback);
+        let callback = pmc::Callback(init);
+        pmc::service::try_fork(false, false, callback);
     } else {
         match daemon(false, false) {
             Ok(Fork::Parent(_)) => {}
@@ -239,3 +238,5 @@ pub fn reset() {
 
     println!("{} PMC Successfully reset (index={})", *helpers::SUCCESS, runner.id);
 }
+
+pub mod pid;
