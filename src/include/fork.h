@@ -11,9 +11,8 @@ enum class Fork: uint8_t {
 #endif
 
 using Callback = void(*)();
-extern "C" pid_t set_sid();
-extern "C" void close_fd();
-extern "C" Fork fork_process();
-extern "C" int chdir(const char* dir);
+pid_t set_sid();
+void close_fd();
+Fork fork_process();
 extern "C" int32_t try_fork(bool nochdir, bool noclose, Callback callback);
 #endif
