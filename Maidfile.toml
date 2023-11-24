@@ -1,8 +1,8 @@
-import = ["Build.toml"]
+import = ["maid/build.toml", "maid/server.toml"]
 
 [project]
 name = "pmc"
-version = "1.4.0"
+version = "1.4.1"
 
 [tasks]
 clean = { script = ["rm -rf bin", "mkdir bin"] }
