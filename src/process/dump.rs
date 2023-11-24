@@ -1,6 +1,6 @@
 use crate::{
     file::{self, Exists},
-    helpers,
+    helpers, log,
     process::{id::Id, Runner},
 };
 
@@ -17,7 +17,7 @@ pub fn read() -> Runner {
         };
 
         write(&runner);
-        log::info!("created dump file");
+        log!("created dump file");
     }
 
     file::read_rmp(global!("pmc.dump"))

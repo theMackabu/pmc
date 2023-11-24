@@ -11,6 +11,7 @@ use pmc::{
     config,
     file::{self, Exists},
     helpers::{self, ColoredString},
+    log,
     process::Runner,
 };
 
@@ -61,6 +62,7 @@ pub fn start(name: &Option<String>, args: &Option<Args>, watch: &Option<String>)
             }
 
             println!("{} created ({name}) ✓", *helpers::SUCCESS);
+            log!("process {name} created");
             list(&string!("default"));
         }
         None => {}
@@ -71,14 +73,18 @@ pub fn stop(id: &usize) {
     println!("{} Applying action stopProcess on ({id})", *helpers::SUCCESS);
     let mut runner = Runner::new();
     runner.get(*id).stop();
+
     println!("{} stopped ({id}) ✓", *helpers::SUCCESS);
+    log!("process {id} stopped");
     list(&string!("default"));
 }
 
 pub fn remove(id: &usize) {
     println!("{} Applying action removeProcess on ({id})", *helpers::SUCCESS);
     Runner::new().remove(*id);
+
     println!("{} removed ({id}) ✓", *helpers::SUCCESS);
+    log!("process {id} removed");
 }
 
 pub fn info(id: &usize, format: &String) {

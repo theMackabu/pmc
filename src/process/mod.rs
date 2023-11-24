@@ -1,7 +1,3 @@
-macro_rules! assign {
-    ($obj:expr, {$($field:ident),* $(,)?}) => {$($obj.$field = $field.clone();)*};
-}
-
 use crate::{
     config, file, helpers,
     service::{run, stop, ProcessMetadata},
