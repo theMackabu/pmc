@@ -2,9 +2,8 @@ mod api;
 mod cli;
 mod daemon;
 mod globals;
-mod structs;
 
-use crate::structs::Args;
+use crate::cli::Args;
 use clap::{Parser, Subcommand};
 use clap_verbosity_flag::Verbosity;
 use macros_rs::{str, string, then};

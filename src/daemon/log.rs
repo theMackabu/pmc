@@ -16,9 +16,10 @@ impl Logger {
     pub fn write(&mut self, message: &str) { writeln!(&mut self.file, "[{}] {}", Local::now().format("%Y-%m-%d %H:%M:%S%.3f"), message).unwrap() }
 }
 
-impl Clone for Logger {
-    fn clone(&self) -> Self {
-        let file = OpenOptions::new().create(true).append(true).open(global!("pmc.daemon.log")).expect("Failed to open log file");
-        Logger { file }
-    }
+#[macro_export]
+macro_rules! log {
+    ($message:expr $(, $arg:expr)*) => {
+        let mut log = log::Logger::new().unwrap();
+        log.write(format!($message $(, $arg)*).as_str());
+    };
 }

@@ -1,12 +1,12 @@
-mod fork;
+#[macro_use]
 mod log;
+mod fork;
 
 use chrono::{DateTime, Utc};
 use colored::Colorize;
 use fork::{daemon, Fork};
 use global_placeholders::global;
-use log::Logger;
-use macros_rs::{crashln, fmtstr, str, string, ternary, then};
+use macros_rs::{crashln, str, string, ternary, then};
 use psutil::process::{MemoryInfo, Process};
 use serde::Serialize;
 use serde_json::json;
@@ -30,12 +30,11 @@ use tabled::{
 
 extern "C" fn handle_termination_signal(_: libc::c_int) {
     pid::remove();
-    let mut log = Logger::new().unwrap();
-    log.write(fmtstr!("daemon killed (pid={})", process::id()));
+    log!("daemon killed (pid={})", process::id());
     unsafe { libc::_exit(0) }
 }
 
-fn restart_process(mut log: Logger) {
+fn restart_process() {
     for (id, item) in Runner::new().items() {
         if item.running && item.watch.enabled {
             let path = item.path.join(item.watch.path.clone());
@@ -43,7 +42,7 @@ fn restart_process(mut log: Logger) {
 
             if hash != item.watch.hash {
                 item.restart();
-                log.write(fmtstr!("watch reload {} (id={id}, hash={hash})", item.name));
+                log!("watch reload {} (id={id}, hash={hash})", item.name);
                 continue;
             }
         }
@@ -55,14 +54,14 @@ fn restart_process(mut log: Logger) {
 
         then!(!item.running || pid::running(item.pid as i32), continue);
 
-        if item.running && item.crash.value == 10 {
-            log.write(fmtstr!("{} has crashed ({id})", item.name));
+        if item.running && item.crash.value == config::read().daemon.restarts {
+            log!("{} has crashed ({id})", item.name);
             item.stop();
             Runner::new().set_crashed(*id).save();
             continue;
         } else {
             item.crashed();
-            log.write(fmtstr!("restarted {} (id={id}, crashes={})", item.name, item.crash.value));
+            log!("restarted {} (id={id}, crashes={})", item.name, item.crash.value);
         }
     }
 }
@@ -177,14 +176,13 @@ pub fn health(format: &String) {
 
 pub fn stop() {
     if pid::exists() {
-        let mut log = Logger::new().unwrap();
         println!("{} Stopping PMC daemon", *helpers::SUCCESS);
 
         match pid::read() {
             Ok(pid) => {
                 pmc::service::stop(pid as i64);
                 pid::remove();
-                log.write(fmtstr!("daemon stopped (pid={pid})"));
+                log!("daemon stopped (pid={pid})");
                 println!("{} PMC daemon stopped", *helpers::SUCCESS);
             }
             Err(err) => crashln!("{} Failed to read PID file: {}", *helpers::FAIL, err),
@@ -216,14 +214,13 @@ pub fn start() {
 
     extern "C" fn init() {
         let config = config::read();
-        let mut log = Logger::new().unwrap();
 
         unsafe { libc::signal(libc::SIGTERM, handle_termination_signal as usize) };
         pid::write(process::id());
-        log.write(fmtstr!("new daemon forked (pid={})", process::id()));
+        log!("new daemon forked (pid={})", process::id());
 
         loop {
-            then!(!Runner::new().is_empty(), restart_process(log.clone()));
+            then!(!Runner::new().is_empty(), restart_process());
             sleep(Duration::from_millis(config.daemon.interval));
         }
     }
