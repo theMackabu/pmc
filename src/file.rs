@@ -1,4 +1,4 @@
-use crate::helpers;
+use crate::{helpers, log};
 use anyhow::Error;
 use colored::Colorize;
 use macros_rs::{crashln, str, string, ternary};
@@ -47,39 +47,14 @@ impl Exists {
 }
 
 pub fn read<T: serde::de::DeserializeOwned>(path: String) -> T {
-    let mut retry_count = 0;
-    let max_retries = 5;
-
-    let contents = loop {
-        match fs::read_to_string(&path) {
-            Ok(contents) => break contents,
-            Err(err) => {
-                retry_count += 1;
-                if retry_count >= max_retries {
-                    crashln!("{} Cannot find dumpfile.\n{}", *helpers::FAIL, string!(err).white());
-                } else {
-                    println!("{} Error reading dumpfile. Retrying... (Attempt {}/{})", *helpers::FAIL, retry_count, max_retries);
-                }
-            }
-        }
-        sleep(Duration::from_secs(1));
+    let contents = match fs::read_to_string(&path) {
+        Ok(contents) => contents,
+        Err(err) => crashln!("{} Cannot find dumpfile.\n{}", *helpers::FAIL, string!(err).white()),
     };
 
-    retry_count = 0;
-
-    loop {
-        match toml::from_str(&contents).map_err(|err| string!(err)) {
-            Ok(parsed) => break parsed,
-            Err(err) => {
-                retry_count += 1;
-                if retry_count >= max_retries {
-                    crashln!("{} Cannot parse dumpfile.\n{}", *helpers::FAIL, err.white());
-                } else {
-                    println!("{} Error parsing dumpfile. Retrying... (Attempt {}/{})", *helpers::FAIL, retry_count, max_retries);
-                }
-            }
-        }
-        sleep(Duration::from_secs(1));
+    match toml::from_str(&contents).map_err(|err| string!(err)) {
+        Ok(parsed) => parsed,
+        Err(err) => crashln!("{} Cannot parse dumpfile.\n{}", *helpers::FAIL, err.white()),
     }
 }
 
@@ -93,9 +68,9 @@ pub fn read_rmp<T: serde::de::DeserializeOwned>(path: String) -> T {
             Err(err) => {
                 retry_count += 1;
                 if retry_count >= max_retries {
-                    crashln!("{} Cannot find dumpfile.\n{}", *helpers::FAIL, string!(err).white());
+                    log!("{} Cannot find file.\n{}", *helpers::FAIL, string!(err).white());
                 } else {
-                    println!("{} Error reading dumpfile. Retrying... (Attempt {}/{})", *helpers::FAIL, retry_count, max_retries);
+                    log!("{} Error reading file. Retrying... (Attempt {}/{})", *helpers::FAIL, retry_count, max_retries);
                 }
             }
         }
@@ -110,9 +85,9 @@ pub fn read_rmp<T: serde::de::DeserializeOwned>(path: String) -> T {
             Err(err) => {
                 retry_count += 1;
                 if retry_count >= max_retries {
-                    crashln!("{} Cannot parse dumpfile.\n{}", *helpers::FAIL, string!(err).white());
+                    log!("{} Cannot parse file.\n{}", *helpers::FAIL, string!(err).white());
                 } else {
-                    println!("{} Error parsing dumpfile. Retrying... (Attempt {}/{})", *helpers::FAIL, retry_count, max_retries);
+                    log!("{} Error parsing file. Retrying... (Attempt {}/{})", *helpers::FAIL, retry_count, max_retries);
                 }
             }
         }

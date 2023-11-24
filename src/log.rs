@@ -15,3 +15,11 @@ impl Logger {
 
     pub fn write(&mut self, message: &str) { writeln!(&mut self.file, "[{}] {}", Local::now().format("%Y-%m-%d %H:%M:%S%.3f"), message).unwrap() }
 }
+
+#[macro_export]
+macro_rules! log {
+    ($message:expr $(, $arg:expr)*) => {
+        let mut log = crate::log::Logger::new().unwrap();
+        log.write(format!($message $(, $arg)*).as_str());
+    };
+}
