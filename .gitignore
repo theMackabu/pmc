@@ -2,3 +2,4 @@ target
 .maid
 tests
 bin
+maid/server.toml
