@@ -1,4 +1,4 @@
-import = ["maid/build.toml", "maid/server.toml"]
+import = [".maid/build.toml", ".maid/server.toml"]
 
 [project]
 name = "pmc"

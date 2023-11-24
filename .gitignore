@@ -1,5 +1,8 @@
+# src
 target
-.maid
 tests
 bin
-maid/server.toml
+
+# maid
+.maid/cache
+.maid/server.toml
