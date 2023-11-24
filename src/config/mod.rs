@@ -17,11 +17,13 @@ pub fn read() -> Config {
             if !Exists::file(config_path.clone()).unwrap() {
                 let config = Config {
                     runner: Runner {
-                        shell: string!("/bin/bash"),
-                        args: vec![string!("bash"), string!("-c")],
+                        shell: string!("bash"),
+                        args: vec![string!("-c")],
+                        node: string!("node"),
                         log_path: format!("{path}/.pmc/logs"),
                     },
                     daemon: Daemon {
+                        restarts: 10,
                         interval: 1000,
                         kind: string!("default"),
                     },

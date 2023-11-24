@@ -82,3 +82,40 @@ pub fn read<T: serde::de::DeserializeOwned>(path: String) -> T {
         sleep(Duration::from_secs(1));
     }
 }
+
+pub fn read_rmp<T: serde::de::DeserializeOwned>(path: String) -> T {
+    let mut retry_count = 0;
+    let max_retries = 5;
+
+    let bytes = loop {
+        match fs::read(&path) {
+            Ok(contents) => break contents,
+            Err(err) => {
+                retry_count += 1;
+                if retry_count >= max_retries {
+                    crashln!("{} Cannot find dumpfile.\n{}", *helpers::FAIL, string!(err).white());
+                } else {
+                    println!("{} Error reading dumpfile. Retrying... (Attempt {}/{})", *helpers::FAIL, retry_count, max_retries);
+                }
+            }
+        }
+        sleep(Duration::from_secs(1));
+    };
+
+    retry_count = 0;
+
+    loop {
+        match rmp_serde::from_slice(&bytes) {
+            Ok(parsed) => break parsed,
+            Err(err) => {
+                retry_count += 1;
+                if retry_count >= max_retries {
+                    crashln!("{} Cannot parse dumpfile.\n{}", *helpers::FAIL, string!(err).white());
+                } else {
+                    println!("{} Error parsing dumpfile. Retrying... (Attempt {}/{})", *helpers::FAIL, retry_count, max_retries);
+                }
+            }
+        }
+        sleep(Duration::from_secs(1));
+    }
+}

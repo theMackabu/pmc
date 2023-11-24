@@ -68,8 +68,17 @@ int64_t Runner::Run(const std::string &command, const std::string &shell, Vec<St
 
     dup2(stdout_fd, STDOUT_FILENO);
     dup2(stderr_fd, STDERR_FILENO);
+    
+    std::vector<const char*> argsArray;
+    argsArray.push_back(shell.c_str());
 
-    if (execl(shell.c_str(), args[0].c_str(), args[1].c_str(), command.c_str(), (char *)nullptr) == -1) {
+    transform(args.begin(), args.end(), std::back_inserter(argsArray),
+      [](rust::String& arg) { return arg.c_str(); });
+
+    argsArray.push_back(command.c_str());
+    argsArray.push_back((char *)nullptr); 
+
+    if (execvp(shell.c_str(), const_cast<char* const*>(argsArray.data())) == -1) {
       std::cerr << "[PMC] (cc) Unable to execute the command\n";
       exit(EXIT_FAILURE);
     }

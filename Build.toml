@@ -1,0 +1,43 @@
+[tasks.build_all]
+info = "build all"
+script = [
+   # install packages
+   "apt update --color always",
+   "apt install zip mingw-w64 -y --color always",
+   "mkdir build",
+   
+   # build linux (x86_64)
+   "cargo zigbuild -r --color always",
+   "mv target/release/pmc build/pmc",
+   "zip build/pmc_%{env.VERSION}_linux_amd64.zip build/pmc",
+   "rm build/pmc",
+   
+   # build windows (x86_64)
+   "cargo zigbuild -r --target x86_64-pc-windows-gnu --color always",
+   "mv target/x86_64-pc-windows-gnu/release/pmc.exe build/pmc.exe",
+   "zip build/pmc_%{env.VERSION}_windows_amd64.zip build/pmc.exe",
+   "rm build/pmc.exe",
+   
+   # build macos (x86_64)
+   "cargo zigbuild -r --target x86_64-apple-darwin --color always", 
+   "mv target/x86_64-apple-darwin/release/pmc build/pmc",
+   "zip build/pmc_%{env.VERSION}_darwin_amd64.zip build/pmc",
+   "rm build/pmc",
+   
+   # build macos (aarch64)
+   "cargo zigbuild -r --target aarch64-apple-darwin --color always", 
+   "mv target/aarch64-apple-darwin/release/pmc build/pmc",
+   "zip build/pmc_%{env.VERSION}_darwin_arm.zip build/pmc",
+   "rm build/pmc",
+   
+   # post build
+   "ls -sh build",
+]
+
+[tasks.build_all.remote]
+silent = false
+exclusive = true
+shell = "/bin/bash"
+image = "messense/cargo-zigbuild:latest"
+push = ["src", "Cargo.toml", "Cargo.lock"]
+pull = "build"

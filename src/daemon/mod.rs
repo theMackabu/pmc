@@ -10,7 +10,7 @@ use macros_rs::{crashln, fmtstr, str, string, ternary, then};
 use psutil::process::{MemoryInfo, Process};
 use serde::Serialize;
 use serde_json::json;
-use std::{collections::BTreeMap, process, thread::sleep, time::Duration};
+use std::{process, thread::sleep, time::Duration};
 
 use pmc::{
     config, file,
@@ -35,38 +35,35 @@ extern "C" fn handle_termination_signal(_: libc::c_int) {
     unsafe { libc::_exit(0) }
 }
 
-fn restart_process(mut log: Logger, items: &BTreeMap<String, pmc::process::Process>) {
-    let items = items.iter().filter_map(|(id, item)| Some((id.trim().parse::<usize>().ok()?, item)));
-
-    for (id, item) in items {
-        if item.running {
+fn restart_process(mut log: Logger) {
+    for (id, item) in Runner::new().items() {
+        if item.running && item.watch.enabled {
             let path = item.path.join(item.watch.path.clone());
             let hash = hash::create(path);
 
-            if item.watch.enabled && hash != item.watch.hash {
-                let name = &Some(item.name.clone());
-                let watch = &Some(item.watch.path.clone());
-                let mut runner_instance = Runner::new();
-
-                runner_instance.restart(id, name, watch, false);
+            if hash != item.watch.hash {
+                item.restart();
                 log.write(fmtstr!("watch reload {} (id={id}, hash={hash})", item.name));
                 continue;
             }
         }
 
         if !item.running && pid::running(item.pid as i32) {
-            let mut runner_instance = Runner::new();
-            runner_instance.set_status(id, Status::Running);
+            Runner::new().set_status(*id, Status::Running);
             continue;
         }
 
         then!(!item.running || pid::running(item.pid as i32), continue);
-        let name = &Some(item.name.clone());
-        let watch = &Some(item.watch.path.clone());
-        let mut runner_instance = Runner::new();
 
-        runner_instance.restart(id, name, watch, true);
-        log.write(fmtstr!("restarted {} ({id})", item.name));
+        if item.running && item.crash.value == 10 {
+            log.write(fmtstr!("{} has crashed ({id})", item.name));
+            item.stop();
+            Runner::new().set_crashed(*id).save();
+            continue;
+        } else {
+            item.crashed();
+            log.write(fmtstr!("restarted {} (id={id}, crashes={})", item.name, item.crash.value));
+        }
     }
 }
 
@@ -75,7 +72,7 @@ pub fn health(format: &String) {
     let mut cpu_percent: Option<f32> = None;
     let mut uptime: Option<DateTime<Utc>> = None;
     let mut memory_usage: Option<MemoryInfo> = None;
-    let runner: Runner = file::read(global!("pmc.dump"));
+    let mut runner: Runner = file::read_rmp(global!("pmc.dump"));
 
     #[derive(Clone, Debug, Tabled)]
     struct Info {
@@ -129,10 +126,11 @@ pub fn health(format: &String) {
         None => string!("0%"),
     };
 
-    let memory_usage = match memory_usage {
-        Some(usage) => helpers::format_memory(usage.rss()),
-        None => string!("0b"),
-    };
+    let memory_usage =
+        match memory_usage {
+            Some(usage) => helpers::format_memory(usage.rss()),
+            None => string!("0b"),
+        };
 
     let uptime = match uptime {
         Some(uptime) => helpers::format_duration(uptime),
@@ -151,7 +149,7 @@ pub fn health(format: &String) {
         uptime: uptime,
         path: global!("pmc.base"),
         external: global!("pmc.daemon.kind"),
-        process_count: runner.list().keys().len(),
+        process_count: runner.count(),
         pid_file: format!("{}  ", global!("pmc.pid")),
         status: ColoredString(ternary!(pid::exists(), "online".green().bold(), "stopped".red().bold())),
     }];
@@ -197,13 +195,14 @@ pub fn stop() {
 }
 
 pub fn start() {
-    let external = match global!("pmc.daemon.kind").as_str() {
-        "external" => true,
-        "default" => false,
-        "rust" => false,
-        "cc" => true,
-        _ => false,
-    };
+    let external =
+        match global!("pmc.daemon.kind").as_str() {
+            "external" => true,
+            "default" => false,
+            "rust" => false,
+            "cc" => true,
+            _ => false,
+        };
 
     pid::name("PMC Restart Handler Daemon");
     println!("{} Spawning PMC daemon (pmc_base={})", *helpers::SUCCESS, global!("pmc.base"));
@@ -224,10 +223,7 @@ pub fn start() {
         log.write(fmtstr!("new daemon forked (pid={})", process::id()));
 
         loop {
-            let runner = Runner::new();
-            let items = runner.list();
-
-            then!(!runner.list().is_empty(), restart_process(log.clone(), items));
+            then!(!Runner::new().is_empty(), restart_process(log.clone()));
             sleep(Duration::from_millis(config.daemon.interval));
         }
     }
@@ -254,10 +250,10 @@ pub fn restart() {
 
 pub fn reset() {
     let mut runner = Runner::new();
-    let largest = runner.list().keys().last().cloned();
+    let largest = runner.list().map(|(key, _)| *key).max();
 
     match largest {
-        Some(id) => runner.set_id(Id::from(str!(id))),
+        Some(id) => runner.set_id(Id::from(str!(id.to_string()))),
         None => println!("{} Cannot reset index, no ID found", *helpers::FAIL),
     }
 
