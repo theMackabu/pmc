@@ -38,16 +38,10 @@ pub fn start(name: &Option<String>, args: &Option<Args>, watch: &Option<String>)
     match args {
         Some(Args::Id(id)) => {
             println!("{} Applying action restartProcess on ({id})", *helpers::SUCCESS);
-
             let item = runner.get(*id).restart();
 
-            if let Some(name) = name {
-                item.rename(name.clone())
-            }
-
-            if let Some(path) = watch {
-                item.watch(path.clone())
-            }
+            name.as_ref().map(|n| item.rename(n.clone())).unwrap_or(());
+            watch.as_ref().map(|p| item.watch(p.clone())).unwrap_or(());
 
             println!("{} restarted ({id}) ✓", *helpers::SUCCESS);
             list(&string!("default"));

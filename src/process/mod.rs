@@ -2,9 +2,6 @@ macro_rules! assign {
     ($obj:expr, {$($field:ident),* $(,)?}) => {$($obj.$field = $field.clone();)*};
 }
 
-mod dump;
-mod log;
-
 use crate::{
     config, file, helpers,
     service::{run, stop, ProcessMetadata},
@@ -242,5 +239,6 @@ impl Process {
     }
 }
 
+pub mod dump;
 pub mod hash;
 pub mod id;
