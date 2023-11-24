@@ -1,4 +1,3 @@
-use crate::structs::Args;
 use colored::Colorize;
 use global_placeholders::global;
 use macros_rs::{crashln, string, ternary};
@@ -24,6 +23,12 @@ use tabled::{
     },
     Table, Tabled,
 };
+
+#[derive(Clone, Debug)]
+pub enum Args {
+    Id(usize),
+    Script(String),
+}
 
 pub fn get_version(short: bool) -> String {
     return match short {
