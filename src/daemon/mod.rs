@@ -1,5 +1,6 @@
 #[macro_use]
 mod log;
+mod api;
 mod fork;
 
 use chrono::{DateTime, Utc};
@@ -10,6 +11,7 @@ use macros_rs::{crashln, str, string, ternary, then};
 use psutil::process::{MemoryInfo, Process};
 use serde::Serialize;
 use serde_json::json;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::{process, thread::sleep, time::Duration};
 
 use pmc::{
@@ -27,6 +29,8 @@ use tabled::{
     },
     Table, Tabled,
 };
+
+static ENABLE_API: AtomicBool = AtomicBool::new(false);
 
 extern "C" fn handle_termination_signal(_: libc::c_int) {
     pid::remove();
@@ -205,6 +209,17 @@ pub fn start() {
     pid::name("PMC Restart Handler Daemon");
     println!("{} Spawning PMC daemon (pmc_base={})", *helpers::SUCCESS, global!("pmc.base"));
 
+    let is_api = ENABLE_API.load(Ordering::Acquire);
+    let api_enabled = config::read().daemon.api.enabled;
+
+    if is_api || api_enabled {
+        println!(
+            "{} API server started (address={:?} config={api_enabled}, temp={is_api})",
+            *helpers::SUCCESS,
+            config::read().get_address()
+        );
+    }
+
     if pid::exists() {
         match pid::read() {
             Ok(pid) => then!(!pid::running(pid), pid::remove()),
@@ -212,12 +227,20 @@ pub fn start() {
         }
     }
 
-    extern "C" fn init() {
+    #[inline]
+    #[tokio::main]
+    async extern "C" fn init() {
         let config = config::read();
+        let is_api = ENABLE_API.load(Ordering::Acquire);
 
         unsafe { libc::signal(libc::SIGTERM, handle_termination_signal as usize) };
         pid::write(process::id());
         log!("new daemon forked (pid={})", process::id());
+
+        if is_api || config.daemon.api.enabled {
+            log!("api server started on {:?}", config::read().get_address());
+            tokio::spawn(async move { api::start().await });
+        }
 
         loop {
             then!(!Runner::new().is_empty(), restart_process());
@@ -230,7 +253,7 @@ pub fn start() {
         let callback = pmc::Callback(init);
         pmc::service::try_fork(false, false, callback);
     } else {
-        match daemon(false, false) {
+        match daemon(false, true) {
             Ok(Fork::Parent(_)) => {}
             Ok(Fork::Child) => init(),
             Err(err) => crashln!("{} Daemon creation failed with code {err}", *helpers::FAIL),
@@ -238,10 +261,12 @@ pub fn start() {
     }
 }
 
-pub fn restart() {
+pub fn restart(api: &bool) {
     if pid::exists() {
         stop();
     }
+
+    ENABLE_API.store(*api, Ordering::Release);
     start();
 }
 

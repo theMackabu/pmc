@@ -5,8 +5,11 @@ use crate::{
 
 use chrono::serde::ts_milliseconds;
 use chrono::{DateTime, Utc};
+use global_placeholders::global;
 use macros_rs::{clone, crashln, string, then};
+use psutil::process::{MemoryInfo, Process as PsutilProcess};
 use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
 use std::collections::{BTreeMap, HashMap};
 use std::{env, path::PathBuf};
 
@@ -176,6 +179,7 @@ impl Runner {
     pub fn count(&mut self) -> usize { self.list().count() }
     pub fn is_empty(&self) -> bool { self.list.is_empty() }
     pub fn items(&mut self) -> &mut BTreeMap<usize, Process> { &mut self.list }
+    pub fn info(&mut self, id: usize) -> Option<&Process> { self.list.get(&id) }
     pub fn list<'a>(&'a mut self) -> impl Iterator<Item = (&'a usize, &'a mut Process)> { self.list.iter_mut().map(|(k, v)| (k, v)) }
     pub fn get(&mut self, id: usize) -> &mut Process { self.list.get_mut(&id).unwrap_or_else(|| crashln!("{} Process ({id}) not found", *helpers::FAIL)) }
 
@@ -216,6 +220,69 @@ impl Runner {
 
         return self;
     }
+
+    pub fn json(&mut self) -> Value {
+        let mut processes: Vec<ProcessItem> = Vec::new();
+
+        #[derive(Serialize)]
+        struct ProcessItem {
+            pid: i64,
+            id: usize,
+            cpu: String,
+            mem: String,
+            name: String,
+            restarts: u64,
+            status: String,
+            uptime: String,
+            watch_path: String,
+            start_time: DateTime<Utc>,
+        }
+
+        for (id, item) in self.items() {
+            let mut memory_usage: Option<MemoryInfo> = None;
+            let mut cpu_percent: Option<f32> = None;
+
+            if let Ok(mut process) = PsutilProcess::new(item.pid as u32) {
+                memory_usage = process.memory_info().ok();
+                cpu_percent = process.cpu_percent().ok();
+            }
+
+            let cpu_percent = match cpu_percent {
+                Some(percent) => format!("{:.2}%", percent),
+                None => string!("0.00%"),
+            };
+
+            let memory_usage = match memory_usage {
+                Some(usage) => helpers::format_memory(usage.rss()),
+                None => string!("0b"),
+            };
+
+            let status =
+                if item.running {
+                    string!("online")
+                } else {
+                    match item.crash.crashed {
+                        true => string!("crashed"),
+                        false => string!("stopped"),
+                    }
+                };
+
+            processes.push(ProcessItem {
+                status,
+                id: *id,
+                pid: item.pid,
+                cpu: cpu_percent,
+                mem: memory_usage,
+                restarts: item.restarts,
+                name: item.name.clone(),
+                start_time: item.started,
+                watch_path: item.watch.path.clone(),
+                uptime: helpers::format_duration(item.started),
+            });
+        }
+
+        json!(processes)
+    }
 }
 
 impl Process {
@@ -232,6 +299,107 @@ impl Process {
         Runner::new().new_crash(self.id).save();
         Runner::new().restart(self.id, clone!(self.name), true).save();
         return self;
+    }
+
+    pub fn json(&mut self) -> Value {
+        let config = config::read().runner;
+
+        #[derive(Serialize)]
+        struct Item {
+            info: Info,
+            stats: Stats,
+            watch: Watch,
+            log: Log,
+            raw: Raw,
+        }
+
+        #[derive(Serialize)]
+        struct Info {
+            id: usize,
+            pid: i64,
+            name: String,
+            status: String,
+            path: PathBuf,
+            uptime: String,
+            command: String,
+        }
+
+        #[derive(Serialize)]
+        struct Stats {
+            restarts: u64,
+            start_time: i64,
+            cpu_percent: Option<f32>,
+            memory_usage: Option<MemoryInfo>,
+        }
+
+        #[derive(Serialize)]
+        struct Watch {
+            enabled: bool,
+            hash: String,
+            path: String,
+        }
+
+        #[derive(Serialize)]
+        struct Log {
+            out: String,
+            error: String,
+        }
+
+        #[derive(Serialize)]
+        struct Raw {
+            running: bool,
+            crashed: bool,
+            crashes: u64,
+        }
+
+        let mut memory_usage: Option<MemoryInfo> = None;
+        let mut cpu_percent: Option<f32> = None;
+
+        if let Ok(mut process) = PsutilProcess::new(self.pid as u32) {
+            memory_usage = process.memory_info().ok();
+            cpu_percent = process.cpu_percent().ok();
+        }
+
+        let status = if self.running {
+            string!("online")
+        } else {
+            match self.crash.crashed {
+                true => string!("crashed"),
+                false => string!("stopped"),
+            }
+        };
+
+        json!(Item {
+            info: Info {
+                status,
+                id: self.id,
+                pid: self.pid,
+                name: self.name.clone(),
+                path: self.path.clone(),
+                uptime: helpers::format_duration(self.started),
+                command: format!("{} {} '{}'", config.shell, config.args.join(" "), self.script.clone()),
+            },
+            stats: Stats {
+                cpu_percent,
+                memory_usage,
+                restarts: self.restarts,
+                start_time: self.started.timestamp_millis(),
+            },
+            watch: Watch {
+                enabled: self.watch.enabled,
+                hash: self.watch.hash.clone(),
+                path: self.watch.path.clone(),
+            },
+            log: Log {
+                out: global!("pmc.logs.out", self.name.as_str()),
+                error: global!("pmc.logs.error", self.name.as_str()),
+            },
+            raw: Raw {
+                running: self.running,
+                crashed: self.crash.crashed,
+                crashes: self.crash.value,
+            }
+        })
     }
 }
 

@@ -19,4 +19,19 @@ pub struct Daemon {
     pub restarts: u64,
     pub interval: u64,
     pub kind: String,
+    pub api: Api,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Api {
+    pub enabled: bool,
+    pub address: String,
+    pub port: u64,
+    pub secure: Secure,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Secure {
+    pub enabled: bool,
+    pub token: String,
 }
