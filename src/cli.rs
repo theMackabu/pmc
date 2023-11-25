@@ -144,6 +144,7 @@ pub fn info(id: &usize, format: &String) {
     }
 
     if let Some(home) = home::home_dir() {
+        let config = config::read().runner;
         let item = Runner::new().get(*id).clone();
         let mut memory_usage: Option<MemoryInfo> = None;
         let mut cpu_percent: Option<f32> = None;
@@ -190,8 +191,8 @@ pub fn info(id: &usize, format: &String) {
             status: ColoredString(status),
             log_out: global!("pmc.logs.out", item.name.as_str()),
             log_error: global!("pmc.logs.error", item.name.as_str()),
-            command: format!("/bin/bash -c '{}'", item.script.clone()),
             pid: ternary!(item.running, format!("{}", item.pid), string!("n/a")),
+            command: format!("{} {} '{}'", config.shell, config.args.join(" "), item.script),
             hash: ternary!(item.watch.enabled, format!("{}  ", item.watch.hash), string!("none  ")),
             watch: ternary!(item.watch.enabled, format!("{path}/{}  ", item.watch.path), string!("disabled  ")),
             uptime: ternary!(item.running, format!("{}", helpers::format_duration(item.started)), string!("none")),

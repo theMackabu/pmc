@@ -19,7 +19,7 @@ impl Logger {
 #[macro_export]
 macro_rules! log {
     ($message:expr $(, $arg:expr)*) => {
-        let mut log = log::Logger::new().unwrap();
+        let mut log = crate::daemon::log::Logger::new().unwrap();
         log.write(format!($message $(, $arg)*).as_str());
     };
 }

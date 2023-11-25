@@ -1,4 +1,3 @@
-mod api;
 mod cli;
 mod daemon;
 mod globals;
@@ -35,7 +34,10 @@ enum Daemon {
     Stop,
     /// Restart daemon
     #[command(alias = "restart", alias = "start")]
-    Restore,
+    Restore {
+        #[arg(long)]
+        api: bool,
+    },
     /// Check daemon
     #[command(alias = "info")]
     Health {
@@ -123,7 +125,7 @@ fn main() {
         Commands::Daemon { command } => match command {
             Daemon::Stop => daemon::stop(),
             Daemon::Reset => daemon::reset(),
-            Daemon::Restore => daemon::restart(),
+            Daemon::Restore { api } => daemon::restart(api),
             Daemon::Health { format } => daemon::health(format),
         },
     };
