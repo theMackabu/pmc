@@ -2,13 +2,14 @@
 
 ## Overview
 
-PMC (Process Management Controller) is a simple PM2 alternative written in Rust. It provides a command-line interface to start, stop, restart, and manage fork processes
+PMC (Process Management Controller) is a simple PM2 alternative written in Rust. It provides a command-line/api interface to start, stop, restart, and manage fork processes
 
 ## Features
 
 - Start, stop, and restart processes.
 - List all running processes with customizable output formats.
 - Retrieve detailed information about a specific process.
+- Use HTTP/rust api to control processes.
 
 ## Usage
 
