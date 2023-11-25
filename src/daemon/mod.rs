@@ -253,7 +253,7 @@ pub fn start() {
         let callback = pmc::Callback(init);
         pmc::service::try_fork(false, false, callback);
     } else {
-        match daemon(false, true) {
+        match daemon(false, false) {
             Ok(Fork::Parent(_)) => {}
             Ok(Fork::Child) => init(),
             Err(err) => crashln!("{} Daemon creation failed with code {err}", *helpers::FAIL),
