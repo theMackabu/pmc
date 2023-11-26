@@ -241,7 +241,6 @@ pub fn logs(id: &usize, lines: &usize) {
     }
 }
 
-#[cfg(target_os = "macos")]
 pub fn env(id: &usize) {
     let item = Runner::new().get(*id).clone();
     for (key, value) in item.env.iter() {
