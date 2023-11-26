@@ -61,7 +61,7 @@ fn restart_process() {
         then!(!item.running || pid::running(item.pid as i32), continue);
 
         if item.running && item.crash.value == config::read().daemon.restarts {
-            log!("[daemon] {} has crashed ({id})", item.name);
+            log!("[daemon] {} has crashed (id={id})", item.name);
             item.stop();
             Runner::new().set_crashed(*id).save();
             continue;
@@ -247,9 +247,11 @@ pub fn start() {
         }
 
         loop {
-            if let Ok(mut process) = Process::new(process::id()) {
-                DAEMON_CPU_PERCENTAGE.observe(process.cpu_percent().ok().unwrap() as f64);
-                DAEMON_MEM_USAGE.observe(process.memory_info().ok().unwrap().rss() as f64);
+            if is_api || config.daemon.api.enabled {
+                if let Ok(mut process) = Process::new(process::id()) {
+                    DAEMON_CPU_PERCENTAGE.observe(process.cpu_percent().ok().unwrap() as f64);
+                    DAEMON_MEM_USAGE.observe(process.memory_info().ok().unwrap().rss() as f64);
+                }
             }
 
             then!(!Runner::new().is_empty(), restart_process());
