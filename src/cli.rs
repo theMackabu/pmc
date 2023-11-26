@@ -55,6 +55,7 @@ pub fn start(name: &Option<String>, args: &Option<Args>, watch: &Option<String>)
             item.restart();
 
             println!("{} restarted ({id}) ✓", *helpers::SUCCESS);
+            log!("process {id} started");
             list(&string!("default"));
         }
         Some(Args::Script(script)) => {
