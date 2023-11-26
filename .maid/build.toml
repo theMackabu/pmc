@@ -1,10 +1,14 @@
 [tasks.build_all]
 info = "build all"
 script = [
-   # setup
+   # install packages
+   "apt-get update",
+   "apt-get install zip -y",
+
+   # setup build
    "mkdir build",
-   "export CC = '/usr/bin/clang'",
-   "export CXX = '/usr/bin/clang++'",
+   "export CC=\"/usr/bin/clang\"",
+   "export CXX=\"/usr/bin/clang++\"",
 
    # build linux (x86_64)
    "cargo zigbuild -r --color always",
