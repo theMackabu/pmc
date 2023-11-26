@@ -2,8 +2,11 @@
 #include "../include/process.h"
 
 #include <signal.h>
+#include <stdio.h>
 #include <iostream>
 #include <string>
+#include <sys/wait.h>
+#include <sys/types.h>
 using namespace std;
 
 int64_t stop(int64_t pid) {
