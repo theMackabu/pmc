@@ -40,8 +40,9 @@ For more commands, check out `pmc --help`
 
 ### Installation
 
-Pre-built binaries for Linux, MacOS, and WSL can be found on the [releases](releases) page. There is no windows support yet.
-Install from crates.io using `cargo install pmc` (requires clang++)
+Pre-built binaries for Linux, MacOS, and WSL can be found on the [releases](releases) page.
+
+There is no windows support yet. Install from crates.io using `cargo install pmc` (requires clang++)
 
 #### Building
 
@@ -49,6 +50,4 @@ Install from crates.io using `cargo install pmc` (requires clang++)
 - Open a terminal in the project folder
 - Check if you have cargo (Rust's package manager) installed, just type in `cargo`
 - If cargo is installed, run `cargo build --release`
-- Put the executable into one of your PATH entries
-  - Linux: usually /bin/ or /usr/bin/
-  - Windows: C:\Windows\System32 is good for it but don't use windows
+- Put the executable into one of your PATH entries, usually `/bin/` or `/usr/bin/`
