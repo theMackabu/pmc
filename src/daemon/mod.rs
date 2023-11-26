@@ -54,6 +54,7 @@ fn restart_process() {
 
         if !item.running && pid::running(item.pid as i32) {
             Runner::new().set_status(*id, Status::Running);
+            log!("[daemon] fix status {} (id={id})", item.name);
             continue;
         }
 
