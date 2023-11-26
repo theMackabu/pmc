@@ -1,6 +1,7 @@
 #ifndef FORK_H
 #define FORK_H
 #include <string>
+#include <cstdint>
 
 #ifndef CXXBRIDGE1_ENUM_Fork
 #define CXXBRIDGE1_ENUM_Fork
