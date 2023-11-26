@@ -1,6 +1,6 @@
 [package]
 name = "pmc"
-version = "1.5.3"
+version = "1.5.4"
 edition = "2021"
 license = "MIT"
 repository = "https://lab.themackabu.dev/self/pmc"

@@ -179,13 +179,11 @@ impl Runner {
 
     pub fn stop(&mut self, id: usize) -> &mut Self {
         let item = self.get(id);
-        let code = stop(item.pid);
+        stop(item.pid);
 
-        if code == 0 {
-            item.running = false;
-            item.crash.crashed = false;
-            item.crash.value = 0;
-        }
+        item.running = false;
+        item.crash.crashed = false;
+        item.crash.value = 0;
 
         return self;
     }
