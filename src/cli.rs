@@ -55,7 +55,7 @@ pub fn start(name: &Option<String>, args: &Option<Args>, watch: &Option<String>)
             item.restart();
 
             println!("{} restarted ({id}) ✓", *helpers::SUCCESS);
-            log!("process {id} started");
+            log!("process started (id={id})");
             list(&string!("default"));
         }
         Some(Args::Script(script)) => {
@@ -73,7 +73,7 @@ pub fn start(name: &Option<String>, args: &Option<Args>, watch: &Option<String>)
             }
 
             println!("{} created ({name}) ✓", *helpers::SUCCESS);
-            log!("process {name} created");
+            log!("process created (name={name})");
             list(&string!("default"));
         }
         None => {}
@@ -86,7 +86,7 @@ pub fn stop(id: &usize) {
     runner.get(*id).stop();
 
     println!("{} stopped ({id}) ✓", *helpers::SUCCESS);
-    log!("process {id} stopped");
+    log!("process stopped (id={id})");
     list(&string!("default"));
 }
 
@@ -95,7 +95,7 @@ pub fn remove(id: &usize) {
     Runner::new().remove(*id);
 
     println!("{} removed ({id}) ✓", *helpers::SUCCESS);
-    log!("process {id} removed");
+    log!("process removed (id={id})");
 }
 
 pub fn info(id: &usize, format: &String) {
