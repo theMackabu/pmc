@@ -3,6 +3,7 @@ mod log;
 mod api;
 mod fork;
 
+use api::{DAEMON_CPU_PERCENTAGE, DAEMON_MEM_USAGE, DAEMON_START_TIME};
 use chrono::{DateTime, Utc};
 use colored::Colorize;
 use fork::{daemon, Fork};
@@ -34,7 +35,7 @@ static ENABLE_API: AtomicBool = AtomicBool::new(false);
 
 extern "C" fn handle_termination_signal(_: libc::c_int) {
     pid::remove();
-    log!("daemon killed (pid={})", process::id());
+    log!("[daemon] killed (pid={})", process::id());
     unsafe { libc::_exit(0) }
 }
 
@@ -46,7 +47,7 @@ fn restart_process() {
 
             if hash != item.watch.hash {
                 item.restart();
-                log!("watch reload {} (id={id}, hash={hash})", item.name);
+                log!("[daemon] watch reload {} (id={id}, hash={hash})", item.name);
                 continue;
             }
         }
@@ -59,13 +60,13 @@ fn restart_process() {
         then!(!item.running || pid::running(item.pid as i32), continue);
 
         if item.running && item.crash.value == config::read().daemon.restarts {
-            log!("{} has crashed ({id})", item.name);
+            log!("[daemon] {} has crashed ({id})", item.name);
             item.stop();
             Runner::new().set_crashed(*id).save();
             continue;
         } else {
             item.crashed();
-            log!("restarted {} (id={id}, crashes={})", item.name, item.crash.value);
+            log!("[daemon] restarted {} (id={id}, crashes={})", item.name, item.crash.value);
         }
     }
 }
@@ -186,7 +187,7 @@ pub fn stop() {
             Ok(pid) => {
                 pmc::service::stop(pid as i64);
                 pid::remove();
-                log!("daemon stopped (pid={pid})");
+                log!("[daemon] stopped (pid={pid})");
                 println!("{} PMC daemon stopped", *helpers::SUCCESS);
             }
             Err(err) => crashln!("{} Failed to read PID file: {}", *helpers::FAIL, err),
@@ -234,15 +235,22 @@ pub fn start() {
         let is_api = ENABLE_API.load(Ordering::Acquire);
 
         unsafe { libc::signal(libc::SIGTERM, handle_termination_signal as usize) };
+        DAEMON_START_TIME.set(Utc::now().timestamp_millis() as f64);
+
         pid::write(process::id());
-        log!("new daemon forked (pid={})", process::id());
+        log!("[daemon] new fork (pid={})", process::id());
 
         if is_api || config.daemon.api.enabled {
-            log!("api server started on {:?}", config::read().get_address());
+            log!("[api] server started (address={:?})", config::read().get_address());
             tokio::spawn(async move { api::start().await });
         }
 
         loop {
+            if let Ok(mut process) = Process::new(process::id()) {
+                DAEMON_CPU_PERCENTAGE.observe(process.cpu_percent().ok().unwrap() as f64);
+                DAEMON_MEM_USAGE.observe(process.memory_info().ok().unwrap().rss() as f64);
+            }
+
             then!(!Runner::new().is_empty(), restart_process());
             sleep(Duration::from_millis(config.daemon.interval));
         }

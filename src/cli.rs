@@ -19,7 +19,7 @@ use tabled::{
         object::{Columns, Rows},
         style::{BorderColor, Style},
         themes::Colorization,
-        Color, Rotate,
+        Color, Modify, Rotate, Width,
     },
     Table, Tabled,
 };
@@ -44,10 +44,15 @@ pub fn start(name: &Option<String>, args: &Option<Args>, watch: &Option<String>)
     match args {
         Some(Args::Id(id)) => {
             println!("{} Applying action restartProcess on ({id})", *helpers::SUCCESS);
-            let item = runner.get(*id).restart();
+            let item = runner.get(*id);
 
-            name.as_ref().map(|n| item.rename(n.clone())).unwrap_or(());
-            watch.as_ref().map(|p| item.watch(p.clone())).unwrap_or(());
+            match watch {
+                Some(path) => item.watch(path),
+                None => item.disable_watch(),
+            }
+
+            name.as_ref().map(|n| item.rename(n.trim().replace("\n", "")));
+            item.restart();
 
             println!("{} restarted ({id}) ✓", *helpers::SUCCESS);
             list(&string!("default"));
@@ -330,6 +335,7 @@ pub fn list(format: &String) {
             .with(Style::rounded().remove_verticals())
             .with(BorderColor::filled(Color::FG_BRIGHT_BLACK))
             .with(Colorization::exact([Color::FG_BRIGHT_CYAN], Rows::first()))
+            .with(Modify::new(Columns::single(1)).with(Width::truncate(35).suffix("...  ")))
             .to_string();
 
         if let Ok(json) = serde_json::to_string(&processes) {
