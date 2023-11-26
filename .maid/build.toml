@@ -1,22 +1,16 @@
 [tasks.build_all]
 info = "build all"
 script = [
-   # install packages
-   "apt update --color always",
-   "apt install zip mingw-w64 -y --color always",
+   # setup
    "mkdir build",
-   
+   "export CC = '/usr/bin/clang'",
+   "export CXX = '/usr/bin/clang++'",
+
    # build linux (x86_64)
    "cargo zigbuild -r --color always",
    "mv target/release/pmc build/pmc",
    "zip build/pmc_%{env.VERSION}_linux_amd64.zip build/pmc",
    "rm build/pmc",
-   
-   # build windows (x86_64)
-   "cargo zigbuild -r --target x86_64-pc-windows-gnu --color always",
-   "mv target/x86_64-pc-windows-gnu/release/pmc.exe build/pmc.exe",
-   "zip build/pmc_%{env.VERSION}_windows_amd64.zip build/pmc.exe",
-   "rm build/pmc.exe",
    
    # build macos (x86_64)
    "cargo zigbuild -r --target x86_64-apple-darwin --color always", 
@@ -39,5 +33,5 @@ silent = false
 exclusive = true
 shell = "/bin/bash"
 image = "messense/cargo-zigbuild:latest"
-push = ["src", "Cargo.toml", "Cargo.lock"]
+push = ["src", "Cargo.toml", "Cargo.lock", "build.rs"]
 pull = "build"

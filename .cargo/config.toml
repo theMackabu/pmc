@@ -1,0 +1,6 @@
+[env]
+CC = "/usr/bin/clang"
+CXX = "/usr/bin/clang++"
+
+[profile.release]
+strip = true
