@@ -1,8 +1,10 @@
 # src
+build
 target
 tests
 bin
 
 # maid
 .maid/cache
+.maid/temp
 .maid/server.toml
