@@ -4,7 +4,7 @@
 
 #ifndef CXXBRIDGE1_ENUM_Fork
 #define CXXBRIDGE1_ENUM_Fork
-enum class Fork: uint8_t {
+enum class Fork: std::uint8_t {
     Parent,
     Child
 };
