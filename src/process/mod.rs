@@ -6,7 +6,7 @@ use crate::{
 use chrono::serde::ts_milliseconds;
 use chrono::{DateTime, Utc};
 use global_placeholders::global;
-use macros_rs::{clone, crashln, string, then};
+use macros_rs::{crashln, string, ternary, then};
 use psutil::process::{MemoryInfo, Process as PsutilProcess};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -63,13 +63,7 @@ impl Status {
 }
 
 impl Runner {
-    pub fn new() -> Self {
-        let dump = dump::read();
-        let runner = Runner { id: dump.id, list: dump.list };
-
-        dump::write(&runner);
-        return runner;
-    }
+    pub fn new() -> Self { dump::read() }
 
     pub fn start(&mut self, name: &String, command: &String, watch: &Option<String>) -> &mut Self {
         let id = self.id.next();
@@ -115,14 +109,13 @@ impl Runner {
                 env: env::vars().collect(),
             },
         );
-        dump::write(&self);
 
         return self;
     }
 
-    pub fn restart(&mut self, id: usize, name: String, dead: bool) -> &mut Self {
+    pub fn restart(&mut self, id: usize, dead: bool) -> &mut Self {
         let item = self.get(id);
-        let Process { path, script, .. } = item.clone();
+        let Process { path, script, name, .. } = item.clone();
 
         if let Err(err) = std::env::set_current_dir(&item.path) {
             crashln!("{} Failed to set working directory {:?}\nError: {:#?}", *helpers::FAIL, path, err);
@@ -141,18 +134,9 @@ impl Runner {
             log_path: config.log_path,
         });
 
-        item.watch = Watch {
-            enabled: false,
-            path: string!(""),
-            hash: string!(""),
-        };
-
-        item.name = name;
         item.running = true;
         item.started = Utc::now();
         then!(dead, item.restarts += 1);
-
-        // assign!(item, {name, pid, watch});
 
         return self;
     }
@@ -170,8 +154,7 @@ impl Runner {
     }
 
     pub fn set_status(&mut self, id: usize, status: Status) {
-        let item = self.get(id);
-        item.running = status.to_bool();
+        self.get(id).running = status.to_bool();
         dump::write(&self);
     }
 
@@ -179,19 +162,18 @@ impl Runner {
     pub fn count(&mut self) -> usize { self.list().count() }
     pub fn is_empty(&self) -> bool { self.list.is_empty() }
     pub fn items(&mut self) -> &mut BTreeMap<usize, Process> { &mut self.list }
+    pub fn exists(&mut self, id: usize) -> bool { self.list.contains_key(&id) }
     pub fn info(&mut self, id: usize) -> Option<&Process> { self.list.get(&id) }
     pub fn list<'a>(&'a mut self) -> impl Iterator<Item = (&'a usize, &'a mut Process)> { self.list.iter_mut().map(|(k, v)| (k, v)) }
     pub fn get(&mut self, id: usize) -> &mut Process { self.list.get_mut(&id).unwrap_or_else(|| crashln!("{} Process ({id}) not found", *helpers::FAIL)) }
 
     pub fn set_crashed(&mut self, id: usize) -> &mut Self {
-        let item = self.get(id);
-        item.crash.crashed = true;
+        self.get(id).crash.crashed = true;
         return self;
     }
 
     pub fn new_crash(&mut self, id: usize) -> &mut Self {
-        let item = self.get(id);
-        item.crash.value += 1;
+        self.get(id).crash.value += 1;
         return self;
     }
 
@@ -205,17 +187,16 @@ impl Runner {
     }
 
     pub fn rename(&mut self, id: usize, name: String) -> &mut Self {
-        let item = self.get(id);
-        item.name = name;
+        self.get(id).name = name;
         return self;
     }
 
-    pub fn watch(&mut self, id: usize, path: String) -> &mut Self {
+    pub fn watch(&mut self, id: usize, path: &str, enabled: bool) -> &mut Self {
         let item = self.get(id);
         item.watch = Watch {
-            enabled: true,
-            path: clone!(path),
-            hash: hash::create(item.path.join(path)),
+            enabled,
+            path: string!(path),
+            hash: ternary!(enabled, hash::create(item.path.join(path)), string!("")),
         };
 
         return self;
@@ -287,17 +268,14 @@ impl Runner {
 
 impl Process {
     pub fn stop(&mut self) { Runner::new().stop(self.id).save(); }
-    pub fn watch(&mut self, path: String) { Runner::new().watch(self.id, path).save(); }
+    pub fn watch(&mut self, path: &str) { Runner::new().watch(self.id, path, true).save(); }
+    pub fn disable_watch(&mut self) { Runner::new().watch(self.id, "", false).save(); }
     pub fn rename(&mut self, name: String) { Runner::new().rename(self.id, name).save(); }
-
-    pub fn restart(&mut self) -> &mut Process {
-        Runner::new().restart(self.id, clone!(self.name), false).save();
-        return self;
-    }
+    pub fn restart(&mut self) { Runner::new().restart(self.id, false).save(); }
 
     pub fn crashed(&mut self) -> &mut Process {
         Runner::new().new_crash(self.id).save();
-        Runner::new().restart(self.id, clone!(self.name), true).save();
+        Runner::new().restart(self.id, true).save();
         return self;
     }
 

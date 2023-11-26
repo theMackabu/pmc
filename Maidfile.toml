@@ -2,7 +2,7 @@ import = [".maid/build.toml", ".maid/server.toml"]
 
 [project]
 name = "pmc"
-version = "1.4.1"
+version = "1.5.0"
 
 [tasks]
 clean = { script = ["rm -rf bin", "mkdir bin"] }
@@ -20,6 +20,7 @@ target = ["bin/pmc"]
 
 [tasks.install]
 script = [
+   "killall pmc",
    "maid build -q", 
    "sudo cp bin/pmc /usr/local/bin",
     "echo Copied binary!"
