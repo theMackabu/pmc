@@ -1,10 +1,10 @@
 [package]
 name = "pmc"
-version = "1.5.1"
+version = "1.5.2"
 edition = "2021"
 license = "MIT"
 repository = "https://lab.themackabu.dev/crates/pmc"
-description = "Process management controller"
+description = "PMC is a simple and easy to use PM2 alternative"
 
 [dependencies]
 clap = "4.4.8"

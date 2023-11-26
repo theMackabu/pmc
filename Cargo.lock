@@ -1133,7 +1133,7 @@ dependencies = [
 
 [[package]]
 name = "pmc"
-version = "1.5.1"
+version = "1.5.2"
 dependencies = [
  "anyhow",
  "bytes",
