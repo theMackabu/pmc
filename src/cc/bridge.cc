@@ -11,6 +11,7 @@
 #include <vector>
 
 #ifdef __linux__
+#include <cstring>
 #include <cstdlib>
 #include <dirent.h>
 #elif __APPLE__
