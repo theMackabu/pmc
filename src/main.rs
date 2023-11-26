@@ -39,7 +39,7 @@ enum Daemon {
         api: bool,
     },
     /// Check daemon
-    #[command(alias = "info")]
+    #[command(alias = "info", alias = "status")]
     Health {
         /// Format output
         #[arg(long, default_value_t = string!("default"))]
