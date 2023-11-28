@@ -1,5 +1,5 @@
-#include "../include/bridge.h"
-#include "../include/process.h"
+#include "include/bridge.h"
+#include "include/process.h"
 
 #include <iostream>
 #include <signal.h>

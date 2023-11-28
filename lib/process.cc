@@ -1,4 +1,4 @@
-#include "../include/process.h"
+#include "include/process.h"
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/wait.h>

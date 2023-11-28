@@ -30,9 +30,9 @@ pub mod service {
     }
 
     unsafe extern "C++" {
-        include!("pmc/src/include/process.h");
-        include!("pmc/src/include/bridge.h");
-        include!("pmc/src/include/fork.h");
+        include!("pmc/lib/include/process.h");
+        include!("pmc/lib/include/bridge.h");
+        include!("pmc/lib/include/fork.h");
         type Callback = crate::Callback;
 
         pub fn stop(pid: i64) -> i64;
