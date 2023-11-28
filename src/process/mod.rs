@@ -66,6 +66,7 @@ pub struct ProcessItem {
     restarts: u64,
     status: String,
     uptime: String,
+    #[schema(example = "/path")]
     watch_path: String,
     #[schema(value_type = String, example = "2000-01-01T01:00:00.000Z")]
     start_time: DateTime<Utc>,
@@ -96,6 +97,7 @@ pub struct Crash {
 #[derive(Clone, Debug, Deserialize, Serialize, ToSchema)]
 pub struct Watch {
     pub enabled: bool,
+    #[schema(example = "/path")]
     pub path: String,
     pub hash: String,
 }

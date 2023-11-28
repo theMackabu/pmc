@@ -72,18 +72,23 @@ pub struct MetricsRoot<'a> {
 
 #[derive(Serialize, ToSchema)]
 pub struct Version<'a> {
+    #[schema(example = "v1.0.0")]
     pub pkg: String,
     pub hash: &'a str,
+    #[schema(example = "2000-01-01")]
     pub build_date: &'a str,
+    #[schema(example = "release")]
     pub target: &'a str,
 }
 
 #[derive(Serialize, ToSchema)]
 pub struct Daemon {
-    pub pid: String,
+    pub pid: Option<i32>,
+    #[schema(example = true)]
     pub running: bool,
     pub uptime: String,
     pub process_count: usize,
+    #[schema(example = "default")]
     pub daemon_type: String,
     pub stats: Stats,
 }
@@ -354,15 +359,10 @@ pub async fn metrics_handler() -> Result<impl Reply, Infallible> {
         None => string!("none"),
     };
 
-    let pid = match pid {
-        Some(pid) => string!(pid),
-        None => string!("n/a"),
-    };
-
     let response = json!(MetricsRoot {
         version: Version {
             pkg: format!("v{}", env!("CARGO_PKG_VERSION")),
-            hash: env!("GIT_HASH"),
+            hash: env!("GIT_HASH_FULL"),
             build_date: env!("BUILD_DATE"),
             target: env!("PROFILE"),
         },
