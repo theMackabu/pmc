@@ -23,5 +23,5 @@ script = [
    "killall pmc",
    "maid build -q", 
    "sudo cp bin/pmc /usr/local/bin",
-    "echo Copied binary!"
+   "echo Copied binary!"
 ]

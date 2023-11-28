@@ -28,6 +28,7 @@ lazy_static = "1.4.0"
 prometheus = "0.13.3"
 serde_json = "1.0.108"
 simple-logging = "2.0.2"
+utoipa-rapidoc = "1.0.0"
 pretty_env_logger = "0.5.0"
 clap-verbosity-flag = "2.1.0"
 global_placeholders = "0.1.0"
@@ -36,6 +37,7 @@ psutil = { version = "3.2.2", features = ["serde"] }
 tabled = { version = "0.14.0", features = ["color"] }
 chrono = { version = "0.4.23", features = ["serde"] }
 serde = { version = "1.0.192", features = ["derive"] }
+utoipa = { version = "4.1.0", features = ["serde_yaml"] }
 
 [build-dependencies]
 chrono = "0.4.23"

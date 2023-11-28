@@ -1,4 +1,4 @@
-#include "../include/fork.h"
+#include "include/fork.h"
 #include <cstring>
 #include <stdexcept>
 #include <cstdlib>
