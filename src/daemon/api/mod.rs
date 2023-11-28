@@ -3,25 +3,29 @@ mod routes;
 use bytes::Bytes;
 use lazy_static::lazy_static;
 use macros_rs::fmtstr;
-use pmc::config;
+use pmc::{config, process};
 use prometheus::{opts, register_counter, register_gauge, register_histogram, register_histogram_vec};
 use prometheus::{Counter, Gauge, Histogram, HistogramVec};
 use routes::{action_handler, env_handler, info_handler, list_handler, log_handler, log_handler_raw, metrics_handler, prometheus_handler, rename_handler};
 use serde::Serialize;
 use serde_json::json;
 use std::convert::Infallible;
+use utoipa::{OpenApi, ToSchema};
+use utoipa_rapidoc::RapiDoc;
 
 use warp::{
     body, get,
     http::StatusCode,
     path, post, reject,
-    reply::{self, json},
+    reply::{self, html, json},
     Filter, Rejection, Reply,
 };
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 struct ErrorMessage {
+    #[schema(example = 404)]
     code: u16,
+    #[schema(example = "NOT_FOUND")]
     message: String,
 }
 
@@ -40,18 +44,55 @@ lazy_static! {
 }
 
 pub async fn start() {
+    const DOCS: &str = include_str!("docs.html");
     let config = config::read().daemon.api;
 
-    let list = path!("list").and_then(list_handler);
-    let metrics = path!("metrics").and_then(metrics_handler);
-    let prometheus = path!("prometheus").and_then(prometheus_handler);
+    #[derive(OpenApi)]
+    #[openapi(
+        paths(
+            routes::action_handler,
+            routes::env_handler,
+            routes::info_handler,
+            routes::list_handler,
+            routes::log_handler,
+            routes::log_handler_raw,
+            routes::metrics_handler,
+            routes::prometheus_handler,
+            routes::rename_handler
+        ),
+        components(schemas(
+            ErrorMessage,
+            process::Log,
+            process::Raw,
+            process::Info,
+            process::Stats,
+            process::Watch,
+            process::ItemSingle,
+            process::ProcessItem,
+            routes::Stats,
+            routes::Daemon,
+            routes::Version,
+            routes::ActionBody,
+            routes::MetricsRoot,
+            routes::LogResponse,
+            routes::DocMemoryInfo,
+            routes::ActionResponse,
+        ))
+    )]
+    struct ApiDoc;
 
-    let env = path!("process" / usize / "env").and_then(env_handler);
-    let info = path!("process" / usize / "info").and_then(info_handler);
-    let logs = path!("process" / usize / "logs" / String).and_then(log_handler);
-    let raw_logs = path!("process" / usize / "logs" / String / "raw").and_then(log_handler_raw);
-    let action = path!("process" / usize / "action").and(body::json()).and_then(action_handler);
-    let rename = path!("process" / usize / "rename").and(string_filter(1024 * 16)).and_then(rename_handler);
+    let list = path!("list").and(get()).and_then(list_handler);
+    let metrics = path!("metrics").and(get()).and_then(metrics_handler);
+    let prometheus = path!("prometheus").and(get()).and_then(prometheus_handler);
+    let file = path!("docs.json").and(get()).map(|| json(&ApiDoc::openapi()));
+    let docs = path!("docs").and(get()).map(|| html(RapiDoc::new("/docs.json").custom_html(DOCS).to_html()));
+
+    let env = path!("process" / usize / "env").and(get()).and_then(env_handler);
+    let info = path!("process" / usize / "info").and(get()).and_then(info_handler);
+    let logs = path!("process" / usize / "logs" / String).and(get()).and_then(log_handler);
+    let raw_logs = path!("process" / usize / "logs" / String / "raw").and(get()).and_then(log_handler_raw);
+    let action = path!("process" / usize / "action").and(post()).and(body::json()).and_then(action_handler);
+    let rename = path!("process" / usize / "rename").and(post()).and(string_filter(1024 * 16)).and_then(rename_handler);
 
     let log = warp::log::custom(|info| {
         log!(
@@ -66,15 +107,17 @@ pub async fn start() {
 
     let routes = path::end()
         .map(|| json(&json!({"healthy": true})))
-        .or(get().and(env))
-        .or(get().and(list))
-        .or(get().and(info))
-        .or(get().and(logs))
-        .or(get().and(raw_logs))
-        .or(get().and(metrics))
-        .or(post().and(rename))
-        .or(post().and(action))
-        .or(get().and(prometheus));
+        .or(env)
+        .or(docs)
+        .or(file)
+        .or(list)
+        .or(info)
+        .or(logs)
+        .or(rename)
+        .or(action)
+        .or(metrics)
+        .or(raw_logs)
+        .or(prometheus);
 
     if config.secure.enabled {
         let auth = warp::header::exact("authorization", fmtstr!("token {}", config.secure.token));
@@ -89,16 +132,19 @@ async fn handle_rejection(err: Rejection) -> Result<impl Reply, Infallible> {
     let message;
 
     HTTP_COUNTER.inc();
-    if let Some(_) = err.find::<reject::MissingHeader>() {
+    if err.is_not_found() {
+        code = StatusCode::NOT_FOUND;
+        message = "NOT_FOUND";
+    } else if let Some(_) = err.find::<reject::MissingHeader>() {
         code = StatusCode::UNAUTHORIZED;
         message = "UNAUTHORIZED";
     } else if let Some(_) = err.find::<reject::MethodNotAllowed>() {
-        code = StatusCode::NOT_FOUND;
-        message = "NOT_FOUND";
+        code = StatusCode::METHOD_NOT_ALLOWED;
+        message = "METHOD_NOT_ALLOWED";
     } else {
         log!("[api] unhandled rejection (err={:?})", err);
         code = StatusCode::INTERNAL_SERVER_ERROR;
-        message = "UNHANDLED_REJECTION";
+        message = "INTERNAL_SERVER_ERROR";
     }
 
     let json = json(&ErrorMessage {
