@@ -7,11 +7,69 @@ use chrono::serde::ts_milliseconds;
 use chrono::{DateTime, Utc};
 use global_placeholders::global;
 use macros_rs::{crashln, string, ternary, then};
-use psutil::process::{MemoryInfo, Process as PsutilProcess};
+use psutil::process::{self, MemoryInfo};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, HashMap};
 use std::{env, path::PathBuf};
+use utoipa::ToSchema;
+
+#[derive(Serialize, ToSchema)]
+pub struct ItemSingle {
+    info: Info,
+    stats: Stats,
+    watch: Watch,
+    log: Log,
+    raw: Raw,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct Info {
+    id: usize,
+    pid: i64,
+    name: String,
+    status: String,
+    #[schema(value_type = String, example = "/path")]
+    path: PathBuf,
+    uptime: String,
+    command: String,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct Stats {
+    restarts: u64,
+    start_time: i64,
+    cpu_percent: Option<f32>,
+    memory_usage: Option<MemoryInfo>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct Log {
+    out: String,
+    error: String,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct Raw {
+    running: bool,
+    crashed: bool,
+    crashes: u64,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct ProcessItem {
+    pid: i64,
+    id: usize,
+    cpu: String,
+    mem: String,
+    name: String,
+    restarts: u64,
+    status: String,
+    uptime: String,
+    watch_path: String,
+    #[schema(value_type = String, example = "2000-01-01T01:00:00.000Z")]
+    start_time: DateTime<Utc>,
+}
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Process {
@@ -35,7 +93,7 @@ pub struct Crash {
     pub value: u64,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, ToSchema)]
 pub struct Watch {
     pub enabled: bool,
     pub path: String,
@@ -207,25 +265,11 @@ impl Runner {
     pub fn json(&mut self) -> Value {
         let mut processes: Vec<ProcessItem> = Vec::new();
 
-        #[derive(Serialize)]
-        struct ProcessItem {
-            pid: i64,
-            id: usize,
-            cpu: String,
-            mem: String,
-            name: String,
-            restarts: u64,
-            status: String,
-            uptime: String,
-            watch_path: String,
-            start_time: DateTime<Utc>,
-        }
-
         for (id, item) in self.items() {
             let mut memory_usage: Option<MemoryInfo> = None;
             let mut cpu_percent: Option<f32> = None;
 
-            if let Ok(mut process) = PsutilProcess::new(item.pid as u32) {
+            if let Ok(mut process) = process::Process::new(item.pid as u32) {
                 memory_usage = process.memory_info().ok();
                 cpu_percent = process.cpu_percent().ok();
             }
@@ -284,58 +328,10 @@ impl Process {
     pub fn json(&mut self) -> Value {
         let config = config::read().runner;
 
-        #[derive(Serialize)]
-        struct Item {
-            info: Info,
-            stats: Stats,
-            watch: Watch,
-            log: Log,
-            raw: Raw,
-        }
-
-        #[derive(Serialize)]
-        struct Info {
-            id: usize,
-            pid: i64,
-            name: String,
-            status: String,
-            path: PathBuf,
-            uptime: String,
-            command: String,
-        }
-
-        #[derive(Serialize)]
-        struct Stats {
-            restarts: u64,
-            start_time: i64,
-            cpu_percent: Option<f32>,
-            memory_usage: Option<MemoryInfo>,
-        }
-
-        #[derive(Serialize)]
-        struct Watch {
-            enabled: bool,
-            hash: String,
-            path: String,
-        }
-
-        #[derive(Serialize)]
-        struct Log {
-            out: String,
-            error: String,
-        }
-
-        #[derive(Serialize)]
-        struct Raw {
-            running: bool,
-            crashed: bool,
-            crashes: u64,
-        }
-
         let mut memory_usage: Option<MemoryInfo> = None;
         let mut cpu_percent: Option<f32> = None;
 
-        if let Ok(mut process) = PsutilProcess::new(self.pid as u32) {
+        if let Ok(mut process) = process::Process::new(self.pid as u32) {
             memory_usage = process.memory_info().ok();
             cpu_percent = process.cpu_percent().ok();
         }
@@ -349,7 +345,7 @@ impl Process {
             }
         };
 
-        json!(Item {
+        json!(ItemSingle {
             info: Info {
                 status,
                 id: self.id,

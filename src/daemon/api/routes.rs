@@ -7,6 +7,7 @@ use psutil::process::{MemoryInfo, Process};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::convert::Infallible;
+use utoipa::ToSchema;
 
 use crate::daemon::{
     api::{HTTP_COUNTER, HTTP_REQ_HISTOGRAM},
@@ -26,20 +27,71 @@ use std::{
     io::{self, BufRead, BufReader},
 };
 
-#[derive(Deserialize)]
-pub struct ActionBody {
+#[allow(dead_code)]
+#[derive(ToSchema)]
+#[schema(as = MemoryInfo)]
+pub(crate) struct DocMemoryInfo {
+    rss: u64,
+    vms: u64,
+    #[cfg(target_os = "linux")]
+    shared: u64,
+    #[cfg(target_os = "linux")]
+    text: u64,
+    #[cfg(target_os = "linux")]
+    data: u64,
+    #[cfg(target_os = "macos")]
+    page_faults: u64,
+    #[cfg(target_os = "macos")]
+    pageins: u64,
+}
+
+#[derive(Deserialize, ToSchema)]
+pub(crate) struct ActionBody {
+    #[schema(example = "restart")]
     method: String,
 }
 
-#[derive(Serialize)]
-struct ActionResponse<'a> {
+#[derive(Serialize, ToSchema)]
+pub(crate) struct ActionResponse<'a> {
+    #[schema(example = true)]
     done: bool,
+    #[schema(example = "name")]
     action: &'a str,
 }
 
-#[derive(Serialize)]
-struct LogResponse {
+#[derive(Serialize, ToSchema)]
+pub(crate) struct LogResponse {
     logs: Vec<String>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct MetricsRoot<'a> {
+    pub version: Version<'a>,
+    pub daemon: Daemon,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct Version<'a> {
+    pub pkg: String,
+    pub hash: &'a str,
+    pub build_date: &'a str,
+    pub target: &'a str,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct Daemon {
+    pub pid: String,
+    pub running: bool,
+    pub uptime: String,
+    pub process_count: usize,
+    pub daemon_type: String,
+    pub stats: Stats,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct Stats {
+    pub memory_usage: String,
+    pub cpu_percent: String,
 }
 
 #[inline]
@@ -53,6 +105,7 @@ fn attempt(done: bool, method: &str) -> reply::Json {
 }
 
 #[inline]
+#[utoipa::path(get, tag = "Daemon", path = "/prometheus", responses((status = 200, description = "Get prometheus metrics", body = String)))]
 pub async fn prometheus_handler() -> Result<impl Reply, Infallible> {
     let encoder = TextEncoder::new();
     let mut buffer = Vec::<u8>::new();
@@ -63,6 +116,7 @@ pub async fn prometheus_handler() -> Result<impl Reply, Infallible> {
 }
 
 #[inline]
+#[utoipa::path(get, path = "/list", tag = "Process", responses((status = 200, description = "List processes successfully", body = [ProcessItem])))]
 pub async fn list_handler() -> Result<impl Reply, Infallible> {
     let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["list"]).start_timer();
     let data = Runner::new().json();
@@ -74,6 +128,16 @@ pub async fn list_handler() -> Result<impl Reply, Infallible> {
 }
 
 #[inline]
+#[utoipa::path(get, tag = "Process", path = "/process/{id}/logs/{kind}",
+    params(
+        ("id" = usize, Path, description = "Process id to get logs for", example = 0),
+        ("kind" = String, Path, description = "Log output type", example = "out")
+    ),
+    responses(
+        (status = 200, description = "Process logs of {type} fetched", body = LogResponse),
+        (status = NOT_FOUND, description = "Process was not found", body = ErrorMessage)
+    )
+)]
 pub async fn log_handler(id: usize, kind: String) -> Result<impl Reply, Rejection> {
     let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["log"]).start_timer();
 
@@ -105,6 +169,16 @@ pub async fn log_handler(id: usize, kind: String) -> Result<impl Reply, Rejectio
 }
 
 #[inline]
+#[utoipa::path(get, tag = "Process", path = "/process/{id}/logs/{kind}/raw",
+    params(
+        ("id" = usize, Path, description = "Process id to get logs for", example = 0),
+        ("kind" = String, Path, description = "Log output type", example = "out")
+    ),
+    responses(
+        (status = 200, description = "Process logs of {type} fetched raw", body = String),
+        (status = NOT_FOUND, description = "Process was not found", body = ErrorMessage)
+    )
+)]
 pub async fn log_handler_raw(id: usize, kind: String) -> Result<impl Reply, Rejection> {
     let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["log"]).start_timer();
 
@@ -133,6 +207,13 @@ pub async fn log_handler_raw(id: usize, kind: String) -> Result<impl Reply, Reje
 }
 
 #[inline]
+#[utoipa::path(get, tag = "Process", path = "/process/{id}/info",
+    params(("id" = usize, Path, description = "Process id to get information for", example = 0)),
+    responses(
+        (status = 200, description = "Current process info retrieved", body = ItemSingle),
+        (status = NOT_FOUND, description = "Process was not found", body = ErrorMessage)
+    )
+)]
 pub async fn info_handler(id: usize) -> Result<impl Reply, Rejection> {
     let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["info"]).start_timer();
 
@@ -150,6 +231,13 @@ pub async fn info_handler(id: usize) -> Result<impl Reply, Rejection> {
 }
 
 #[inline]
+#[utoipa::path(post, tag = "Process", path = "/process/{id}/rename", request_body(content = String),
+    params(("id" = usize, Path, description = "Process id to rename", example = 0)),
+    responses(
+        (status = 200, description = "Rename process successful", body = ActionResponse),
+        (status = NOT_FOUND, description = "Process was not found", body = ErrorMessage)
+    )
+)]
 pub async fn rename_handler(id: usize, body: String) -> Result<impl Reply, Rejection> {
     let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["rename"]).start_timer();
     let mut runner = Runner::new();
@@ -168,6 +256,13 @@ pub async fn rename_handler(id: usize, body: String) -> Result<impl Reply, Rejec
 }
 
 #[inline]
+#[utoipa::path(get, tag = "Process", path = "/process/{id}/env",
+    params(("id" = usize, Path, description = "Process id to fetch env from", example = 0)),
+    responses(
+        (status = 200, description = "Current process env", body = HashMap<String, String>),
+        (status = NOT_FOUND, description = "Process was not found", body = ErrorMessage)
+    )
+)]
 pub async fn env_handler(id: usize) -> Result<impl Reply, Rejection> {
     let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["env"]).start_timer();
 
@@ -185,6 +280,13 @@ pub async fn env_handler(id: usize) -> Result<impl Reply, Rejection> {
 }
 
 #[inline]
+#[utoipa::path(post, tag = "Process", path = "/process/{id}/action", request_body = ActionBody,
+    params(("id" = usize, Path, description = "Process id to run action on", example = 0)),
+    responses(
+        (status = 200, description = "Run action on process successful", body = ActionResponse),
+        (status = NOT_FOUND, description = "Process/action was not found", body = ErrorMessage)
+    )
+)]
 pub async fn action_handler(id: usize, body: ActionBody) -> Result<impl Reply, Rejection> {
     let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["action"]).start_timer();
     let mut runner = Runner::new();
@@ -215,6 +317,7 @@ pub async fn action_handler(id: usize, body: ActionBody) -> Result<impl Reply, R
 }
 
 #[inline]
+#[utoipa::path(get, tag = "Daemon", path = "/metrics", responses((status = 200, description = "Get daemon metrics", body = MetricsRoot)))]
 pub async fn metrics_handler() -> Result<impl Reply, Infallible> {
     let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["metrics"]).start_timer();
     let mut pid: Option<i32> = None;
@@ -256,24 +359,20 @@ pub async fn metrics_handler() -> Result<impl Reply, Infallible> {
         None => string!("n/a"),
     };
 
-    let response = json!({
-        "version": {
-            "pkg": format!("v{}", env!("CARGO_PKG_VERSION")),
-            "hash": env!("GIT_HASH"),
-            "build_date": env!("BUILD_DATE"),
-            "target": env!("PROFILE"),
+    let response = json!(MetricsRoot {
+        version: Version {
+            pkg: format!("v{}", env!("CARGO_PKG_VERSION")),
+            hash: env!("GIT_HASH"),
+            build_date: env!("BUILD_DATE"),
+            target: env!("PROFILE"),
         },
-        "daemon": {
-            "pid": pid,
-            "running": pid::exists(),
-            "uptime": uptime,
-            "process_count": runner.count(),
-            "daemon_type": global!("pmc.daemon.kind"),
-            "stats": {
-                "memory_usage":memory_usage,
-                "cpu_percent": cpu_percent,
-            }
-
+        daemon: Daemon {
+            pid: pid,
+            running: pid::exists(),
+            uptime: uptime,
+            process_count: runner.count(),
+            daemon_type: global!("pmc.daemon.kind"),
+            stats: Stats { memory_usage, cpu_percent }
         }
     });
 
