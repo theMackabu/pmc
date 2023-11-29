@@ -31,6 +31,7 @@ fn main() {
         .file("lib/bridge.cc")
         .file("lib/process.cc")
         .file("lib/fork.cc")
+        .include("lib/include")
         .flag_if_supported("-std=c++17")
         .compile("bridge");
 

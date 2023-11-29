@@ -1,7 +1,7 @@
 #ifndef BRIDGE_H
 #define BRIDGE_H
 
-#include "rust.h"
+#include <rust.h>
 using namespace rust;
 
 #ifndef CXXBRIDGE1_STRUCT_ProcessMetadata

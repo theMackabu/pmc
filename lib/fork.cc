@@ -1,5 +1,4 @@
-#include "include/fork.h"
-#include <cstring>
+#include <fork.h>
 #include <stdexcept>
 #include <cstdlib>
 #include <iostream>
@@ -7,10 +6,14 @@
 
 #ifdef _WIN32
 #include <windows.h>
+#elif __linux__
+#include <cstring>
 #else
 #include <pwd.h>
 #include <unistd.h>
 #endif
+
+using namespace std;
 
 std::string home() {
     #ifdef _WIN32
