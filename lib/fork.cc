@@ -3,11 +3,10 @@
 #include <cstdlib>
 #include <iostream>
 #include <unistd.h>
+#include <cstring>
 
 #ifdef _WIN32
 #include <windows.h>
-#elif __linux__
-#include <cstring>
 #else
 #include <pwd.h>
 #include <unistd.h>
