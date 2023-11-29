@@ -1,10 +1,8 @@
-#include "include/bridge.h"
-#include "include/process.h"
-
+#include <bridge.h>
+#include <process.h>
 #include <iostream>
 #include <signal.h>
 #include <stdio.h>
-#include <string>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -12,6 +10,7 @@
 
 #ifdef __linux__
 #include <cstring>
+#include <string>
 #include <cstdlib>
 #include <dirent.h>
 #elif __APPLE__
