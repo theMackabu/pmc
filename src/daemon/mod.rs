@@ -208,7 +208,6 @@ pub fn start() {
             _ => false,
         };
 
-    pid::name("PMC Restart Handler Daemon");
     println!("{} Spawning PMC daemon (pmc_base={})", *helpers::SUCCESS, global!("pmc.base"));
 
     let is_api = ENABLE_API.load(Ordering::Acquire);
@@ -232,6 +231,8 @@ pub fn start() {
     #[inline]
     #[tokio::main]
     async extern "C" fn init() {
+        pid::name("PMC Restart Handler Daemon");
+
         let config = config::read();
         let is_api = ENABLE_API.load(Ordering::Acquire);
 

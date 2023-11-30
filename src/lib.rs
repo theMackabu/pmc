@@ -36,6 +36,8 @@ pub mod service {
         type Callback = crate::Callback;
 
         pub fn stop(pid: i64) -> i64;
+        pub fn set_program_name(name: String);
+        pub fn get_child_pid(parentPID: i64) -> i64;
         pub fn run(metadata: ProcessMetadata) -> i64;
         pub fn try_fork(nochdir: bool, noclose: bool, callback: Callback) -> i32;
     }
