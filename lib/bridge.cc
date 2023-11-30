@@ -13,12 +13,25 @@
 #include <string>
 #include <cstdlib>
 #include <dirent.h>
+#include <sys/prctl.h>
 #elif __APPLE__
 #include <libproc.h>
 #include <sys/proc_info.h>
+#include <libproc.h>
+#include <sys/proc_info.h>
+#include <iostream>
+#include <crt_externs.h>
 #endif
 
 using namespace std;
+
+void set_program_name(String name) {
+  #ifdef __linux__
+  prctl(PR_SET_NAME, name.c_str());
+  #elif __APPLE__
+  setprogname(name.c_str());
+  #endif
+}
 
 int64_t get_child_pid(int64_t parentPID) {
 #ifdef __linux__

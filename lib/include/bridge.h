@@ -18,4 +18,6 @@ struct ProcessMetadata final {
 
 extern "C" int64_t stop(int64_t pid);
 extern "C" int64_t run(ProcessMetadata metadata);
+extern "C" void set_program_name(String name);
+extern "C" int64_t get_child_pid(int64_t parentPID);
 #endif
