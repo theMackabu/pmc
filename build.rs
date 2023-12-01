@@ -84,8 +84,9 @@ fn download_node() -> PathBuf {
 
 fn download_then_build(node_extract_dir: PathBuf) {
     /* install pnpm */
-    Command::new("npm")
+    Command::new("./npm")
         .args(["install", "-g", &format!("pnpm@{}", PNPM_VERSION)])
+        .current_dir(&node_extract_dir.join("bin"))
         .env("NODE_PATH", &node_extract_dir.join("lib").join("node_modules"))
         .status()
         .expect("Failed to install PNPM");
