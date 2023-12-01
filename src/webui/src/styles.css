@@ -1,0 +1,10 @@
+body {
+	@apply antialiased;
+	@apply h-full;
+	@apply overscroll-none;
+}
+
+html {
+	@apply h-full;
+	@apply bg-zinc-950;
+}
