@@ -12,7 +12,7 @@ use std::{
 };
 
 const NODE_VERSION: &str = "20.10.0";
-const PNPM_VERSION: &str = "8.11.0";
+const COREPACK_NODE: &str = "../../../../../bin/node";
 
 fn extract_tar_gz(tar: &PathBuf, download_dir: &PathBuf) -> io::Result<()> {
     let file = File::open(tar)?;
@@ -78,40 +78,26 @@ fn download_node() -> PathBuf {
         Err(err) => panic!("{err}"),
     };
 
-    let mut paths = env::var_os("PATH").unwrap_or_default();
-
-    paths.push(":");
-    paths.push(std::ffi::OsString::from(&node_extract_dir));
-    env::set_var("PATH", paths);
-
     println!("cargo:rustc-env=NODE_HOME={}", node_extract_dir.to_str().unwrap());
-    println!("cargo:rustc-env=PATH={}/bin:{path}/bin/node", node_extract_dir.to_str().unwrap());
+    println!("cargo:rustc-env=PATH={}/bin:{path}", node_extract_dir.to_str().unwrap());
 
     return node_extract_dir;
 }
 
 fn download_then_build(node_extract_dir: PathBuf) {
-    /* install pnpm */
-    Command::new("./npm")
-        .args(["install", "-g", &format!("pnpm@{}", PNPM_VERSION)])
-        .current_dir(&node_extract_dir.join("bin"))
-        .env("NODE_PATH", &node_extract_dir.join("lib").join("node_modules"))
-        .status()
-        .expect("Failed to install PNPM");
+    let corepack = &node_extract_dir.join("lib").join("node_modules").join("corepack").join("dist").join("lib");
 
     /* install deps */
-    Command::new("pnpm")
-        .args(["install"])
-        .current_dir("src/webui")
-        .env("NODE_PATH", &node_extract_dir.join("lib").join("node_modules"))
+    Command::new(COREPACK_NODE)
+        .args(["corepack.cjs", "pnpm", "install"])
+        .current_dir(corepack)
         .status()
-        .expect("Failed to install dependecies");
+        .expect("Failed to install dependencies");
 
     /* build frontend */
-    Command::new(format!("./{}/npx", &node_extract_dir.join("bin").as_path().display()))
-        .args(["astro", "build"])
-        .current_dir("src/webui")
-        .env("NODE_PATH", &node_extract_dir.join("lib").join("node_modules"))
+    Command::new(COREPACK_NODE)
+        .args(["corepack.cjs", "npx", "astro", "build"])
+        .current_dir(corepack)
         .status()
         .expect("Failed to build frontend");
 }
