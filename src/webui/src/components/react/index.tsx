@@ -1,4 +1,5 @@
 import ky from 'ky';
+import Rename from '@/components/react/rename';
 import { useEffect, useState, Fragment } from 'react';
 import { Menu, Transition } from '@headlessui/react';
 import { EllipsisVerticalIcon } from '@heroicons/react/20/solid';
@@ -76,18 +77,7 @@ const Index = () => {
 										</Menu.Item>
 									</div>
 									<div className="p-1.5">
-										<Menu.Item>
-											{({ active }) => (
-												<a
-													href="/rename"
-													className={classNames(
-														active ? 'bg-zinc-800/80 text-zinc-50' : 'text-zinc-200',
-														'rounded-md block px-2 py-2 w-full text-left cursor-pointer'
-													)}>
-													Rename
-												</a>
-											)}
-										</Menu.Item>
+										<Menu.Item>{({ active }) => <Rename process={item.id} callback={fetch} old={item.name} />}</Menu.Item>
 									</div>
 									<div className="p-1.5">
 										<Menu.Item>

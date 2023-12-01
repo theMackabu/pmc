@@ -1,8 +1,9 @@
 import ky from 'ky';
-import { useEffect, useState, Fragment, useRef } from 'react';
-import { Menu, Transition } from '@headlessui/react';
-import { EllipsisVerticalIcon } from '@heroicons/react/20/solid';
 import { matchSorter } from 'match-sorter';
+import Rename from '@/components/react/rename';
+import { Menu, Transition } from '@headlessui/react';
+import { useEffect, useState, useRef, Fragment } from 'react';
+import { EllipsisVerticalIcon } from '@heroicons/react/20/solid';
 
 const urlParams = new URLSearchParams(location.search);
 const classNames = (...classes: Array<any>) => classes.filter(Boolean).join(' ');
@@ -201,7 +202,6 @@ const View = () => {
 							<div className={`flex-none rounded-full p-1 ${badge[item.info.status]}`}>
 								<div className="h-2 w-2 rounded-full bg-current" />
 							</div>
-
 							<div className="order-first flex-none rounded-full bg-sky-400/10 px-2 py-1 text-xs font-medium text-sky-400 ring-1 ring-inset ring-sky-400/30 sm:order-none">
 								{online ? item.info.pid : 'none'}
 							</div>
@@ -247,15 +247,7 @@ const View = () => {
 													</a>
 												)}
 											</Menu.Item>
-											<Menu.Item>
-												{({ active }) => (
-													<a
-														href="/rename"
-														className={classNames(active ? 'bg-zinc-800/80 text-zinc-50' : 'text-zinc-200', 'rounded-md block px-2 py-2')}>
-														Rename
-													</a>
-												)}
-											</Menu.Item>
+											<Menu.Item>{({ active }) => <Rename process={id} active={active} callback={fetch} old={item.info.name} />}</Menu.Item>
 										</div>
 										<div className="p-1.5">
 											<Menu.Item>
