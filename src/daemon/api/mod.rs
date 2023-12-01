@@ -43,9 +43,9 @@ lazy_static! {
     pub static ref HTTP_REQ_HISTOGRAM: HistogramVec = register_histogram_vec!("http_request_duration_seconds", "The HTTP request latencies in seconds.", &["route"]).unwrap();
 }
 
-pub async fn start() {
-    const DOCS: &str = include_str!("docs.html");
-    let config = config::read().daemon.api;
+pub async fn start(webui: bool) {
+    const DOCS: &str = include_str!("docs/index.html");
+    let config = config::read().daemon.web;
 
     #[derive(OpenApi)]
     #[openapi(

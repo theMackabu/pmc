@@ -19,12 +19,13 @@ pub struct Daemon {
     pub restarts: u64,
     pub interval: u64,
     pub kind: String,
-    pub api: Api,
+    pub web: Web,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct Api {
-    pub enabled: bool,
+pub struct Web {
+    pub ui: bool,
+    pub api: bool,
     pub address: String,
     pub port: u64,
     pub secure: Secure,

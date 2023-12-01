@@ -7,7 +7,7 @@ use colored::Colorize;
 use macros_rs::{crashln, string};
 use std::fs;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use structs::{Api, Config, Daemon, Runner, Secure};
+use structs::{Config, Daemon, Runner, Secure, Web};
 
 pub fn read() -> Config {
     match home::home_dir() {
@@ -27,8 +27,9 @@ pub fn read() -> Config {
                         restarts: 10,
                         interval: 1000,
                         kind: string!("default"),
-                        api: Api {
-                            enabled: false,
+                        web: Web {
+                            ui: false,
+                            api: false,
                             address: string!("0.0.0.0"),
                             port: 5630,
                             secure: Secure { enabled: false, token: string!("") },
@@ -55,10 +56,10 @@ pub fn read() -> Config {
 
 impl Config {
     pub fn get_address(&self) -> SocketAddr {
-        let config_split: Vec<u8> = self.daemon.api.address.split('.').map(|part| part.parse().expect("Failed to parse address part")).collect();
+        let config_split: Vec<u8> = self.daemon.web.address.split('.').map(|part| part.parse().expect("Failed to parse address part")).collect();
         let ipv4_address: Ipv4Addr = Ipv4Addr::from([config_split[0], config_split[1], config_split[2], config_split[3]]);
         let ip_address: IpAddr = IpAddr::from(ipv4_address);
-        let port = self.daemon.api.port as u16;
+        let port = self.daemon.web.port as u16;
 
         (ip_address, port).into()
     }

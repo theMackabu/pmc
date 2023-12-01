@@ -32,6 +32,7 @@ use tabled::{
 };
 
 static ENABLE_API: AtomicBool = AtomicBool::new(false);
+static ENABLE_WEBUI: AtomicBool = AtomicBool::new(false);
 
 extern "C" fn handle_termination_signal(_: libc::c_int) {
     pid::remove();
@@ -199,6 +200,8 @@ pub fn stop() {
 }
 
 pub fn start() {
+    let config = config::read().daemon;
+
     let external =
         match global!("pmc.daemon.kind").as_str() {
             "external" => true,
@@ -211,13 +214,17 @@ pub fn start() {
     println!("{} Spawning PMC daemon (pmc_base={})", *helpers::SUCCESS, global!("pmc.base"));
 
     let is_api = ENABLE_API.load(Ordering::Acquire);
-    let api_enabled = config::read().daemon.api.enabled;
+    let is_webui = ENABLE_WEBUI.load(Ordering::Acquire);
+
+    let api_enabled = config.web.api;
+    let webui_enabled = config.web.ui;
 
     if is_api || api_enabled {
         println!(
-            "{} API server started (address={:?} config={api_enabled}, temp={is_api})",
+            "{} API server started (address={:?}, webui={})",
             *helpers::SUCCESS,
-            config::read().get_address()
+            config::read().get_address(),
+            is_webui || webui_enabled
         );
     }
 
@@ -233,8 +240,9 @@ pub fn start() {
     async extern "C" fn init() {
         pid::name("PMC Restart Handler Daemon");
 
-        let config = config::read();
+        let config = config::read().daemon;
         let is_api = ENABLE_API.load(Ordering::Acquire);
+        let is_webui = ENABLE_WEBUI.load(Ordering::Acquire);
 
         unsafe { libc::signal(libc::SIGTERM, handle_termination_signal as usize) };
         DAEMON_START_TIME.set(Utc::now().timestamp_millis() as f64);
@@ -242,13 +250,13 @@ pub fn start() {
         pid::write(process::id());
         log!("[daemon] new fork (pid={})", process::id());
 
-        if is_api || config.daemon.api.enabled {
+        if is_api || config.web.api {
             log!("[api] server started (address={:?})", config::read().get_address());
-            tokio::spawn(async move { api::start().await });
+            tokio::spawn(async move { api::start(is_webui || config.web.ui).await });
         }
 
         loop {
-            if is_api || config.daemon.api.enabled {
+            if is_api || config.web.api {
                 if let Ok(mut process) = Process::new(process::id()) {
                     DAEMON_CPU_PERCENTAGE.observe(process.cpu_percent().ok().unwrap() as f64);
                     DAEMON_MEM_USAGE.observe(process.memory_info().ok().unwrap().rss() as f64);
@@ -256,7 +264,7 @@ pub fn start() {
             }
 
             then!(!Runner::new().is_empty(), restart_process());
-            sleep(Duration::from_millis(config.daemon.interval));
+            sleep(Duration::from_millis(config.interval));
         }
     }
 
@@ -273,12 +281,18 @@ pub fn start() {
     }
 }
 
-pub fn restart(api: &bool) {
+pub fn restart(api: &bool, webui: &bool) {
     if pid::exists() {
         stop();
     }
 
-    ENABLE_API.store(*api, Ordering::Release);
+    if *webui {
+        ENABLE_API.store(true, Ordering::Release);
+        ENABLE_WEBUI.store(true, Ordering::Release);
+    } else {
+        ENABLE_API.store(*api, Ordering::Release);
+    }
+
     start();
 }
 
