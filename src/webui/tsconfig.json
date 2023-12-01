@@ -1,7 +1,7 @@
 {
 	"extends": "astro/tsconfigs/strict",
 	"compilerOptions": {
-		"baseUrl": "/Users/themackabu/Developer/rust/pmc/src/webui",
+		"baseUrl": ".",
 		"strictNullChecks": true,
 		"paths": {
 			"@/*": ["src/*"]
