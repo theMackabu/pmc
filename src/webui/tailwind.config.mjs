@@ -2,7 +2,11 @@
 export default {
 	content: ['./src/**/*.{astro,html,js,jsx,md,mdx,svelte,ts,tsx,vue}'],
 	theme: {
-		extend: {},
+		extend: {
+			fontFamily: {
+				sans: ['Inter var', ...require('tailwindcss/defaultTheme').fontFamily.sans],
+			},
+		},
 	},
-	plugins: [],
+	plugins: [require('@tailwindcss/forms')],
 };
