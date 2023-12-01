@@ -57,6 +57,7 @@ const LogRow = ({ match, children }: any) => {
 const LogViewer = (props: { server: number; id: number }) => {
 	const [logs, setLogs] = useState<string[]>([]);
 	const [loaded, setLoaded] = useState(false);
+	const lastRow = useRef<HTMLDivElement | null>(null);
 	const [searchQuery, setSearchQuery] = useState('');
 	const [searchOpen, setSearchOpen] = useState(false);
 	const [componentHeight, setComponentHeight] = useState(0);
@@ -120,20 +121,15 @@ const LogViewer = (props: { server: number; id: number }) => {
 	};
 
 	useEffect(() => loadLogs(), []);
+	useEffect(() => lastRow.current?.scrollIntoView(), [loaded]);
 
 	if (!loaded) {
 		return <div className="text-lg text-white font-bold">loading...</div>;
 	} else {
-		const lastRow = useRef<HTMLDivElement | null>(null);
-
-		useEffect(() => {
-			lastRow.current?.scrollIntoView({ behavior: 'smooth' });
-		}, []);
-
 		return (
 			<div>
 				{searchOpen && (
-					<div className="z-50 fixed h-72 right-5 w-96 flex bg-zinc-800/50 backdrop-blur-md px-3 py-1 rounded-lg border border-zinc-700 shadow">
+					<div className="z-50 fixed top-[16.5rem] right-5 w-96 flex bg-zinc-800/50 backdrop-blur-md px-3 py-1 rounded-lg border border-zinc-700 shadow">
 						<input
 							className="grow bg-transparent p-2 border-0 text-white focus:ring-0 sm:text-sm"
 							autoFocus
@@ -144,7 +140,7 @@ const LogViewer = (props: { server: number; id: number }) => {
 						<span className="grow-0 text-zinc-400 font-medium mt-1.5">{searchQuery && filtered.length + ' matches'}</span>
 					</div>
 				)}
-				<div className="p-5 break-words overflow-y-scroll font-mono" style={componentStyle}>
+				<div className="p-5 pb-0 break-words overflow-y-scroll font-mono" style={componentStyle}>
 					{filtered.map((log, index) => (
 						<LogRow key={index} match={searchQuery}>
 							{log}
