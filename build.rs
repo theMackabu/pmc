@@ -1,12 +1,118 @@
 use chrono::Datelike;
-use std::{env, process::Command};
+use flate2::read::GzDecoder;
+use reqwest;
+use tar::Archive;
+
+use std::{
+    env,
+    fs::{self, File},
+    io::{self, copy},
+    path::{Path, PathBuf},
+    process::Command,
+};
+
+const NODE_VERSION: &str = "20.10.0";
+const PNPM_VERSION: &str = "8.11.0";
+
+fn extract_tar_gz(tar: &PathBuf, download_dir: &PathBuf) -> io::Result<()> {
+    let file = File::open(tar)?;
+    let decoder = GzDecoder::new(file);
+    let mut archive = Archive::new(decoder);
+
+    archive.unpack(download_dir)?;
+    Ok(fs::remove_file(tar)?)
+}
+
+fn download_file(url: String, destination: &PathBuf, download_dir: &PathBuf) {
+    if !download_dir.exists() {
+        fs::create_dir_all(download_dir).unwrap();
+    }
+
+    let mut response = reqwest::blocking::get(url).expect("Failed to send request");
+    let mut file = File::create(destination).expect("Failed to create file");
+
+    copy(&mut response, &mut file).expect("Failed to copy content");
+}
+
+fn download_node() -> PathBuf {
+    #[cfg(target_os = "linux")]
+    let target_os = "linux";
+    #[cfg(all(target_os = "macos"))]
+    let target_os = "darwin";
+
+    #[cfg(all(target_arch = "arm"))]
+    let download_url = format!("https://nodejs.org/dist/v{}/node-v{}-{}-armv7l.tar.gz", NODE_VERSION, NODE_VERSION, target_os);
+    #[cfg(all(target_arch = "x86_64"))]
+    let download_url = format!("https://nodejs.org/dist/v{}/node-v{}-{}-x64.tar.gz", NODE_VERSION, NODE_VERSION, target_os);
+    #[cfg(all(target_arch = "aarch64"))]
+    let download_url = format!("https://nodejs.org/dist/v{}/node-v{}-{}-arm64.tar.gz", NODE_VERSION, NODE_VERSION, target_os);
+
+    /* paths */
+    let download_dir = Path::new("target").join("downloads");
+    let node_extract_dir = download_dir.join("node");
+
+    if node_extract_dir.is_dir() {
+        return node_extract_dir;
+    }
+
+    /* download node */
+    let node_archive = download_dir.join(format!("node-v{}-{}.tar.gz", NODE_VERSION, target_os));
+    download_file(download_url, &node_archive, &download_dir);
+
+    /* extract node */
+    if let Err(err) = extract_tar_gz(&node_archive, &node_extract_dir) {
+        panic!("Failed to extract Node.js: {:?}", err)
+    }
+
+    /* set env */
+    println!(
+        "cargo:rerun-if-env-changed=NODE_HOME\n\
+         cargo:rerun-if-env-changed=PATH\n\
+         cargo:rerun-if-env-changed=PNPM_HOME"
+    );
+
+    let path = match env::var("PATH") {
+        Ok(path) => path,
+        Err(err) => panic!("{err}"),
+    };
+
+    println!("cargo:rustc-env=NODE_HOME={}", node_extract_dir.to_str().unwrap());
+    println!("cargo:rustc-env=PATH={}/bin:{path}", node_extract_dir.to_str().unwrap());
+
+    return node_extract_dir;
+}
+
+fn download_then_build(node_extract_dir: PathBuf) {
+    /* install pnpm */
+    Command::new("npm")
+        .args(["install", "-g", &format!("pnpm@{}", PNPM_VERSION)])
+        .env("NODE_PATH", &node_extract_dir.join("lib").join("node_modules"))
+        .status()
+        .expect("Failed to install PNPM");
+
+    /* install deps */
+    Command::new("pnpm")
+        .args(["install"])
+        .current_dir("src/webui")
+        .env("NODE_PATH", &node_extract_dir.join("lib").join("node_modules"))
+        .status()
+        .expect("Failed to install dependecies");
+
+    /* build frontend */
+    Command::new("pnpm")
+        .args(["run", "build"])
+        .current_dir("src/webui")
+        .env("NODE_PATH", &node_extract_dir.join("lib").join("node_modules"))
+        .status()
+        .expect("Failed to install dependecies");
+}
 
 fn main() {
-    #[cfg(windows)]
-    {
-        println!("cargo:warning=This project is not supported on Windows.");
-        std::process::exit(1);
-    }
+    #[cfg(target_os = "windows")]
+    compile_error!("This project is not supported on Windows.");
+
+    #[cfg(target_arch = "x86")]
+    compile_error!("This project is not supported on 32 bit.");
 
     /* version attributes */
     let date = chrono::Utc::now();
@@ -22,27 +128,22 @@ fn main() {
     /* profile matching */
     match profile.as_str() {
         "debug" => println!("cargo:rustc-env=PROFILE=debug"),
-        "release" => println!("cargo:rustc-env=PROFILE=release"),
+        "release" => {
+            println!("cargo:rustc-env=PROFILE=release");
+
+            /* pre-build */
+            let path = download_node();
+            download_then_build(path);
+
+            /* cc linking */
+            cxx_build::bridge("src/lib.rs")
+                .file("lib/bridge.cc")
+                .file("lib/process.cc")
+                .file("lib/fork.cc")
+                .include("lib/include")
+                .flag_if_supported("-std=c++17")
+                .compile("bridge");
+        }
         _ => println!("cargo:rustc-env=PROFILE=none"),
     }
-
-    /* cc linking */
-    cxx_build::bridge("src/lib.rs")
-        .file("lib/bridge.cc")
-        .file("lib/process.cc")
-        .file("lib/fork.cc")
-        .include("lib/include")
-        .flag_if_supported("-std=c++17")
-        .compile("bridge");
-
-    let watched = vec![
-        "src/lib.rs",
-        "lib/bridge.cc",
-        "lib/process.cc",
-        "lib/fork.cc",
-        "lib/include/bridge.h",
-        "lib/include/process.h",
-        "lib/include/fork.h",
-    ];
-    watched.iter().for_each(|file| println!("cargo:rerun-if-changed={file}"));
 }
