@@ -41,15 +41,17 @@ fn download_node() -> PathBuf {
     let target_os = "darwin";
 
     #[cfg(all(target_arch = "arm"))]
-    let download_url = format!("https://nodejs.org/dist/v{}/node-v{}-{}-armv7l.tar.gz", NODE_VERSION, NODE_VERSION, target_os);
+    let target_arch = "armv7l";
     #[cfg(all(target_arch = "x86_64"))]
-    let download_url = format!("https://nodejs.org/dist/v{}/node-v{}-{}-x64.tar.gz", NODE_VERSION, NODE_VERSION, target_os);
+    let target_arch = "x64";
     #[cfg(all(target_arch = "aarch64"))]
-    let download_url = format!("https://nodejs.org/dist/v{}/node-v{}-{}-arm64.tar.gz", NODE_VERSION, NODE_VERSION, target_os);
+    let target_arch = "arm64";
+
+    let download_url = format!("https://nodejs.org/dist/v{NODE_VERSION}/node-v{NODE_VERSION}-{target_os}-{target_arch}.tar.gz");
 
     /* paths */
     let download_dir = Path::new("target").join("downloads");
-    let node_extract_dir = download_dir.join("node");
+    let node_extract_dir = download_dir.join(format!("node-v{NODE_VERSION}-{target_os}-{target_arch}"));
 
     if node_extract_dir.is_dir() {
         return node_extract_dir;
@@ -60,7 +62,7 @@ fn download_node() -> PathBuf {
     download_file(download_url, &node_archive, &download_dir);
 
     /* extract node */
-    if let Err(err) = extract_tar_gz(&node_archive, &node_extract_dir) {
+    if let Err(err) = extract_tar_gz(&node_archive, &download_dir) {
         panic!("Failed to extract Node.js: {:?}", err)
     }
 
