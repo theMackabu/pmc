@@ -9,16 +9,17 @@ use prometheus::{Counter, Gauge, Histogram, HistogramVec};
 use routes::{action_handler, env_handler, info_handler, list_handler, log_handler, log_handler_raw, metrics_handler, prometheus_handler, rename_handler};
 use serde::Serialize;
 use serde_json::json;
+use static_dir::static_dir;
 use std::convert::Infallible;
 use utoipa::{OpenApi, ToSchema};
 use utoipa_rapidoc::RapiDoc;
 
 use warp::{
-    body, get,
+    body, get, header,
     http::StatusCode,
     path, post, reject,
     reply::{self, html, json},
-    Filter, Rejection, Reply,
+    serve, Filter, Rejection, Reply,
 };
 
 #[derive(Serialize, ToSchema)]
@@ -86,6 +87,7 @@ pub async fn start(webui: bool) {
     let prometheus = path!("prometheus").and(get()).and_then(prometheus_handler);
     let file = path!("docs.json").and(get()).map(|| json(&ApiDoc::openapi()));
     let docs = path!("docs").and(get()).map(|| html(RapiDoc::new("/docs.json").custom_html(DOCS).to_html()));
+    let auth = header::exact("authorization", fmtstr!("token {}", config.secure.token));
 
     let env = path!("process" / usize / "env").and(get()).and_then(env_handler);
     let info = path!("process" / usize / "info").and(get()).and_then(info_handler);
@@ -105,8 +107,18 @@ pub async fn start(webui: bool) {
         )
     });
 
-    let routes = path::end()
-        .map(|| json(&json!({"healthy": true})))
+    let base_route = match webui {
+        true => static_dir!("src/webui/dist").boxed(),
+        false => path::end().map(|| json(&json!({"healthy": true})).into_response()).boxed(),
+    };
+
+    let auth_middleware =
+        match config.secure.enabled {
+            true => base_route.and(auth).boxed(),
+            false => base_route.boxed(),
+        };
+
+    let routes = auth_middleware
         .or(env)
         .or(docs)
         .or(file)
@@ -119,12 +131,7 @@ pub async fn start(webui: bool) {
         .or(raw_logs)
         .or(prometheus);
 
-    if config.secure.enabled {
-        let auth = warp::header::exact("authorization", fmtstr!("token {}", config.secure.token));
-        warp::serve(routes.and(auth).recover(handle_rejection).with(log)).run(config::read().get_address()).await
-    } else {
-        warp::serve(routes.recover(handle_rejection).with(log)).run(config::read().get_address()).await
-    }
+    serve(routes.recover(handle_rejection).with(log)).run(config::read().get_address()).await
 }
 
 async fn handle_rejection(err: Rejection) -> Result<impl Reply, Infallible> {

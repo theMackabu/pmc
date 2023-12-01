@@ -12,7 +12,7 @@ webui = { script = ["maid install -q", "pmc daemon start --webui"] }
 [tasks.build]
 depends = ["clean"]
 script = [
-   "cargo zigbuild --release", 
+   "cargo zigbuild --release -vv", 
    "cp target/release/pmc bin/pmc"
 ]
 

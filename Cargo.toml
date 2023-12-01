@@ -22,6 +22,7 @@ macros-rs = "0.4.4"
 termcolor = "1.4.0"
 rmp-serde = "1.1.2"
 once_cell = "1.18.0"
+static_dir = "0.2.0"
 env_logger = "0.10.1"
 merkle_hash = "3.5.0"
 lazy_static = "1.4.0"
@@ -40,5 +41,8 @@ serde = { version = "1.0.192", features = ["derive"] }
 utoipa = { version = "4.1.0", features = ["serde_yaml"] }
 
 [build-dependencies]
+tar = "0.4.40"
 chrono = "0.4.23"
+flate2 = "1.0.28"
 cxx-build = "1.0.110"
+reqwest = { version = "0.11.22", features = ["blocking"] }
