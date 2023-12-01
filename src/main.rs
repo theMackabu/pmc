@@ -35,8 +35,12 @@ enum Daemon {
     /// Restart daemon
     #[command(alias = "restart", alias = "start")]
     Restore {
+        /// Daemon api
         #[arg(long)]
         api: bool,
+        /// WebUI using api
+        #[arg(long)]
+        webui: bool,
     },
     /// Check daemon
     #[command(alias = "info", alias = "status")]
@@ -125,8 +129,8 @@ fn main() {
         Commands::Daemon { command } => match command {
             Daemon::Stop => daemon::stop(),
             Daemon::Reset => daemon::reset(),
-            Daemon::Restore { api } => daemon::restart(api),
             Daemon::Health { format } => daemon::health(format),
+            Daemon::Restore { api, webui } => daemon::restart(api, webui),
         },
     };
 

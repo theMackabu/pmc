@@ -2,11 +2,12 @@ import = [".maid/build.toml", ".maid/server.toml"]
 
 [project]
 name = "pmc"
-version = "1.5.4"
+version = "1.6.0"
 
 [tasks]
 clean = { script = ["rm -rf bin", "mkdir bin"] }
 api = { script = ["maid install -q", "pmc daemon start --api"] }
+webui = { script = ["maid install -q", "pmc daemon start --webui"] }
 
 [tasks.build]
 depends = ["clean"]
