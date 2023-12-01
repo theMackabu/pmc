@@ -12,7 +12,6 @@ use std::{
 };
 
 const NODE_VERSION: &str = "20.10.0";
-const COREPACK_NODE: &str = "../../../../../bin/node";
 
 fn extract_tar_gz(tar: &PathBuf, download_dir: &PathBuf) -> io::Result<()> {
     let file = File::open(tar)?;
@@ -66,38 +65,48 @@ fn download_node() -> PathBuf {
         panic!("Failed to extract Node.js: {:?}", err)
     }
 
-    /* set env */
-    println!(
-        "cargo:rerun-if-env-changed=NODE_HOME\n\
-         cargo:rerun-if-env-changed=PATH\n\
-         cargo:rerun-if-env-changed=PNPM_HOME"
-    );
-
-    let path = match env::var("PATH") {
-        Ok(path) => path,
-        Err(err) => panic!("{err}"),
-    };
-
     println!("cargo:rustc-env=NODE_HOME={}", node_extract_dir.to_str().unwrap());
-    println!("cargo:rustc-env=PATH={}/bin:{path}", node_extract_dir.to_str().unwrap());
 
     return node_extract_dir;
 }
 
 fn download_then_build(node_extract_dir: PathBuf) {
-    let corepack = &node_extract_dir.join("lib").join("node_modules").join("corepack").join("dist").join("lib");
+    let base_dir = match fs::canonicalize(node_extract_dir) {
+        Ok(path) => path,
+        Err(err) => panic!("{err}"),
+    };
+
+    let bin = &base_dir.join("bin");
+    let node = &bin.join("node");
+    let project_dir = &Path::new("src").join("webui");
+    let npm = &base_dir.join("lib/node_modules/npm/index.js");
+
+    /* set path */
+    let mut paths = match env::var_os("PATH") {
+        Some(paths) => env::split_paths(&paths).collect::<Vec<PathBuf>>(),
+        None => vec![],
+    };
+
+    paths.push(bin.clone());
+
+    let path = match env::join_paths(paths) {
+        Ok(joined) => joined,
+        Err(err) => panic!("{err}"),
+    };
 
     /* install deps */
-    Command::new(COREPACK_NODE)
-        .args(["corepack.cjs", "pnpm", "install"])
-        .current_dir(corepack)
+    Command::new(node)
+        .args([npm.to_str().unwrap(), "ci"])
+        .current_dir(project_dir)
+        .env("PATH", &path)
         .status()
         .expect("Failed to install dependencies");
 
     /* build frontend */
-    Command::new(COREPACK_NODE)
-        .args(["corepack.cjs", "npx", "astro", "build"])
-        .current_dir(corepack)
+    Command::new(node)
+        .args(["node_modules/astro/astro.js", "build"])
+        .current_dir(project_dir)
+        .env("PATH", &path)
         .status()
         .expect("Failed to build frontend");
 }
@@ -141,4 +150,7 @@ fn main() {
         }
         _ => println!("cargo:rustc-env=PROFILE=none"),
     }
+
+    let watched = vec!["src/webui", "src/lib.rs", "lib", "lib/include"];
+    watched.iter().for_each(|file| println!("cargo:rerun-if-changed={file}"));
 }
