@@ -78,8 +78,14 @@ fn download_node() -> PathBuf {
         Err(err) => panic!("{err}"),
     };
 
+    let mut paths = env::var_os("PATH").unwrap_or_default();
+
+    paths.push(":");
+    paths.push(std::ffi::OsString::from(&node_extract_dir));
+    env::set_var("PATH", paths);
+
     println!("cargo:rustc-env=NODE_HOME={}", node_extract_dir.to_str().unwrap());
-    println!("cargo:rustc-env=PATH={}/bin:{path}", node_extract_dir.to_str().unwrap());
+    println!("cargo:rustc-env=PATH={}/bin:{path}/bin/node", node_extract_dir.to_str().unwrap());
 
     return node_extract_dir;
 }
@@ -102,12 +108,12 @@ fn download_then_build(node_extract_dir: PathBuf) {
         .expect("Failed to install dependecies");
 
     /* build frontend */
-    Command::new("pnpm")
-        .args(["run", "build"])
+    Command::new(format!("./{}/npx", &node_extract_dir.join("bin").as_path().display()))
+        .args(["astro", "build"])
         .current_dir("src/webui")
         .env("NODE_PATH", &node_extract_dir.join("lib").join("node_modules"))
         .status()
-        .expect("Failed to install dependecies");
+        .expect("Failed to build frontend");
 }
 
 fn main() {
