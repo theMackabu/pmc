@@ -1,48 +1,55 @@
 stages: [build, release]
-image: "themackabu/rust:zigbuild-1.75.0"
+image: 'themackabu/rust:zigbuild-1.75.0'
 
 variables:
-  VERSION: '1.6.3'
+  VERSION: '1.6.4'
 
 before_script:
-  - mkdir build
+  - mkdir binary
   - apt-get update -yqq
   - apt-get install -yqq zip clang llvm
   - export CC="/usr/bin/clang"
   - export CXX="/usr/bin/clang++"
 
-build_linux_amd64:
+build_linux_arm64:
   stage: build
+  tags: [fedora]
   only: [/^v\d+\.\d+\.\d+.*$/]
   script:
     - cargo zigbuild -r --color always
-    - mv target/release/pmc build/pmc
-    - zip build/pmc_${VERSION}_linux_amd64.zip build/pmc
-    - rm build/pmc
+    - zip binary/pmc_${VERSION}_linux_amd64.zip target/release/pmc
   artifacts:
-    paths: [build/]
+    paths: [/binary]
+
+build_linux_amd64:
+  stage: build
+  tags: [fedora]
+  only: [/^v\d+\.\d+\.\d+.*$/]
+  script:
+    - cargo zigbuild -r --target x86_64-unknown-linux-gnu --color always
+    - zip binary/pmc_${VERSION}_linux_amd64.zip target/x86_64-unknown-linux-gnu/release/pmc
+  artifacts:
+    paths: [/binary]
 
 build_darwin_amd64:
   stage: build
+  tags: [fedora]
   only: [/^v\d+\.\d+\.\d+.*$/]
   script:
     - cargo zigbuild -r --target x86_64-apple-darwin --color always
-    - mv target/x86_64-apple-darwin/release/pmc build/pmc
-    - zip build/pmc_${VERSION}_darwin_amd64.zip build/pmc
-    - rm build/pmc
+    - zip binary/pmc_${VERSION}_darwin_amd64.zip target/x86_64-apple-darwin/release/pmc
   artifacts:
-    paths: [build/]
+    paths: [/binary]
 
 build_darwin_arm:
   stage: build
+  tags: [fedora]
   only: [/^v\d+\.\d+\.\d+.*$/]
   script:
     - cargo zigbuild -r --target aarch64-apple-darwin --color always
-    - mv target/aarch64-apple-darwin/release/pmc build/pmc
-    - zip build/pmc_${VERSION}_darwin_arm.zip build/pmc
-    - rm build/pmc
+    - zip binary/pmc_${VERSION}_darwin_arm.zip target/aarch64-apple-darwin/release/pmc
   artifacts:
-    paths: [build/]
+    paths: [/binary]
 
 release:
   stage: release
