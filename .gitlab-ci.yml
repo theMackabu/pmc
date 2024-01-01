@@ -14,7 +14,7 @@ build_linux_amd64:
   only: [/\d+\.\d+\.\d+.*$/]
   script:
     - cargo zigbuild -r -vv --color always
-    - zip binary/pmc_$CI_COMMIT_TAG_linux_amd64.zip target/release/pmc
+    - zip binary/pmc_${CI_COMMIT_TAG}_linux_amd64.zip target/release/pmc -j
   artifacts:
     paths: [binary/]
 
@@ -24,7 +24,7 @@ build_linux_aarch64:
   only: [/\d+\.\d+\.\d+.*$/]
   script:
     - cargo zigbuild -r -vv --target aarch64-unknown-linux-gnu --color always
-    - zip binary/pmc_$CI_COMMIT_TAG_linux_aarch64.zip target/aarch64-unknown-linux-gnu/release/pmc
+    - zip binary/pmc_${CI_COMMIT_TAG}_linux_aarch64.zip target/aarch64-unknown-linux-gnu/release/pmc -j
   artifacts:
     paths: [binary/]
 
@@ -34,7 +34,7 @@ build_darwin_amd64:
   only: [/\d+\.\d+\.\d+.*$/]
   script:
     - cargo zigbuild -r -vv --target x86_64-apple-darwin --color always
-    - zip binary/pmc_$CI_COMMIT_TAG_darwin_amd64.zip target/x86_64-apple-darwin/release/pmc
+    - zip binary/pmc_${CI_COMMIT_TAG}_darwin_amd64.zip target/x86_64-apple-darwin/release/pmc -j
   artifacts:
     paths: [binary/]
 
@@ -44,6 +44,6 @@ build_darwin_aarch64:
   only: [/\d+\.\d+\.\d+.*$/]
   script:
     - cargo zigbuild -r -vv --target aarch64-apple-darwin --color always
-    - zip binary/pmc_$CI_COMMIT_TAG_darwin_arm.zip target/aarch64-apple-darwin/release/pmc
+    - zip binary/pmc_${CI_COMMIT_TAG}_darwin_arm.zip target/aarch64-apple-darwin/release/pmc -j
   artifacts:
     paths: [binary/]
