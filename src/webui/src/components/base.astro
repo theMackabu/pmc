@@ -12,28 +12,21 @@ interface Props {
 const { title, description } = Astro.props;
 ---
 
-<base href="{{base_path | safe}}/" />
-<app-redirect data-base={"{{base_path | safe}}"} />
-
-<!-- Global Metadata -->
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<link rel="icon" type="image/svg+xml" href={favicon} />
-<link rel="stylesheet" href="https://rsms.me/inter/inter.css">
 <meta name="generator" content={Astro.generator} />
 
-<!-- Primary Meta Tags -->
 <title>{title}</title>
+<link rel="icon" type="image/svg+xml" href={favicon} />
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+<app-redirect data-base={"{{base_path | safe}}"} />
+
 <meta name="title" content={title} />
 <meta name="description" content={description} />
-
-<!-- Open Graph / Facebook -->
 <meta property="og:type" content="website" />
 <meta property="og:title" content={title} />
 <meta property="og:description" content={description} />
 <meta property="og:image" content={banner} />
-
-<!-- Twitter -->
 <meta property="twitter:card" content="summary_large_image" />
 <meta property="twitter:title" content={title} />
 <meta property="twitter:description" content={description} />
