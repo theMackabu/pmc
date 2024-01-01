@@ -48,9 +48,9 @@ pub async fn start(webui: bool) {
     const DOCS: &str = include_str!("docs/index.html");
 
     let config = config::read().daemon.web;
-    let s_path = config::read().get_path().trim_end_matches('/').to_string();
+    let s_path = config::read().get_path();
 
-    let docs_path = fmtstr!("{}/docs.json", s_path);
+    let docs_path = fmtstr!("{}/docs.json", s_path.trim_end_matches('/').to_string());
     let auth = header::exact("authorization", fmtstr!("token {}", config.secure.token));
 
     #[derive(OpenApi)]
