@@ -1,0 +1,57 @@
+stages: [build, release]
+image: "themackabu/rust:zigbuild-1.75.0"
+
+variables:
+  VERSION: '1.6.3'
+
+before_script:
+  - mkdir build
+  - apt-get update -yqq
+  - apt-get install -yqq zip clang llvm
+  - export CC="/usr/bin/clang"
+  - export CXX="/usr/bin/clang++"
+
+build_linux_amd64:
+  stage: build
+  only: [/^v\d+\.\d+\.\d+.*$/]
+  script:
+    - cargo zigbuild -r --color always
+    - mv target/release/pmc build/pmc
+    - zip build/pmc_${VERSION}_linux_amd64.zip build/pmc
+    - rm build/pmc
+  artifacts:
+    paths: [build/]
+
+build_darwin_amd64:
+  stage: build
+  only: [/^v\d+\.\d+\.\d+.*$/]
+  script:
+    - cargo zigbuild -r --target x86_64-apple-darwin --color always
+    - mv target/x86_64-apple-darwin/release/pmc build/pmc
+    - zip build/pmc_${VERSION}_darwin_amd64.zip build/pmc
+    - rm build/pmc
+  artifacts:
+    paths: [build/]
+
+build_darwin_arm:
+  stage: build
+  only: [/^v\d+\.\d+\.\d+.*$/]
+  script:
+    - cargo zigbuild -r --target aarch64-apple-darwin --color always
+    - mv target/aarch64-apple-darwin/release/pmc build/pmc
+    - zip build/pmc_${VERSION}_darwin_arm.zip build/pmc
+    - rm build/pmc
+  artifacts:
+    paths: [build/]
+
+release:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+.*$/'
+  script:
+    - echo "running release_job"
+  release:
+    name: '$CI_COMMIT_TAG'
+    tag_name: '$CI_COMMIT_TAG'
+    description: '$CI_COMMIT_TAG'
