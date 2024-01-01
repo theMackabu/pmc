@@ -1,9 +1,8 @@
 import { api } from '@/api';
-import { $settings } from '@/store';
 import Modal from '@/components/react/modal';
 import { useEffect, useState, Fragment } from 'react';
 
-const Rename = (props: { process: number; callback: any; old: string }) => {
+const Rename = (props: { base: string; process: number; callback: any; old: string }) => {
 	const [open, setOpen] = useState(false);
 	const [formData, setFormData] = useState('');
 
@@ -11,7 +10,7 @@ const Rename = (props: { process: number; callback: any; old: string }) => {
 
 	const handleSubmit = (event: any) => {
 		event.preventDefault();
-		api.post($settings.get().base + `/process/${props.process}/rename`, { body: formData }).then(() => {
+		api.post(`${props.base}/process/${props.process}/rename`, { body: formData }).then(() => {
 			setOpen(false);
 			props.callback();
 		});

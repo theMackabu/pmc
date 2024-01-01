@@ -1,5 +1,7 @@
 ---
 import '@/styles.css'
+import favicon from '@/public/favicon.svg?url'
+import banner from '@/public/banner.png?url'
 
 interface Props {
 	title: string;
@@ -7,13 +9,16 @@ interface Props {
 	image?: string;
 }
 
-const { title, description, image = '/banner.png' } = Astro.props;
+const { title, description } = Astro.props;
 ---
+
+<base href="{{base_path | safe}}/" />
+<app-redirect data-base={"{{base_path | safe}}"} />
 
 <!-- Global Metadata -->
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<link rel="icon" type="image/svg+xml" href={favicon} />
 <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
 <meta name="generator" content={Astro.generator} />
 
@@ -26,10 +31,37 @@ const { title, description, image = '/banner.png' } = Astro.props;
 <meta property="og:type" content="website" />
 <meta property="og:title" content={title} />
 <meta property="og:description" content={description} />
-<meta property="og:image" content={image} />
+<meta property="og:image" content={banner} />
 
 <!-- Twitter -->
 <meta property="twitter:card" content="summary_large_image" />
 <meta property="twitter:title" content={title} />
 <meta property="twitter:description" content={description} />
-<meta property="twitter:image" content={image} />
+<meta property="twitter:image" content={banner} />
+
+<script>
+  import { $settings } from '@/store';
+
+  class AppRedirect extends HTMLElement {
+	 constructor() {
+		super();
+
+		const base = this.dataset.base;
+		fetch(base + '/metrics', {
+			headers: { Authorization: 'token ' + $settings.get().token },
+		}).then(response => {
+			if (window.location.pathname.includes("login")) {
+				if (response.status === 200) {
+					window.location.href = base + "/";
+				}
+			} else {
+				if (response.status !== 200) {
+					window.location.href = base + '/login';
+				}
+			}
+		});
+	 }
+  }
+
+  customElements.define('app-redirect', AppRedirect);
+</script>

@@ -7,17 +7,5 @@ import { SITE_TITLE, SITE_DESCRIPTION } from '@/consts';
 <!DOCTYPE html>
 <html lang="en">
    <head><Base title={SITE_TITLE + " - Login"} description={SITE_DESCRIPTION} /></head>
-   <body><main><LoginPage client:only /></main></body>
+   <body><main><LoginPage base={"{{base_path | safe}}"} client:only /></main></body>
 </html>
-
-<script>
-  import { $settings } from '@/store';
-  
-  fetch($settings.get().base + 'metrics', {
-    headers: { Authorization: 'token ' + $settings.get().token },
-  }).then(response => {
-     if (response.status === 200) {
-        window.location.href = $settings.get().base;
-     }
-   });
-</script>

@@ -1,11 +1,10 @@
 import { api } from '@/api';
-import { $settings } from '@/store';
 import Rename from '@/components/react/rename';
 import { useEffect, useState, Fragment } from 'react';
 import { Menu, Transition } from '@headlessui/react';
 import { EllipsisVerticalIcon } from '@heroicons/react/20/solid';
 
-const Index = () => {
+const Index = (props: { base: string }) => {
 	const [items, setItems] = useState([]);
 
 	const badge = {
@@ -16,15 +15,14 @@ const Index = () => {
 
 	const fetch = () => {
 		api
-			.get($settings.get().base + 'list')
+			.get(props.base + '/list')
 			.json()
 			.then((res) => setItems(res));
 	};
 
 	const classNames = (...classes: Array<any>) => classes.filter(Boolean).join(' ');
 	const isRunning = (status: string): bool => (status == 'stopped' ? false : status == 'crashed' ? false : true);
-	const action = (id: number, name: string) =>
-		api.post($settings.get().base + `process/${id}/action`, { json: { method: name } }).then(() => fetch());
+	const action = (id: number, name: string) => api.post(`${props.base}/process/${id}/action`, { json: { method: name } }).then(() => fetch());
 
 	useEffect(() => fetch(), []);
 
@@ -80,7 +78,9 @@ const Index = () => {
 										</Menu.Item>
 									</div>
 									<div className="p-1.5">
-										<Menu.Item>{() => <Rename process={item.id} callback={fetch} old={item.name} />}</Menu.Item>
+										<Menu.Item>
+											{({ active }) => <Rename base={props.base} process={item.id} callback={fetch} active={active} old={item.name} />}
+										</Menu.Item>
 									</div>
 									<div className="p-1.5">
 										<Menu.Item>
@@ -100,7 +100,7 @@ const Index = () => {
 							</Transition>
 						</Menu>
 					</div>
-					<a href={`./view/?id=${item.id}`}>
+					<a href={`./view/${item.id}`}>
 						<dl className="-my-3 divide-y divide-zinc-800/30 px-6 py-4 text-sm leading-6">
 							<div className="flex justify-between gap-x-1 py-1">
 								<dt className="text-zinc-700">restarts</dt>
