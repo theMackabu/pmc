@@ -1,6 +1,7 @@
 mod cli;
 mod daemon;
 mod globals;
+mod webui;
 
 use crate::cli::Args;
 use clap::{Parser, Subcommand};

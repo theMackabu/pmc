@@ -1,5 +1,6 @@
 mod routes;
 
+use crate::webui;
 use bytes::Bytes;
 use lazy_static::lazy_static;
 use macros_rs::{crashln, fmtstr};
@@ -9,8 +10,8 @@ use prometheus::{Counter, Gauge, Histogram, HistogramVec};
 use serde::Serialize;
 use serde_json::json;
 use static_dir::static_dir;
-use std::{convert::Infallible, error::Error, str::FromStr};
-use tera::Tera;
+use std::{convert::Infallible, str::FromStr};
+
 use utoipa::{OpenApi, ToSchema};
 use utoipa_rapidoc::RapiDoc;
 
@@ -55,10 +56,11 @@ pub async fn start(webui: bool) {
     let docs_path = fmtstr!("{}/docs.json", s_path.trim_end_matches('/').to_string());
     let auth = header::exact("authorization", fmtstr!("token {}", config.secure.token));
 
-    let tmpl = match create_template_filter() {
-        Ok(template) => template,
-        Err(err) => crashln!("{err}"),
-    };
+    let tmpl =
+        match webui::create_template_filter() {
+            Ok(template) => template,
+            Err(err) => crashln!("{err}"),
+        };
 
     #[derive(OpenApi)]
     #[openapi(
@@ -139,25 +141,25 @@ pub async fn start(webui: bool) {
         .or(app_prometheus);
 
     let use_routes_basic = || async {
-        let web_routes = path::end().map(|| json(&json!({"healthy": true})).into_response()).boxed();
+        let base_route = path::end().map(|| json(&json!({"healthy": true})).into_response());
 
-        let routes = match config.secure.enabled {
-            true => routes.clone().and(auth).or(root_redirect()).or(web_routes).or(app_docs_json).or(app_docs).boxed(),
-            false => routes.clone().or(root_redirect()).or(web_routes).or(app_docs_json).or(app_docs).boxed(),
+        let internal = match config.secure.enabled {
+            true => routes.clone().and(auth).or(root_redirect()).or(base_route).or(app_docs_json).or(app_docs).boxed(),
+            false => routes.clone().or(root_redirect()).or(base_route).or(app_docs_json).or(app_docs).boxed(),
         };
 
-        serve(base.clone().and(routes).recover(handle_rejection).with(log)).run(config::read().get_address()).await
+        serve(base.clone().and(internal).recover(handle_rejection).with(log)).run(config::read().get_address()).await
     };
 
     let use_routes_web = || async {
-        let web_routes = web_login.or(web_dashboard).or(web_view_process).or(static_dir!("src/webui/assets")).boxed();
+        let web_routes = web_login.or(web_dashboard).or(web_view_process).or(static_dir!("src/webui/assets"));
 
-        let routes = match config.secure.enabled {
+        let internal = match config.secure.enabled {
             true => routes.clone().and(auth).or(root_redirect()).or(web_routes).or(app_docs_json).or(app_docs).boxed(),
             false => routes.clone().or(root_redirect()).or(web_routes).or(app_docs_json).or(app_docs).boxed(),
         };
 
-        serve(base.clone().and(routes).recover(handle_rejection).with(log)).run(config::read().get_address()).await
+        serve(base.clone().and(internal).recover(handle_rejection).with(log)).run(config::read().get_address()).await
     };
 
     match webui {
@@ -195,13 +197,6 @@ async fn handle_rejection(err: Rejection) -> Result<impl Reply, Infallible> {
     });
 
     Ok(reply::with_status(json, code))
-}
-
-fn create_template_filter() -> Result<filters::BoxedFilter<((Tera, String),)>, Box<dyn Error>> {
-    let s_path = config::read().get_path();
-    let tera = Tera::new(concat!(env!("CARGO_MANIFEST_DIR"), "/src/webui/dist/*.html"))?;
-
-    Ok(warp::any().map(move || (tera.clone(), s_path.trim_end_matches('/').to_string())).boxed())
 }
 
 fn root_redirect() -> filters::BoxedFilter<(impl Reply,)> {

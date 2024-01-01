@@ -119,7 +119,7 @@ pub async fn login(store: (Tera, String)) -> Result<Box<dyn Reply>, Rejection> {
     let (tmpl, path) = store;
 
     ctx.insert("base_path", &path);
-    let payload = render("login.html", &tmpl, &ctx)?;
+    let payload = render("login", &tmpl, &ctx)?;
     Ok(Box::new(reply::html(payload)))
 }
 
@@ -129,7 +129,7 @@ pub async fn dashboard(store: (Tera, String)) -> Result<Box<dyn Reply>, Rejectio
     let (tmpl, path) = store;
 
     ctx.insert("base_path", &path);
-    let payload = render("index.html", &tmpl, &ctx)?;
+    let payload = render("dashboard", &tmpl, &ctx)?;
     Ok(Box::new(reply::html(payload)))
 }
 
@@ -141,7 +141,7 @@ pub async fn view_process(id: usize, store: (Tera, String)) -> Result<Box<dyn Re
     ctx.insert("base_path", &path);
     ctx.insert("process_id", &id);
 
-    let payload = render("view.html", &tmpl, &ctx)?;
+    let payload = render("view", &tmpl, &ctx)?;
     Ok(Box::new(reply::html(payload)))
 }
 
