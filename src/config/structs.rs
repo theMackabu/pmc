@@ -29,6 +29,7 @@ pub struct Web {
     pub address: String,
     pub port: u64,
     pub secure: Secure,
+    pub path: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]

@@ -33,6 +33,7 @@ pub fn cwd() -> PathBuf {
     }
 }
 
+// fix
 pub fn make_relative(current: &Path, home: &Path) -> Option<std::path::PathBuf> {
     match current.strip_prefix(home) {
         Ok(relative_path) => Some(Path::new("~").join(relative_path)),

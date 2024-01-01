@@ -1,14 +1,13 @@
 ---
 import Base from '@/components/base.astro';
-import Navbar from '@/components/navbar.astro';
-import ViewPage from '@/components/react/view';
+import LoginPage from '@/components/react/login';
 import { SITE_TITLE, SITE_DESCRIPTION } from '@/consts';
 ---
 
 <!DOCTYPE html>
 <html lang="en">
-   <head><Base title={SITE_TITLE + " - View process"} description={SITE_DESCRIPTION} /></head>
-   <body><Navbar active={false} /><ViewPage client:only /></body>
+   <head><Base title={SITE_TITLE + " - Login"} description={SITE_DESCRIPTION} /></head>
+   <body><main><LoginPage client:only /></main></body>
 </html>
 
 <script>
@@ -17,8 +16,8 @@ import { SITE_TITLE, SITE_DESCRIPTION } from '@/consts';
   fetch($settings.get().base + 'metrics', {
     headers: { Authorization: 'token ' + $settings.get().token },
   }).then(response => {
-     if (response.status !== 200) {
-        window.location.href = $settings.get().base + 'login';
+     if (response.status === 200) {
+        window.location.href = $settings.get().base;
      }
    });
 </script>

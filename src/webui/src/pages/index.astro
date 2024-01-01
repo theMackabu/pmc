@@ -10,3 +10,16 @@ import { SITE_TITLE, SITE_DESCRIPTION } from '@/consts';
 	<head><Base title={SITE_TITLE + " - Process list"} description={SITE_DESCRIPTION} /></head>
 	<body><Navbar active={true} /><main class="p-8"><IndexPage client:only /></main></body>
 </html>
+
+<script>
+  import { $settings } from '@/store';
+  $settings.setKey('base', location.pathname);
+  
+  fetch($settings.get().base + 'metrics', {
+	  headers: { Authorization: 'token ' + $settings.get().token },
+  }).then(response => {
+	  if (response.status !== 200) {
+		  window.location.href = $settings.get().base + 'login';
+	  }
+   });
+</script>

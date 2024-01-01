@@ -10,14 +10,14 @@ use routes::{action_handler, env_handler, info_handler, list_handler, log_handle
 use serde::Serialize;
 use serde_json::json;
 use static_dir::static_dir;
-use std::convert::Infallible;
+use std::{convert::Infallible, str::FromStr};
 use utoipa::{OpenApi, ToSchema};
 use utoipa_rapidoc::RapiDoc;
 
 use warp::{
-    body, get, header,
-    http::StatusCode,
-    path, post, reject,
+    body, filters, get, header,
+    http::{StatusCode, Uri},
+    path, post, redirect, reject,
     reply::{self, html, json},
     serve, Filter, Rejection, Reply,
 };
@@ -46,7 +46,12 @@ lazy_static! {
 
 pub async fn start(webui: bool) {
     const DOCS: &str = include_str!("docs/index.html");
+
     let config = config::read().daemon.web;
+    let s_path = config::read().get_path().trim_end_matches('/').to_string();
+
+    let docs_path = fmtstr!("{}/docs.json", s_path);
+    let auth = header::exact("authorization", fmtstr!("token {}", config.secure.token));
 
     #[derive(OpenApi)]
     #[openapi(
@@ -82,19 +87,18 @@ pub async fn start(webui: bool) {
     )]
     struct ApiDoc;
 
-    let list = path!("list").and(get()).and_then(list_handler);
-    let metrics = path!("metrics").and(get()).and_then(metrics_handler);
-    let prometheus = path!("prometheus").and(get()).and_then(prometheus_handler);
-    let file = path!("docs.json").and(get()).map(|| json(&ApiDoc::openapi()));
-    let docs = path!("docs").and(get()).map(|| html(RapiDoc::new("/docs.json").custom_html(DOCS).to_html()));
-    let auth = header::exact("authorization", fmtstr!("token {}", config.secure.token));
+    let app_metrics = path!("metrics").and(get()).and_then(metrics_handler);
+    let app_prometheus = path!("prometheus").and(get()).and_then(prometheus_handler);
+    let app_docs_json = path!("docs.json").and(get()).map(|| json(&ApiDoc::openapi()));
+    let app_docs = path!("docs").and(get()).map(|| html(RapiDoc::new(docs_path).custom_html(DOCS).to_html()));
 
-    let env = path!("process" / usize / "env").and(get()).and_then(env_handler);
-    let info = path!("process" / usize / "info").and(get()).and_then(info_handler);
-    let logs = path!("process" / usize / "logs" / String).and(get()).and_then(log_handler);
-    let raw_logs = path!("process" / usize / "logs" / String / "raw").and(get()).and_then(log_handler_raw);
-    let action = path!("process" / usize / "action").and(post()).and(body::json()).and_then(action_handler);
-    let rename = path!("process" / usize / "rename").and(post()).and(string_filter(1024 * 16)).and_then(rename_handler);
+    let process_list = path!("list").and(get()).and_then(list_handler);
+    let process_env = path!("process" / usize / "env").and(get()).and_then(env_handler);
+    let process_info = path!("process" / usize / "info").and(get()).and_then(info_handler);
+    let process_logs = path!("process" / usize / "logs" / String).and(get()).and_then(log_handler);
+    let process_raw_logs = path!("process" / usize / "logs" / String / "raw").and(get()).and_then(log_handler_raw);
+    let process_action = path!("process" / usize / "action").and(post()).and(body::json()).and_then(action_handler);
+    let process_rename = path!("process" / usize / "rename").and(post()).and(string_filter(1024 * 16)).and_then(rename_handler);
 
     let log = warp::log::custom(|info| {
         log!(
@@ -107,31 +111,33 @@ pub async fn start(webui: bool) {
         )
     });
 
-    let base_route = match webui {
-        true => static_dir!("src/webui/dist").boxed(),
+    let base = s_path
+        .split('/')
+        .enumerate()
+        .filter(|(_, p)| !p.is_empty() || *p == s_path)
+        .fold(warp::any().boxed(), |f, (_, path)| f.and(warp::path(path.to_owned())).boxed());
+
+    let index = match webui {
+        true => static_dir!("src/webui/dist/").boxed(),
         false => path::end().map(|| json(&json!({"healthy": true})).into_response()).boxed(),
     };
 
-    let auth_middleware =
-        match config.secure.enabled {
-            true => base_route.and(auth).boxed(),
-            false => base_route.boxed(),
-        };
+    let routes = process_list
+        .or(process_env)
+        .or(process_info)
+        .or(process_logs)
+        .or(process_raw_logs)
+        .or(process_action)
+        .or(process_rename)
+        .or(app_metrics)
+        .or(app_prometheus);
 
-    let routes = auth_middleware
-        .or(env)
-        .or(docs)
-        .or(file)
-        .or(list)
-        .or(info)
-        .or(logs)
-        .or(rename)
-        .or(action)
-        .or(metrics)
-        .or(raw_logs)
-        .or(prometheus);
+    let routes = match config.secure.enabled {
+        true => routes.and(auth).or(root_redirect()).or(index).or(app_docs_json).or(app_docs).boxed(),
+        false => routes.or(root_redirect()).or(index).or(app_docs_json).or(app_docs).boxed(),
+    };
 
-    serve(routes.recover(handle_rejection).with(log)).run(config::read().get_address()).await
+    serve(base.and(routes).recover(handle_rejection).with(log)).run(config::read().get_address()).await
 }
 
 async fn handle_rejection(err: Rejection) -> Result<impl Reply, Infallible> {
@@ -160,4 +166,17 @@ async fn handle_rejection(err: Rejection) -> Result<impl Reply, Infallible> {
     });
 
     Ok(reply::with_status(json, code))
+}
+fn root_redirect() -> filters::BoxedFilter<(impl Reply,)> {
+    warp::path::full()
+        .and_then(move |path: path::FullPath| async move {
+            let path = path.as_str();
+
+            if path.ends_with("/") || path.contains(".") {
+                return Err(warp::reject());
+            }
+
+            Ok(redirect::redirect(Uri::from_str(&[path, "/"].concat()).unwrap()))
+        })
+        .boxed()
 }

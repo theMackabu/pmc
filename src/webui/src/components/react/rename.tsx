@@ -1,19 +1,17 @@
-import ky from 'ky';
+import { api } from '@/api';
+import { $settings } from '@/store';
 import Modal from '@/components/react/modal';
 import { useEffect, useState, Fragment } from 'react';
 
 const Rename = (props: { process: number; callback: any; old: string }) => {
 	const [open, setOpen] = useState(false);
 	const [formData, setFormData] = useState('');
-	const [submitForm, setFormSubmit] = useState(false);
 
 	const handleChange = (event: any) => setFormData(event.target.value);
 
 	const handleSubmit = (event: any) => {
 		event.preventDefault();
-		setFormSubmit(true);
-		ky.post(`/process/${props.process}/rename`, { body: formData }).then(() => {
-			setFormSubmit(false);
+		api.post($settings.get().base + `/process/${props.process}/rename`, { body: formData }).then(() => {
 			setOpen(false);
 			props.callback();
 		});

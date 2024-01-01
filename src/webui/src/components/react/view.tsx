@@ -1,4 +1,5 @@
-import ky from 'ky';
+import { api } from '@/api';
+import { $settings } from '@/store';
 import { matchSorter } from 'match-sorter';
 import Rename from '@/components/react/rename';
 import { Menu, Transition } from '@headlessui/react';
@@ -115,7 +116,8 @@ const LogViewer = (props: { server: number; id: number }) => {
 	}, [searchOpen]);
 
 	const loadLogs = () => {
-		ky.get(`/process/${props.id}/logs/out`)
+		api
+			.get($settings.get().base + `process/${props.id}/logs/out`)
 			.json()
 			.then((data) => setLogs(data.logs))
 			.finally(() => setLoaded(true));
@@ -166,14 +168,18 @@ const View = () => {
 	};
 
 	const fetch = () => {
-		ky.get(`/process/${id}/info`)
+		console.log($settings.get());
+
+		api
+			.get($settings.get().base + `process/${id}/info`)
 			.json()
 			.then((res) => setItem(res))
 			.finally(() => setLoaded(true));
 	};
 
 	const isRunning = (status: string): bool => (status == 'stopped' ? false : status == 'crashed' ? false : true);
-	const action = (id: number, name: string) => ky.post(`/process/${id}/action`, { json: { method: name } }).then(() => fetch());
+	const action = (id: number, name: string) =>
+		api.post($settings.get().base + `process/${id}/action`, { json: { method: name } }).then(() => fetch());
 
 	useEffect(() => fetch(), []);
 
