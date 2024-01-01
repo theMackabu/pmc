@@ -36,14 +36,18 @@ pub fn format_duration(datetime: DateTime<Utc>) -> String {
 }
 
 pub fn format_memory(bytes: u64) -> String {
-    const KB: u64 = 1024;
-    const MB: u64 = KB * 1024;
-    const GB: u64 = MB * 1024;
+    const UNIT: f64 = 1024.0;
+    const SUFFIX: [&str; 4] = ["b", "kb", "mb", "gb"];
 
-    match bytes {
-        0..=KB if bytes < KB => format!("{}b", bytes),
-        KB..=MB if bytes < MB => format!("{:.1}kb", bytes as f64 / KB as f64),
-        MB..=GB if bytes < GB => format!("{:.1}mb", bytes as f64 / MB as f64),
-        _ => format!("{:.1}gb", bytes as f64 / GB as f64),
+    let size = bytes as f64;
+    let base = size.log10() / UNIT.log10();
+
+    if size <= 0.0 {
+        return "0b".to_string();
     }
+
+    let mut buffer = ryu::Buffer::new();
+    let result = buffer.format((UNIT.powf(base - base.floor()) * 10.0).round() / 10.0).trim_end_matches(".0");
+
+    [result, SUFFIX[base.floor() as usize]].join("")
 }
