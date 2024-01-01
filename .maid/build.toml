@@ -5,8 +5,8 @@ VERSION='1.6.3'
 info = "build all"
 script = [
    # install packages
-   "apt-get update",
-   "apt-get install zip clang llvm -y",
+   "apt-get update -yqq",
+   "apt-get install zip clang llvm -yqq",
 
    # setup build
    "mkdir build",
@@ -39,6 +39,6 @@ script = [
 silent = false
 exclusive = true
 shell = "/bin/bash"
-image = "themackabu/rust:zigbuild-1.74.0"
+image = "themackabu/rust:zigbuild-1.75.0"
 push = ["src", "lib", "Cargo.toml", "Cargo.lock", "build.rs"]
 pull = "build"
