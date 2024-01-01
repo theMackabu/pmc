@@ -1,12 +1,10 @@
 import { api } from '@/api';
-import { $settings } from '@/store';
 import { matchSorter } from 'match-sorter';
 import Rename from '@/components/react/rename';
 import { Menu, Transition } from '@headlessui/react';
 import { useEffect, useState, useRef, Fragment } from 'react';
 import { EllipsisVerticalIcon } from '@heroicons/react/20/solid';
 
-const urlParams = new URLSearchParams(location.search);
 const classNames = (...classes: Array<any>) => classes.filter(Boolean).join(' ');
 
 const formatMemory = (bytes: number): [number, string] => {
@@ -56,7 +54,7 @@ const LogRow = ({ match, children }: any) => {
 	);
 };
 
-const LogViewer = (props: { server: number; id: number }) => {
+const LogViewer = (props: { base: string; id: number }) => {
 	const [logs, setLogs] = useState<string[]>([]);
 	const [loaded, setLoaded] = useState(false);
 	const lastRow = useRef<HTMLDivElement | null>(null);
@@ -117,7 +115,7 @@ const LogViewer = (props: { server: number; id: number }) => {
 
 	const loadLogs = () => {
 		api
-			.get($settings.get().base + `process/${props.id}/logs/out`)
+			.get(`${props.base}/process/${props.id}/logs/out`)
 			.json()
 			.then((data) => setLogs(data.logs))
 			.finally(() => setLoaded(true));
@@ -156,8 +154,7 @@ const LogViewer = (props: { server: number; id: number }) => {
 	}
 };
 
-const View = () => {
-	const id = urlParams.get('id');
+const View = (props: { id: string; base: string }) => {
 	const [item, setItem] = useState<any>();
 	const [loaded, setLoaded] = useState(false);
 
@@ -168,18 +165,15 @@ const View = () => {
 	};
 
 	const fetch = () => {
-		console.log($settings.get());
-
 		api
-			.get($settings.get().base + `process/${id}/info`)
+			.get(`${props.base}/process/${props.id}/info`)
 			.json()
 			.then((res) => setItem(res))
 			.finally(() => setLoaded(true));
 	};
 
 	const isRunning = (status: string): bool => (status == 'stopped' ? false : status == 'crashed' ? false : true);
-	const action = (id: number, name: string) =>
-		api.post($settings.get().base + `process/${id}/action`, { json: { method: name } }).then(() => fetch());
+	const action = (id: number, name: string) => api.post(`${props.base}/process/${id}/action`, { json: { method: name } }).then(() => fetch());
 
 	useEffect(() => fetch(), []);
 
@@ -218,7 +212,7 @@ const View = () => {
 						<span>
 							<button
 								type="button"
-								onClick={() => action(id, 'restart')}
+								onClick={() => action(props.id, 'restart')}
 								className="disabled:opacity-50 transition inline-flex items-center justify-center space-x-1.5 border focus:outline-none focus:ring-0 focus:ring-offset-0 focus:z-10 shrink-0 saturate-[110%] border-zinc-700 hover:border-zinc-600 bg-zinc-800 text-zinc-50 hover:bg-zinc-700 px-4 py-2 text-sm font-semibold rounded-lg">
 								{online ? 'Restart' : 'Start'}
 							</button>
@@ -244,7 +238,7 @@ const View = () => {
 											<Menu.Item>
 												{({ active }) => (
 													<a
-														onClick={() => action(id, 'stop')}
+														onClick={() => action(props.id, 'stop')}
 														className={classNames(
 															active ? 'bg-yellow-400/10 text-amber-500' : 'text-zinc-200',
 															'rounded-md block p-2 w-full text-left cursor-pointer'
@@ -253,13 +247,15 @@ const View = () => {
 													</a>
 												)}
 											</Menu.Item>
-											<Menu.Item>{({ active }) => <Rename process={id} active={active} callback={fetch} old={item.info.name} />}</Menu.Item>
+											<Menu.Item>
+												{({ active }) => <Rename base={props.base} process={props.id} active={active} callback={fetch} old={item.info.name} />}
+											</Menu.Item>
 										</div>
 										<div className="p-1.5">
 											<Menu.Item>
 												{({ active }) => (
 													<a
-														onClick={() => action(id, 'delete')}
+														onClick={() => action(props.id, 'delete')}
 														className={classNames(
 															active ? 'bg-red-700/10 text-red-500' : 'text-red-400',
 															'rounded-md block p-2 w-full text-left cursor-pointer'
@@ -293,7 +289,7 @@ const View = () => {
 					))}
 				</div>
 
-				<LogViewer id={parseInt(id!)} />
+				<LogViewer id={parseInt(props.id)} base={props.base} />
 			</Fragment>
 		);
 	}

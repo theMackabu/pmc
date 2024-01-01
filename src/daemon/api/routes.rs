@@ -7,6 +7,7 @@ use psutil::process::{MemoryInfo, Process};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::convert::Infallible;
+use tera::{Context, Tera};
 use utoipa::ToSchema;
 
 use crate::daemon::{
@@ -107,6 +108,41 @@ fn attempt(done: bool, method: &str) -> reply::Json {
     });
 
     json(&data)
+}
+
+#[inline]
+fn render(name: &str, tmpl: &Tera, ctx: &Context) -> Result<String, Rejection> { tmpl.render(name, &ctx).or(Err(reject::not_found())) }
+
+#[inline]
+pub async fn login(store: (Tera, String)) -> Result<Box<dyn Reply>, Rejection> {
+    let mut ctx = Context::new();
+    let (tmpl, path) = store;
+
+    ctx.insert("base_path", &path);
+    let payload = render("login.html", &tmpl, &ctx)?;
+    Ok(Box::new(reply::html(payload)))
+}
+
+#[inline]
+pub async fn dashboard(store: (Tera, String)) -> Result<Box<dyn Reply>, Rejection> {
+    let mut ctx = Context::new();
+    let (tmpl, path) = store;
+
+    ctx.insert("base_path", &path);
+    let payload = render("index.html", &tmpl, &ctx)?;
+    Ok(Box::new(reply::html(payload)))
+}
+
+#[inline]
+pub async fn view_process(id: usize, store: (Tera, String)) -> Result<Box<dyn Reply>, Rejection> {
+    let mut ctx = Context::new();
+    let (tmpl, path) = store;
+
+    ctx.insert("base_path", &path);
+    ctx.insert("process_id", &id);
+
+    let payload = render("view.html", &tmpl, &ctx)?;
+    Ok(Box::new(reply::html(payload)))
 }
 
 #[inline]

@@ -2,15 +2,15 @@ mod routes;
 
 use bytes::Bytes;
 use lazy_static::lazy_static;
-use macros_rs::fmtstr;
+use macros_rs::{crashln, fmtstr};
 use pmc::{config, process};
 use prometheus::{opts, register_counter, register_gauge, register_histogram, register_histogram_vec};
 use prometheus::{Counter, Gauge, Histogram, HistogramVec};
-use routes::{action_handler, env_handler, info_handler, list_handler, log_handler, log_handler_raw, metrics_handler, prometheus_handler, rename_handler};
 use serde::Serialize;
 use serde_json::json;
 use static_dir::static_dir;
-use std::{convert::Infallible, str::FromStr};
+use std::{convert::Infallible, error::Error, str::FromStr};
+use tera::Tera;
 use utoipa::{OpenApi, ToSchema};
 use utoipa_rapidoc::RapiDoc;
 
@@ -21,6 +21,8 @@ use warp::{
     reply::{self, html, json},
     serve, Filter, Rejection, Reply,
 };
+
+use routes::{action_handler, dashboard, env_handler, info_handler, list_handler, log_handler, log_handler_raw, login, metrics_handler, prometheus_handler, rename_handler, view_process};
 
 #[derive(Serialize, ToSchema)]
 struct ErrorMessage {
@@ -52,6 +54,11 @@ pub async fn start(webui: bool) {
 
     let docs_path = fmtstr!("{}/docs.json", s_path.trim_end_matches('/').to_string());
     let auth = header::exact("authorization", fmtstr!("token {}", config.secure.token));
+
+    let tmpl = match create_template_filter() {
+        Ok(template) => template,
+        Err(err) => crashln!("{err}"),
+    };
 
     #[derive(OpenApi)]
     #[openapi(
@@ -100,6 +107,10 @@ pub async fn start(webui: bool) {
     let process_action = path!("process" / usize / "action").and(post()).and(body::json()).and_then(action_handler);
     let process_rename = path!("process" / usize / "rename").and(post()).and(string_filter(1024 * 16)).and_then(rename_handler);
 
+    let web_login = warp::get().and(path!("login")).and(tmpl.clone()).and_then(login);
+    let web_dashboard = warp::get().and(path::end()).and(tmpl.clone()).and_then(dashboard);
+    let web_view_process = warp::get().and(path!("view" / usize)).and(tmpl.clone()).and_then(view_process);
+
     let log = warp::log::custom(|info| {
         log!(
             "[api] {} (method={}, status={}, ms={:?}, ver={:?})",
@@ -117,11 +128,6 @@ pub async fn start(webui: bool) {
         .filter(|(_, p)| !p.is_empty() || *p == s_path)
         .fold(warp::any().boxed(), |f, (_, path)| f.and(warp::path(path.to_owned())).boxed());
 
-    let index = match webui {
-        true => static_dir!("src/webui/dist/").boxed(),
-        false => path::end().map(|| json(&json!({"healthy": true})).into_response()).boxed(),
-    };
-
     let routes = process_list
         .or(process_env)
         .or(process_info)
@@ -132,12 +138,32 @@ pub async fn start(webui: bool) {
         .or(app_metrics)
         .or(app_prometheus);
 
-    let routes = match config.secure.enabled {
-        true => routes.and(auth).or(root_redirect()).or(index).or(app_docs_json).or(app_docs).boxed(),
-        false => routes.or(root_redirect()).or(index).or(app_docs_json).or(app_docs).boxed(),
+    let use_routes_basic = || async {
+        let web_routes = path::end().map(|| json(&json!({"healthy": true})).into_response()).boxed();
+
+        let routes = match config.secure.enabled {
+            true => routes.clone().and(auth).or(root_redirect()).or(web_routes).or(app_docs_json).or(app_docs).boxed(),
+            false => routes.clone().or(root_redirect()).or(web_routes).or(app_docs_json).or(app_docs).boxed(),
+        };
+
+        serve(base.clone().and(routes).recover(handle_rejection).with(log)).run(config::read().get_address()).await
     };
 
-    serve(base.and(routes).recover(handle_rejection).with(log)).run(config::read().get_address()).await
+    let use_routes_web = || async {
+        let web_routes = web_login.or(web_dashboard).or(web_view_process).or(static_dir!("src/webui/assets")).boxed();
+
+        let routes = match config.secure.enabled {
+            true => routes.clone().and(auth).or(root_redirect()).or(web_routes).or(app_docs_json).or(app_docs).boxed(),
+            false => routes.clone().or(root_redirect()).or(web_routes).or(app_docs_json).or(app_docs).boxed(),
+        };
+
+        serve(base.clone().and(routes).recover(handle_rejection).with(log)).run(config::read().get_address()).await
+    };
+
+    match webui {
+        true => use_routes_web().await,
+        false => use_routes_basic().await,
+    }
 }
 
 async fn handle_rejection(err: Rejection) -> Result<impl Reply, Infallible> {
@@ -149,6 +175,9 @@ async fn handle_rejection(err: Rejection) -> Result<impl Reply, Infallible> {
         code = StatusCode::NOT_FOUND;
         message = "NOT_FOUND";
     } else if let Some(_) = err.find::<reject::MissingHeader>() {
+        code = StatusCode::UNAUTHORIZED;
+        message = "UNAUTHORIZED";
+    } else if let Some(_) = err.find::<reject::InvalidHeader>() {
         code = StatusCode::UNAUTHORIZED;
         message = "UNAUTHORIZED";
     } else if let Some(_) = err.find::<reject::MethodNotAllowed>() {
@@ -167,6 +196,14 @@ async fn handle_rejection(err: Rejection) -> Result<impl Reply, Infallible> {
 
     Ok(reply::with_status(json, code))
 }
+
+fn create_template_filter() -> Result<filters::BoxedFilter<((Tera, String),)>, Box<dyn Error>> {
+    let s_path = config::read().get_path();
+    let tera = Tera::new(concat!(env!("CARGO_MANIFEST_DIR"), "/src/webui/dist/*.html"))?;
+
+    Ok(warp::any().map(move || (tera.clone(), s_path.trim_end_matches('/').to_string())).boxed())
+}
+
 fn root_redirect() -> filters::BoxedFilter<(impl Reply,)> {
     warp::path::full()
         .and_then(move |path: path::FullPath| async move {

@@ -135,9 +135,18 @@ fn main() {
         "release" => {
             println!("cargo:rustc-env=PROFILE=release");
 
+            #[allow(unused_must_use)]
+            for name in vec!["assets", "dist"] {
+                fs::remove_dir_all(format!("src/webui/{name}"));
+            }
+
             /* pre-build */
             let path = download_node();
             download_then_build(path);
+
+            /* move assets */
+            fs::create_dir_all("src/webui/assets/").expect("Failed to move assets");
+            fs::rename("src/webui/dist/static", "src/webui/assets/static").expect("Failed to move assets");
 
             /* cc linking */
             cxx_build::bridge("src/lib.rs")
@@ -151,6 +160,15 @@ fn main() {
         _ => println!("cargo:rustc-env=PROFILE=none"),
     }
 
-    let watched = vec!["src/webui/src", "src/lib.rs", "lib", "lib/include"];
+    let watched = vec![
+        "lib",
+        "src/lib.rs",
+        "lib/include",
+        "src/webui/src",
+        "src/webui/public",
+        "src/webui/*.mjs",
+        "src/webui/*.json",
+        "src/webui/*.yaml",
+    ];
     watched.iter().for_each(|file| println!("cargo:rerun-if-changed={file}"));
 }

@@ -8,17 +8,5 @@ import { SITE_TITLE, SITE_DESCRIPTION } from '@/consts';
 <!DOCTYPE html>
 <html lang="en">
    <head><Base title={SITE_TITLE + " - View process"} description={SITE_DESCRIPTION} /></head>
-   <body><Navbar active={false} /><ViewPage client:only /></body>
+   <body><Navbar active={false} /><ViewPage id={"{{process_id | safe}}"} base={"{{base_path | safe}}"} client:only /></body>
 </html>
-
-<script>
-  import { $settings } from '@/store';
-  
-  fetch($settings.get().base + 'metrics', {
-    headers: { Authorization: 'token ' + $settings.get().token },
-  }).then(response => {
-     if (response.status !== 200) {
-        window.location.href = $settings.get().base + 'login';
-     }
-   });
-</script>
