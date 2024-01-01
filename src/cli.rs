@@ -64,6 +64,7 @@ pub fn start(name: &Option<String>, args: &Option<Args>, watch: &Option<String>)
                 None => string!(script.split_whitespace().next().unwrap_or_default()),
             };
 
+            // fix
             println!("{} Creating process with ({name})", *helpers::SUCCESS);
             if name.ends_with(".ts") || name.ends_with(".js") {
                 let script = format!("{} {script}", config.runner.node);

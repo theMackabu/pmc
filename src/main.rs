@@ -111,11 +111,12 @@ enum Commands {
 }
 
 fn main() {
-    globals::init();
-
     let cli = Cli::parse();
     let mut env = env_logger::Builder::new();
-    env.filter_level(cli.verbose.log_level_filter()).init();
+    let level = cli.verbose.log_level_filter();
+
+    globals::init();
+    env.filter_level(level).init();
 
     match &cli.command {
         Commands::Start { name, args, watch } => cli::start(name, args, watch),
@@ -130,11 +131,11 @@ fn main() {
             Daemon::Stop => daemon::stop(),
             Daemon::Reset => daemon::reset(),
             Daemon::Health { format } => daemon::health(format),
-            Daemon::Restore { api, webui } => daemon::restart(api, webui),
+            Daemon::Restore { api, webui } => daemon::restart(api, webui, level.as_str() != "ERROR"),
         },
     };
 
     if !matches!(&cli.command, Commands::Daemon { .. }) {
-        then!(!daemon::pid::exists(), daemon::start());
+        then!(!daemon::pid::exists(), daemon::start(false));
     }
 }

@@ -199,9 +199,7 @@ pub fn stop() {
     }
 }
 
-pub fn start() {
-    let config = config::read().daemon;
-
+pub fn start(verbose: bool) {
     let external =
         match global!("pmc.daemon.kind").as_str() {
             "external" => true,
@@ -213,18 +211,12 @@ pub fn start() {
 
     println!("{} Spawning PMC daemon (pmc_base={})", *helpers::SUCCESS, global!("pmc.base"));
 
-    let is_api = ENABLE_API.load(Ordering::Acquire);
-    let is_webui = ENABLE_WEBUI.load(Ordering::Acquire);
-
-    let api_enabled = config.web.api;
-    let webui_enabled = config.web.ui;
-
-    if is_api || api_enabled {
+    if ENABLE_API.load(Ordering::Acquire) {
         println!(
             "{} API server started (address={:?}, webui={})",
             *helpers::SUCCESS,
             config::read().get_address(),
-            is_webui || webui_enabled
+            ENABLE_WEBUI.load(Ordering::Acquire)
         );
     }
 
@@ -241,8 +233,8 @@ pub fn start() {
         pid::name("PMC Restart Handler Daemon");
 
         let config = config::read().daemon;
-        let is_api = ENABLE_API.load(Ordering::Acquire);
-        let is_webui = ENABLE_WEBUI.load(Ordering::Acquire);
+        let api_enabled = ENABLE_API.load(Ordering::Acquire);
+        let ui_enabled = ENABLE_WEBUI.load(Ordering::Acquire);
 
         unsafe { libc::signal(libc::SIGTERM, handle_termination_signal as usize) };
         DAEMON_START_TIME.set(Utc::now().timestamp_millis() as f64);
@@ -250,13 +242,13 @@ pub fn start() {
         pid::write(process::id());
         log!("[daemon] new fork (pid={})", process::id());
 
-        if is_api || config.web.api {
+        if api_enabled {
             log!("[api] server started (address={:?})", config::read().get_address());
-            tokio::spawn(async move { api::start(is_webui || config.web.ui).await });
+            tokio::spawn(async move { api::start(ui_enabled).await });
         }
 
         loop {
-            if is_api || config.web.api {
+            if api_enabled {
                 if let Ok(mut process) = Process::new(process::id()) {
                     DAEMON_CPU_PERCENTAGE.observe(process.cpu_percent().ok().unwrap() as f64);
                     DAEMON_MEM_USAGE.observe(process.memory_info().ok().unwrap().rss() as f64);
@@ -271,9 +263,9 @@ pub fn start() {
     println!("{} PMC Successfully daemonized (type={})", *helpers::SUCCESS, global!("pmc.daemon.kind"));
     if external {
         let callback = pmc::Callback(init);
-        pmc::service::try_fork(false, false, callback);
+        pmc::service::try_fork(false, verbose, callback);
     } else {
-        match daemon(false, false) {
+        match daemon(false, verbose) {
             Ok(Fork::Parent(_)) => {}
             Ok(Fork::Child) => init(),
             Err(err) => crashln!("{} Daemon creation failed with code {err}", *helpers::FAIL),
@@ -281,19 +273,23 @@ pub fn start() {
     }
 }
 
-pub fn restart(api: &bool, webui: &bool) {
+pub fn restart(api: &bool, webui: &bool, verbose: bool) {
     if pid::exists() {
         stop();
     }
 
-    if *webui {
+    let config = config::read().daemon;
+
+    if config.web.ui || *webui {
         ENABLE_API.store(true, Ordering::Release);
         ENABLE_WEBUI.store(true, Ordering::Release);
+    } else if config.web.api {
+        ENABLE_API.store(true, Ordering::Release);
     } else {
         ENABLE_API.store(*api, Ordering::Release);
     }
 
-    start();
+    start(verbose);
 }
 
 pub fn reset() {
