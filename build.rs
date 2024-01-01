@@ -151,6 +151,6 @@ fn main() {
         _ => println!("cargo:rustc-env=PROFILE=none"),
     }
 
-    let watched = vec!["src/webui", "src/lib.rs", "lib", "lib/include"];
+    let watched = vec!["src/webui/src", "src/lib.rs", "lib", "lib/include"];
     watched.iter().for_each(|file| println!("cargo:rerun-if-changed={file}"));
 }
