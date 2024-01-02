@@ -2,6 +2,7 @@ use colored::Colorize;
 use global_placeholders::global;
 use macros_rs::{crashln, string, ternary};
 use psutil::process::{MemoryInfo, Process};
+use regex::Regex;
 use serde::Serialize;
 use serde_json::json;
 use std::env;
@@ -32,9 +33,7 @@ pub enum Args {
 
 fn format(server_name: &String) -> (String, String) {
     let kind = ternary!(server_name == "internal", "", "remote ").to_string();
-    let list_name = ternary!(*server_name == "internal", "all", &*server_name).to_string();
-
-    return (kind, list_name);
+    return (kind, server_name.to_string());
 }
 
 pub fn get_version(short: bool) -> String {
@@ -47,10 +46,10 @@ pub fn get_version(short: bool) -> String {
 pub fn start(name: &Option<String>, args: &Option<Args>, watch: &Option<String>, server_name: &String) {
     let mut runner = Runner::new();
     let config = config::read();
+    let (kind, list_name) = format(server_name);
 
     match args {
         Some(Args::Id(id)) => {
-            let (kind, list_name) = format(server_name);
             println!("{} Applying {kind}action restartProcess on ({id})", *helpers::SUCCESS);
 
             if *server_name == "internal" {
@@ -72,9 +71,9 @@ pub fn start(name: &Option<String>, args: &Option<Args>, watch: &Option<String>,
 
                 if let Some(server) = servers.get(server_name) {
                     match Runner::connect(server_name.clone(), server.clone(), false) {
-                        Some(mut runner) => runner.get(*id).restart(),
-                        None => println!("{} Failed to connect (name={server_name}, address={})", *helpers::FAIL, server.address),
-                    }
+                        Some(mut remote) => remote.get(*id).restart(),
+                        None => crashln!("{} Failed to connect (name={server_name}, address={})", *helpers::FAIL, server.address),
+                    };
                 }
             }
 
@@ -86,19 +85,34 @@ pub fn start(name: &Option<String>, args: &Option<Args>, watch: &Option<String>,
                 Some(name) => string!(name),
                 None => string!(script.split_whitespace().next().unwrap_or_default()),
             };
+            if *server_name == "internal" {
+                let pattern = Regex::new(r"(?m)^[a-zA-Z0-9]+(/[a-zA-Z0-9]+)*(\.js|\.ts)?$").unwrap();
 
-            // fix
-            println!("{} Creating process with ({name})", *helpers::SUCCESS);
-            if name.ends_with(".ts") || name.ends_with(".js") {
-                let script = format!("{} {script}", config.runner.node);
-                runner.start(&name, &script, watch).save();
+                if pattern.is_match(script) {
+                    let script = format!("{} {script}", config.runner.node);
+                    runner.start(&name, &script, file::cwd(), watch).save();
+                } else {
+                    runner.start(&name, script, file::cwd(), watch).save();
+                }
+
+                log!("process created (name={name})");
             } else {
-                runner.start(&name, script, watch).save();
+                let Some(servers) = config::servers().servers else {
+                    crashln!("{} Server '{server_name}' does not exist", *helpers::FAIL)
+                };
+
+                if let Some(server) = servers.get(server_name) {
+                    match Runner::connect(server_name.clone(), server.clone(), false) {
+                        Some(mut remote) => remote.start(&name, script, file::cwd(), watch),
+                        None => crashln!("{} Failed to connect (name={server_name}, address={})", *helpers::FAIL, server.address),
+                    };
+                }
             }
 
-            println!("{} created ({name}) ✓", *helpers::SUCCESS);
-            log!("process created (name={name})");
-            list(&string!("default"), &string!("all"));
+            println!("{} Creating {kind}process with ({name})", *helpers::SUCCESS);
+
+            println!("{} {kind}created ({name}) ✓", *helpers::SUCCESS);
+            list(&string!("default"), &list_name);
         }
         None => {}
     }
@@ -119,9 +133,9 @@ pub fn stop(id: &usize, server_name: &String) {
 
         if let Some(server) = servers.get(server_name) {
             match Runner::connect(server_name.clone(), server.clone(), false) {
-                Some(mut runner) => runner.get(*id).stop(),
-                None => println!("{} Failed to connect (name={server_name}, address={})", *helpers::FAIL, server.address),
-            }
+                Some(mut remote) => remote.get(*id).stop(),
+                None => crashln!("{} Failed to connect (name={server_name}, address={})", *helpers::FAIL, server.address),
+            };
         }
     }
 
@@ -129,11 +143,26 @@ pub fn stop(id: &usize, server_name: &String) {
     list(&string!("default"), &list_name);
 }
 
-pub fn remove(id: &usize) {
-    println!("{} Applying action removeProcess on ({id})", *helpers::SUCCESS);
-    Runner::new().remove(*id);
+pub fn remove(id: &usize, server_name: &String) {
+    let (kind, _) = format(server_name);
+    println!("{} Applying {kind}action removeProcess on ({id})", *helpers::SUCCESS);
 
-    println!("{} removed ({id}) ✓", *helpers::SUCCESS);
+    if *server_name == "internal" {
+        Runner::new().remove(*id);
+    } else {
+        let Some(servers) = config::servers().servers else {
+            crashln!("{} Server '{server_name}' does not exist", *helpers::FAIL)
+        };
+
+        if let Some(server) = servers.get(server_name) {
+            match Runner::connect(server_name.clone(), server.clone(), false) {
+                Some(mut remote) => remote.remove(*id),
+                None => crashln!("{} Failed to remove (name={server_name}, address={})", *helpers::FAIL, server.address),
+            };
+        }
+    }
+
+    println!("{} removed {kind}({id}) ✓", *helpers::SUCCESS);
     log!("process removed (id={id})");
 }
 
@@ -393,7 +422,7 @@ pub fn list(format: &String, server_name: &String) {
 
         if let Some(server) = servers.get(server_name) {
             match Runner::connect(server_name.clone(), server.clone(), true) {
-                Some(mut runner) => render_list(&mut runner),
+                Some(mut remote) => render_list(&mut remote),
                 None => println!("{} Failed to fetch (name={server_name}, address={})", *helpers::FAIL, server.address),
             }
         } else {
@@ -408,7 +437,7 @@ pub fn list(format: &String, server_name: &String) {
         if *server_name == "all" {
             for (name, server) in servers {
                 match Runner::connect(name.clone(), server.clone(), true) {
-                    Some(mut runner) => render_list(&mut runner),
+                    Some(mut remote) => render_list(&mut remote),
                     None => failed.push((name, server.address)),
                 }
             }

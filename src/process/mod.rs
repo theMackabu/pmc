@@ -153,50 +153,54 @@ impl Runner {
         }
     }
 
-    pub fn start(&mut self, name: &String, command: &String, watch: &Option<String>) -> &mut Self {
-        let id = self.id.next();
-        let config = config::read().runner;
-        let crash = Crash { crashed: false, value: 0 };
+    pub fn start(&mut self, name: &String, command: &String, path: PathBuf, watch: &Option<String>) -> &mut Self {
+        if let Some(remote) = &self.remote {
+            if let Err(err) = http::create(remote, name, command, path, watch) {
+                crashln!("{} Failed to start create {name}\nError: {:#?}", *helpers::FAIL, err);
+            };
+        } else {
+            let id = self.id.next();
+            let config = config::read().runner;
+            let crash = Crash { crashed: false, value: 0 };
 
-        let watch = match watch {
-            Some(watch) => Watch {
-                enabled: true,
-                path: string!(watch),
-                hash: hash::create(file::cwd().join(watch)),
-            },
-            None => {
-                Watch {
+            let watch = match watch {
+                Some(watch) => Watch {
+                    enabled: true,
+                    path: string!(watch),
+                    hash: hash::create(file::cwd().join(watch)),
+                },
+                None => Watch {
                     enabled: false,
                     path: string!(""),
                     hash: string!(""),
-                }
-            }
-        };
+                },
+            };
 
-        let pid = run(ProcessMetadata {
-            args: config.args,
-            name: name.clone(),
-            shell: config.shell,
-            command: command.clone(),
-            log_path: config.log_path,
-        });
-
-        self.list.insert(
-            id,
-            Process {
-                id,
-                pid,
-                watch,
-                crash,
-                restarts: 0,
-                running: true,
-                path: file::cwd(),
+            let pid = run(ProcessMetadata {
+                args: config.args,
                 name: name.clone(),
-                started: Utc::now(),
-                script: command.clone(),
-                env: env::vars().collect(),
-            },
-        );
+                shell: config.shell,
+                command: command.clone(),
+                log_path: config.log_path,
+            });
+
+            self.list.insert(
+                id,
+                Process {
+                    id,
+                    pid,
+                    path,
+                    watch,
+                    crash,
+                    restarts: 0,
+                    running: true,
+                    name: name.clone(),
+                    started: Utc::now(),
+                    script: command.clone(),
+                    env: env::vars().collect(),
+                },
+            );
+        }
 
         return self;
     }

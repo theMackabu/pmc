@@ -149,7 +149,7 @@ fn main() {
     match &cli.command {
         Commands::Start { name, args, watch, server } => cli::start(name, args, watch, server),
         Commands::Stop { id, server } => cli::stop(id, server),
-        Commands::Remove { id, server } => cli::remove(id),
+        Commands::Remove { id, server } => cli::remove(id, server),
         Commands::Env { id, server } => cli::env(id),
         Commands::Details { id, format, server } => cli::info(id, format),
         Commands::List { format, server } => cli::list(format, server),
