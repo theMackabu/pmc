@@ -23,7 +23,9 @@ use warp::{
     serve, Filter, Rejection, Reply,
 };
 
-use routes::{action_handler, dashboard, env_handler, info_handler, list_handler, log_handler, log_handler_raw, login, metrics_handler, prometheus_handler, rename_handler, view_process};
+use routes::{
+    action_handler, dashboard, dump_handler, env_handler, info_handler, list_handler, log_handler, log_handler_raw, login, metrics_handler, prometheus_handler, rename_handler, view_process,
+};
 
 #[derive(Serialize, ToSchema)]
 struct ErrorMessage {
@@ -68,6 +70,7 @@ pub async fn start(webui: bool) {
             routes::action_handler,
             routes::env_handler,
             routes::info_handler,
+            routes::dump_handler,
             routes::list_handler,
             routes::log_handler,
             routes::log_handler_raw,
@@ -96,6 +99,7 @@ pub async fn start(webui: bool) {
     )]
     struct ApiDoc;
 
+    let app_dump = path!("dump").and(get()).and_then(dump_handler);
     let app_metrics = path!("metrics").and(get()).and_then(metrics_handler);
     let app_prometheus = path!("prometheus").and(get()).and_then(prometheus_handler);
     let app_docs_json = path!("docs.json").and(get()).map(|| json(&ApiDoc::openapi()));
@@ -138,7 +142,8 @@ pub async fn start(webui: bool) {
         .or(process_action)
         .or(process_rename)
         .or(app_metrics)
-        .or(app_prometheus);
+        .or(app_prometheus)
+        .or(app_dump);
 
     let use_routes_basic = || async {
         let base_route = path::end().map(|| json(&json!({"healthy": true})).into_response());

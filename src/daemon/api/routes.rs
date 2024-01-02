@@ -1,7 +1,6 @@
 use chrono::{DateTime, Utc};
 use global_placeholders::global;
 use macros_rs::{string, ternary, then};
-use pmc::{file, helpers, process::Runner};
 use prometheus::{Encoder, TextEncoder};
 use psutil::process::{MemoryInfo, Process};
 use serde::{Deserialize, Serialize};
@@ -9,6 +8,11 @@ use serde_json::json;
 use std::convert::Infallible;
 use tera::{Context, Tera};
 use utoipa::ToSchema;
+
+use pmc::{
+    file, helpers,
+    process::{dump, Runner},
+};
 
 use crate::daemon::{
     api::{HTTP_COUNTER, HTTP_REQ_HISTOGRAM},
@@ -154,6 +158,17 @@ pub async fn prometheus_handler() -> Result<impl Reply, Infallible> {
 
     encoder.encode(&metric_families, &mut buffer).unwrap();
     Ok(format!("{}", String::from_utf8(buffer.clone()).unwrap()))
+}
+
+#[inline]
+#[utoipa::path(get, path = "/dump", tag = "Process", responses((status = 200, description = "Dump processes successfully", body = [u8])))]
+pub async fn dump_handler() -> Result<impl Reply, Infallible> {
+    let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["dump"]).start_timer();
+
+    HTTP_COUNTER.inc();
+    timer.observe_duration();
+
+    Ok(dump::raw())
 }
 
 #[inline]

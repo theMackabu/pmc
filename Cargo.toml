@@ -42,6 +42,7 @@ tabled = { version = "0.15.0", features = ["ansi"] }
 chrono = { version = "0.4.31", features = ["serde"] }
 serde = { version = "1.0.193", features = ["derive"] }
 utoipa = { version = "4.1.0", features = ["serde_yaml"] }
+reqwest = { version = "0.11.23", features = ["blocking", "json"] }
 
 [build-dependencies]
 tar = "0.4.40"
