@@ -30,6 +30,13 @@ pub enum Args {
     Script(String),
 }
 
+fn format(server_name: &String) -> (String, String) {
+    let kind = ternary!(server_name == "internal", "", "remote ").to_string();
+    let list_name = ternary!(*server_name == "internal", "all", &*server_name).to_string();
+
+    return (kind, list_name);
+}
+
 pub fn get_version(short: bool) -> String {
     return match short {
         true => format!("{} {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION")),
@@ -37,26 +44,42 @@ pub fn get_version(short: bool) -> String {
     };
 }
 
-pub fn start(name: &Option<String>, args: &Option<Args>, watch: &Option<String>) {
+pub fn start(name: &Option<String>, args: &Option<Args>, watch: &Option<String>, server_name: &String) {
     let mut runner = Runner::new();
     let config = config::read();
 
     match args {
         Some(Args::Id(id)) => {
-            println!("{} Applying action restartProcess on ({id})", *helpers::SUCCESS);
-            let item = runner.get(*id);
+            let (kind, list_name) = format(server_name);
+            println!("{} Applying {kind}action restartProcess on ({id})", *helpers::SUCCESS);
 
-            match watch {
-                Some(path) => item.watch(path),
-                None => item.disable_watch(),
+            if *server_name == "internal" {
+                let item = runner.get(*id);
+
+                match watch {
+                    Some(path) => item.watch(path),
+                    None => item.disable_watch(),
+                }
+
+                name.as_ref().map(|n| item.rename(n.trim().replace("\n", "")));
+                item.restart();
+
+                log!("process started (id={id})");
+            } else {
+                let Some(servers) = config::servers().servers else {
+                    crashln!("{} Server '{server_name}' does not exist", *helpers::FAIL)
+                };
+
+                if let Some(server) = servers.get(server_name) {
+                    match Runner::connect(server_name.clone(), server.clone(), false) {
+                        Some(mut runner) => runner.get(*id).restart(),
+                        None => println!("{} Failed to connect (name={server_name}, address={})", *helpers::FAIL, server.address),
+                    }
+                }
             }
 
-            name.as_ref().map(|n| item.rename(n.trim().replace("\n", "")));
-            item.restart();
-
-            println!("{} restarted ({id}) ✓", *helpers::SUCCESS);
-            log!("process started (id={id})");
-            list(&string!("default"));
+            println!("{} restarted {kind}({id}) ✓", *helpers::SUCCESS);
+            list(&string!("default"), &list_name);
         }
         Some(Args::Script(script)) => {
             let name = match name {
@@ -75,20 +98,35 @@ pub fn start(name: &Option<String>, args: &Option<Args>, watch: &Option<String>)
 
             println!("{} created ({name}) ✓", *helpers::SUCCESS);
             log!("process created (name={name})");
-            list(&string!("default"));
+            list(&string!("default"), &string!("all"));
         }
         None => {}
     }
 }
 
-pub fn stop(id: &usize) {
-    println!("{} Applying action stopProcess on ({id})", *helpers::SUCCESS);
-    let mut runner = Runner::new();
-    runner.get(*id).stop();
+pub fn stop(id: &usize, server_name: &String) {
+    let (kind, list_name) = format(server_name);
+    println!("{} Applying {kind}action stopProcess on ({id})", *helpers::SUCCESS);
 
-    println!("{} stopped ({id}) ✓", *helpers::SUCCESS);
-    log!("process stopped (id={id})");
-    list(&string!("default"));
+    if *server_name == "internal" {
+        let mut runner = Runner::new();
+        runner.get(*id).stop();
+        log!("process stopped (id={id})");
+    } else {
+        let Some(servers) = config::servers().servers else {
+            crashln!("{} Server '{server_name}' does not exist", *helpers::FAIL)
+        };
+
+        if let Some(server) = servers.get(server_name) {
+            match Runner::connect(server_name.clone(), server.clone(), false) {
+                Some(mut runner) => runner.get(*id).stop(),
+                None => println!("{} Failed to connect (name={server_name}, address={})", *helpers::FAIL, server.address),
+            }
+        }
+    }
+
+    println!("{} stopped {kind}({id}) ✓", *helpers::SUCCESS);
+    list(&string!("default"), &list_name);
 }
 
 pub fn remove(id: &usize) {
@@ -250,7 +288,7 @@ pub fn env(id: &usize) {
     }
 }
 
-pub fn list(format: &String) {
+pub fn list(format: &String, server_name: &String) {
     let render_list = |runner: &mut Runner| {
         let mut processes: Vec<ProcessItem> = Vec::new();
 
@@ -353,13 +391,26 @@ pub fn list(format: &String) {
     if let Some(servers) = config::servers().servers {
         let mut failed: Vec<(String, String)> = vec![];
 
-        println!("{} Internal daemon", *helpers::SUCCESS);
-        render_list(&mut Runner::new());
-
-        for (name, server) in servers {
-            match Runner::connect(name.clone(), server.clone()) {
+        if let Some(server) = servers.get(server_name) {
+            match Runner::connect(server_name.clone(), server.clone(), true) {
                 Some(mut runner) => render_list(&mut runner),
-                None => failed.push((name.clone(), server.address.clone())),
+                None => println!("{} Failed to fetch (name={server_name}, address={})", *helpers::FAIL, server.address),
+            }
+        } else {
+            if matches!(&**server_name, "internal" | "all") {
+                println!("{} Internal daemon", *helpers::SUCCESS);
+                render_list(&mut Runner::new());
+            } else {
+                crashln!("{} Server '{server_name}' does not exist", *helpers::FAIL);
+            }
+        }
+
+        if *server_name == "all" {
+            for (name, server) in servers {
+                match Runner::connect(name.clone(), server.clone(), true) {
+                    Some(mut runner) => render_list(&mut runner),
+                    None => failed.push((name, server.address)),
+                }
             }
         }
 
