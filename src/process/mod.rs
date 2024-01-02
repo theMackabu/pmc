@@ -137,12 +137,10 @@ impl Status {
 impl Runner {
     pub fn new() -> Self { dump::read() }
 
-    pub fn connect(name: String, server: Server) -> Option<Self> {
-        let Server { address, token } = server;
-
+    pub fn connect(name: String, Server { address, token }: Server, verbose: bool) -> Option<Self> {
         match dump::from(&address, token.as_deref()) {
             Ok(dump) => {
-                println!("{} Fetched remote (name={name}, address={address})", *helpers::SUCCESS);
+                then!(verbose, println!("{} Fetched remote (name={name}, address={address})", *helpers::SUCCESS));
                 return Some(Runner {
                     remote: Some(Remote { token, address: string!(address) }),
                     ..dump
@@ -204,37 +202,49 @@ impl Runner {
     }
 
     pub fn restart(&mut self, id: usize, dead: bool) -> &mut Self {
-        let item = self.get(id);
-        let Process { path, script, name, .. } = item.clone();
+        if let Some(remote) = &self.remote {
+            if let Err(err) = http::restart(remote, id) {
+                crashln!("{} Failed to start process {id}\nError: {:#?}", *helpers::FAIL, err);
+            };
+        } else {
+            let item = self.get(id);
+            let Process { path, script, name, .. } = item.clone();
 
-        if let Err(err) = std::env::set_current_dir(&item.path) {
-            crashln!("{} Failed to set working directory {:?}\nError: {:#?}", *helpers::FAIL, path, err);
-        };
+            if let Err(err) = std::env::set_current_dir(&item.path) {
+                crashln!("{} Failed to set working directory {:?}\nError: {:#?}", *helpers::FAIL, path, err);
+            };
 
-        item.stop();
+            item.stop();
 
-        let config = config::read().runner;
+            let config = config::read().runner;
 
-        item.crash.crashed = false;
-        item.pid = run(ProcessMetadata {
-            command: script,
-            args: config.args,
-            name: name.clone(),
-            shell: config.shell,
-            log_path: config.log_path,
-        });
+            item.crash.crashed = false;
+            item.pid = run(ProcessMetadata {
+                command: script,
+                args: config.args,
+                name: name.clone(),
+                shell: config.shell,
+                log_path: config.log_path,
+            });
 
-        item.running = true;
-        item.started = Utc::now();
-        then!(dead, item.restarts += 1);
+            item.running = true;
+            item.started = Utc::now();
+            then!(dead, item.restarts += 1);
+        }
 
         return self;
     }
 
     pub fn remove(&mut self, id: usize) {
-        self.stop(id);
-        self.list.remove(&id);
-        dump::write(&self);
+        if let Some(remote) = &self.remote {
+            if let Err(err) = http::remove(remote, id) {
+                crashln!("{} Failed to stop remove {id}\nError: {:#?}", *helpers::FAIL, err);
+            };
+        } else {
+            self.stop(id);
+            self.list.remove(&id);
+            dump::write(&self);
+        }
     }
 
     pub fn set_id(&mut self, id: id::Id) {
@@ -270,12 +280,18 @@ impl Runner {
     }
 
     pub fn stop(&mut self, id: usize) -> &mut Self {
-        let item = self.get(id);
-        stop(item.pid);
+        if let Some(remote) = &self.remote {
+            if let Err(err) = http::stop(remote, id) {
+                crashln!("{} Failed to stop process {id}\nError: {:#?}", *helpers::FAIL, err);
+            };
+        } else {
+            let item = self.get(id);
+            stop(item.pid);
 
-        item.running = false;
-        item.crash.crashed = false;
-        item.crash.value = 0;
+            item.running = false;
+            item.crash.crashed = false;
+            item.crash.value = 0;
+        }
 
         return self;
     }

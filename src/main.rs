@@ -66,19 +66,37 @@ enum Commands {
         /// Watch to reload path
         #[arg(long)]
         watch: Option<String>,
+        /// Server
+        #[arg(short, long, default_value_t = string!("internal"))]
+        server: String,
     },
 
     /// Stop/Kill a process
     #[command(alias = "kill")]
-    Stop { id: usize },
+    Stop {
+        id: usize,
+        /// Server
+        #[arg(short, long, default_value_t = string!("internal"))]
+        server: String,
+    },
 
     /// Stop then remove a process
     #[command(alias = "rm")]
-    Remove { id: usize },
+    Remove {
+        id: usize,
+        /// Server
+        #[arg(short, long, default_value_t = string!("internal"))]
+        server: String,
+    },
 
     /// Get env of a process
     #[command(alias = "cmdline")]
-    Env { id: usize },
+    Env {
+        id: usize,
+        /// Server
+        #[arg(short, long, default_value_t = string!("internal"))]
+        server: String,
+    },
 
     /// Get information of a process
     #[command(alias = "info")]
@@ -87,6 +105,9 @@ enum Commands {
         /// Format output
         #[arg(long, default_value_t = string!("default"))]
         format: String,
+        /// Server
+        #[arg(short, long, default_value_t = string!("internal"))]
+        server: String,
     },
 
     /// List all processes
@@ -95,6 +116,9 @@ enum Commands {
         /// Format output
         #[arg(long, default_value_t = string!("default"))]
         format: String,
+        /// Server
+        #[arg(short, long, default_value_t = string!("all"))]
+        server: String,
     },
 
     /// Get logs from a process
@@ -102,6 +126,9 @@ enum Commands {
         id: usize,
         #[arg(long, default_value_t = 15, help = "")]
         lines: usize,
+        /// Server
+        #[arg(short, long, default_value_t = string!("internal"))]
+        server: String,
     },
 
     /// Daemon management
@@ -120,13 +147,13 @@ fn main() {
     env.filter_level(level).init();
 
     match &cli.command {
-        Commands::Start { name, args, watch } => cli::start(name, args, watch),
-        Commands::Stop { id } => cli::stop(id),
-        Commands::Remove { id } => cli::remove(id),
-        Commands::Env { id } => cli::env(id),
-        Commands::Details { id, format } => cli::info(id, format),
-        Commands::List { format } => cli::list(format),
-        Commands::Logs { id, lines } => cli::logs(id, lines),
+        Commands::Start { name, args, watch, server } => cli::start(name, args, watch, server),
+        Commands::Stop { id, server } => cli::stop(id, server),
+        Commands::Remove { id, server } => cli::remove(id),
+        Commands::Env { id, server } => cli::env(id),
+        Commands::Details { id, format, server } => cli::info(id, format),
+        Commands::List { format, server } => cli::list(format, server),
+        Commands::Logs { id, lines, server } => cli::logs(id, lines),
 
         Commands::Daemon { command } => match command {
             Daemon::Stop => daemon::stop(),
