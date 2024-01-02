@@ -30,6 +30,7 @@ use std::{
     env,
     fs::{self, File},
     io::{self, BufRead, BufReader},
+    path::PathBuf,
 };
 
 #[allow(dead_code)]
@@ -54,6 +55,18 @@ pub(crate) struct DocMemoryInfo {
 pub(crate) struct ActionBody {
     #[schema(example = "restart")]
     method: String,
+}
+
+#[derive(Deserialize, ToSchema)]
+pub(crate) struct CreateBody {
+    #[schema(example = "app")]
+    name: Option<String>,
+    #[schema(example = "node index.js")]
+    script: String,
+    #[schema(example = "/projects/app")]
+    path: PathBuf,
+    #[schema(example = "src")]
+    watch: Option<String>,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -284,6 +297,30 @@ pub async fn info_handler(id: usize) -> Result<impl Reply, Rejection> {
             Err(reject::not_found())
         }
     }
+}
+
+#[inline]
+#[utoipa::path(post, tag = "Process", path = "/process/create", request_body(content = String),
+    responses(
+        (status = 200, description = "Create process successful", body = ActionResponse),
+        (status = INTERNAL_SERVER_ERROR, description = "Failed to create process", body = ErrorMessage)
+    )
+)]
+pub async fn create_handler(body: CreateBody) -> Result<impl Reply, Rejection> {
+    let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["create"]).start_timer();
+    let mut runner = Runner::new();
+
+    HTTP_COUNTER.inc();
+
+    let name = match body.name {
+        Some(name) => string!(name),
+        None => string!(body.script.split_whitespace().next().unwrap_or_default()),
+    };
+
+    runner.start(&name, &body.script, body.path, &body.watch).save();
+    timer.observe_duration();
+
+    Ok(attempt(true, "create"))
 }
 
 #[inline]

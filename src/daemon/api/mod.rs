@@ -23,10 +23,6 @@ use warp::{
     serve, Filter, Rejection, Reply,
 };
 
-use routes::{
-    action_handler, dashboard, dump_handler, env_handler, info_handler, list_handler, log_handler, log_handler_raw, login, metrics_handler, prometheus_handler, rename_handler, view_process,
-};
-
 #[derive(Serialize, ToSchema)]
 struct ErrorMessage {
     #[schema(example = 404)]
@@ -76,6 +72,7 @@ pub async fn start(webui: bool) {
             routes::log_handler_raw,
             routes::metrics_handler,
             routes::prometheus_handler,
+            routes::create_handler,
             routes::rename_handler
         ),
         components(schemas(
@@ -91,6 +88,7 @@ pub async fn start(webui: bool) {
             routes::Daemon,
             routes::Version,
             routes::ActionBody,
+            routes::CreateBody,
             routes::MetricsRoot,
             routes::LogResponse,
             routes::DocMemoryInfo,
@@ -99,23 +97,24 @@ pub async fn start(webui: bool) {
     )]
     struct ApiDoc;
 
-    let app_dump = path!("dump").and(get()).and_then(dump_handler);
-    let app_metrics = path!("metrics").and(get()).and_then(metrics_handler);
-    let app_prometheus = path!("prometheus").and(get()).and_then(prometheus_handler);
+    let app_dump = path!("dump").and(get()).and_then(routes::dump_handler);
+    let app_metrics = path!("metrics").and(get()).and_then(routes::metrics_handler);
+    let app_prometheus = path!("prometheus").and(get()).and_then(routes::prometheus_handler);
     let app_docs_json = path!("docs.json").and(get()).map(|| json(&ApiDoc::openapi()));
     let app_docs = path!("docs").and(get()).map(|| html(RapiDoc::new(docs_path).custom_html(DOCS).to_html()));
 
-    let process_list = path!("list").and(get()).and_then(list_handler);
-    let process_env = path!("process" / usize / "env").and(get()).and_then(env_handler);
-    let process_info = path!("process" / usize / "info").and(get()).and_then(info_handler);
-    let process_logs = path!("process" / usize / "logs" / String).and(get()).and_then(log_handler);
-    let process_raw_logs = path!("process" / usize / "logs" / String / "raw").and(get()).and_then(log_handler_raw);
-    let process_action = path!("process" / usize / "action").and(post()).and(body::json()).and_then(action_handler);
-    let process_rename = path!("process" / usize / "rename").and(post()).and(string_filter(1024 * 16)).and_then(rename_handler);
+    let process_list = path!("list").and(get()).and_then(routes::list_handler);
+    let process_env = path!("process" / usize / "env").and(get()).and_then(routes::env_handler);
+    let process_info = path!("process" / usize / "info").and(get()).and_then(routes::info_handler);
+    let process_logs = path!("process" / usize / "logs" / String).and(get()).and_then(routes::log_handler);
+    let process_raw_logs = path!("process" / usize / "logs" / String / "raw").and(get()).and_then(routes::log_handler_raw);
+    let process_create = path!("process" / "create").and(post()).and(body::json()).and_then(routes::create_handler);
+    let process_action = path!("process" / usize / "action").and(post()).and(body::json()).and_then(routes::action_handler);
+    let process_rename = path!("process" / usize / "rename").and(post()).and(string_filter(1024 * 16)).and_then(routes::rename_handler);
 
-    let web_login = warp::get().and(path!("login")).and(tmpl.clone()).and_then(login);
-    let web_dashboard = warp::get().and(path::end()).and(tmpl.clone()).and_then(dashboard);
-    let web_view_process = warp::get().and(path!("view" / usize)).and(tmpl.clone()).and_then(view_process);
+    let web_login = warp::get().and(path!("login")).and(tmpl.clone()).and_then(routes::login);
+    let web_dashboard = warp::get().and(path::end()).and(tmpl.clone()).and_then(routes::dashboard);
+    let web_view_process = warp::get().and(path!("view" / usize)).and(tmpl.clone()).and_then(routes::view_process);
 
     let log = warp::log::custom(|info| {
         log!(
@@ -139,6 +138,7 @@ pub async fn start(webui: bool) {
         .or(process_info)
         .or(process_logs)
         .or(process_raw_logs)
+        .or(process_create)
         .or(process_action)
         .or(process_rename)
         .or(app_metrics)

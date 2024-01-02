@@ -3,11 +3,19 @@ use macros_rs::{fmtstr, string};
 use reqwest::blocking::{Client, Response};
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use serde::Serialize;
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, path::PathBuf};
 
 #[derive(Serialize)]
 struct ActionBody {
     pub method: String,
+}
+
+#[derive(Serialize)]
+struct CreateBody<'c> {
+    pub name: &'c String,
+    pub script: &'c String,
+    pub path: PathBuf,
+    pub watch: &'c Option<String>,
 }
 
 fn client(token: &Option<String>) -> (Client, HeaderMap) {
@@ -19,6 +27,13 @@ fn client(token: &Option<String>) -> (Client, HeaderMap) {
     }
 
     return (client, headers);
+}
+
+pub fn create(Remote { address, token }: &Remote, name: &String, script: &String, path: PathBuf, watch: &Option<String>) -> Result<Response, anyhow::Error> {
+    let (client, headers) = client(token);
+    let content = CreateBody { name, script, path, watch };
+
+    Ok(client.post(fmtstr!("{address}/process/create")).json(&content).headers(headers).send()?)
 }
 
 pub fn restart(Remote { address, token }: &Remote, id: usize) -> Result<Response, anyhow::Error> {
