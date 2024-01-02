@@ -47,6 +47,13 @@ impl Exists {
     pub fn file(file_name: String) -> Result<bool, Error> { Ok(Path::new(str!(file_name)).exists()) }
 }
 
+pub fn raw(path: String) -> Vec<u8> {
+    match fs::read(&path) {
+        Ok(contents) => contents,
+        Err(err) => crashln!("{} Cannot find dumpfile.\n{}", *helpers::FAIL, string!(err).white()),
+    }
+}
+
 pub fn read<T: serde::de::DeserializeOwned>(path: String) -> T {
     let contents = match fs::read_to_string(&path) {
         Ok(contents) => contents,
@@ -56,6 +63,13 @@ pub fn read<T: serde::de::DeserializeOwned>(path: String) -> T {
     match toml::from_str(&contents).map_err(|err| string!(err)) {
         Ok(parsed) => parsed,
         Err(err) => crashln!("{} Cannot parse dumpfile.\n{}", *helpers::FAIL, err.white()),
+    }
+}
+
+pub fn from_rmp<T: serde::de::DeserializeOwned>(bytes: &[u8]) -> T {
+    match rmp_serde::from_slice(&bytes) {
+        Ok(parsed) => parsed,
+        Err(err) => crashln!("{} Cannot parse file.\n{}", *helpers::FAIL, string!(err).white()),
     }
 }
 

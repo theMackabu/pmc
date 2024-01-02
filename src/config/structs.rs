@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Config {
@@ -36,4 +37,15 @@ pub struct Web {
 pub struct Secure {
     pub enabled: bool,
     pub token: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Servers {
+    pub servers: Option<BTreeMap<String, Server>>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct Server {
+    pub address: String,
+    pub token: Option<String>,
 }

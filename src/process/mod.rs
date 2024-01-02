@@ -1,5 +1,9 @@
+mod http;
+
 use crate::{
-    config, file, helpers,
+    config,
+    config::structs::Server,
+    file, helpers,
     service::{run, stop, ProcessMetadata},
 };
 
@@ -105,7 +109,15 @@ pub struct Watch {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Runner {
     pub id: id::Id,
+    #[serde(skip)]
+    pub remote: Option<Remote>,
     pub list: BTreeMap<usize, Process>,
+}
+
+#[derive(Clone, Debug)]
+pub struct Remote {
+    address: String,
+    token: Option<String>,
 }
 
 pub enum Status {
@@ -124,6 +136,24 @@ impl Status {
 
 impl Runner {
     pub fn new() -> Self { dump::read() }
+
+    pub fn connect(name: String, server: Server) -> Option<Self> {
+        let Server { address, token } = server;
+
+        match dump::from(&address, token.as_deref()) {
+            Ok(dump) => {
+                println!("{} Fetched remote (name={name}, address={address})", *helpers::SUCCESS);
+                return Some(Runner {
+                    remote: Some(Remote { token, address: string!(address) }),
+                    ..dump
+                });
+            }
+            Err(err) => {
+                log::debug!("{err}");
+                return None;
+            }
+        }
+    }
 
     pub fn start(&mut self, name: &String, command: &String, watch: &Option<String>) -> &mut Self {
         let id = self.id.next();
@@ -218,13 +248,15 @@ impl Runner {
         dump::write(&self);
     }
 
-    pub fn save(&self) { dump::write(&self); }
+    pub fn items(&mut self) -> BTreeMap<usize, Process> { self.list.clone() }
+    pub fn items_mut(&mut self) -> &mut BTreeMap<usize, Process> { &mut self.list }
+
+    pub fn save(&self) { then!(self.remote.is_none(), dump::write(&self)) }
     pub fn count(&mut self) -> usize { self.list().count() }
     pub fn is_empty(&self) -> bool { self.list.is_empty() }
-    pub fn items(&mut self) -> &mut BTreeMap<usize, Process> { &mut self.list }
     pub fn exists(&mut self, id: usize) -> bool { self.list.contains_key(&id) }
     pub fn info(&mut self, id: usize) -> Option<&Process> { self.list.get(&id) }
-    pub fn list<'a>(&'a mut self) -> impl Iterator<Item = (&'a usize, &'a mut Process)> { self.list.iter_mut().map(|(k, v)| (k, v)) }
+    pub fn list<'l>(&'l mut self) -> impl Iterator<Item = (&'l usize, &'l mut Process)> { self.list.iter_mut().map(|(k, v)| (k, v)) }
     pub fn get(&mut self, id: usize) -> &mut Process { self.list.get_mut(&id).unwrap_or_else(|| crashln!("{} Process ({id}) not found", *helpers::FAIL)) }
 
     pub fn set_crashed(&mut self, id: usize) -> &mut Self {
@@ -297,8 +329,8 @@ impl Runner {
                 };
 
             processes.push(ProcessItem {
+                id,
                 status,
-                id: *id,
                 pid: item.pid,
                 cpu: cpu_percent,
                 mem: memory_usage,

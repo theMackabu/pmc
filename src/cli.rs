@@ -251,101 +251,125 @@ pub fn env(id: &usize) {
 }
 
 pub fn list(format: &String) {
-    let mut runner = Runner::new();
-    let mut processes: Vec<ProcessItem> = Vec::new();
+    let render_list = |runner: &mut Runner| {
+        let mut processes: Vec<ProcessItem> = Vec::new();
 
-    #[derive(Tabled, Debug)]
-    struct ProcessItem {
-        id: ColoredString,
-        name: String,
-        pid: String,
-        uptime: String,
-        #[tabled(rename = "↺")]
-        restarts: String,
-        status: ColoredString,
-        cpu: String,
-        mem: String,
-        #[tabled(rename = "watching")]
-        watch: String,
-    }
-
-    impl serde::Serialize for ProcessItem {
-        fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-            let trimmed_json = json!({
-                "cpu": &self.cpu.trim(),
-                "mem": &self.mem.trim(),
-                "id": &self.id.0.trim(),
-                "pid": &self.pid.trim(),
-                "name": &self.name.trim(),
-                "watch": &self.watch.trim(),
-                "uptime": &self.uptime.trim(),
-                "status": &self.status.0.trim(),
-                "restarts": &self.restarts.trim(),
-            });
-            trimmed_json.serialize(serializer)
+        #[derive(Tabled, Debug)]
+        struct ProcessItem {
+            id: ColoredString,
+            name: String,
+            pid: String,
+            uptime: String,
+            #[tabled(rename = "↺")]
+            restarts: String,
+            status: ColoredString,
+            cpu: String,
+            mem: String,
+            #[tabled(rename = "watching")]
+            watch: String,
         }
-    }
 
-    if runner.is_empty() {
-        println!("{} Process table empty", *helpers::SUCCESS);
-    } else {
-        for (id, item) in runner.items() {
-            let mut memory_usage: Option<MemoryInfo> = None;
-            let mut cpu_percent: Option<f32> = None;
+        impl serde::Serialize for ProcessItem {
+            fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+                let trimmed_json = json!({
+                    "cpu": &self.cpu.trim(),
+                    "mem": &self.mem.trim(),
+                    "id": &self.id.0.trim(),
+                    "pid": &self.pid.trim(),
+                    "name": &self.name.trim(),
+                    "watch": &self.watch.trim(),
+                    "uptime": &self.uptime.trim(),
+                    "status": &self.status.0.trim(),
+                    "restarts": &self.restarts.trim(),
+                });
+                trimmed_json.serialize(serializer)
+            }
+        }
 
-            if let Ok(mut process) = Process::new(item.pid as u32) {
-                memory_usage = process.memory_info().ok();
-                cpu_percent = process.cpu_percent().ok();
+        if runner.is_empty() {
+            println!("{} Process table empty", *helpers::SUCCESS);
+        } else {
+            for (id, item) in runner.items() {
+                let mut memory_usage: Option<MemoryInfo> = None;
+                let mut cpu_percent: Option<f32> = None;
+
+                if let Ok(mut process) = Process::new(item.pid as u32) {
+                    memory_usage = process.memory_info().ok();
+                    cpu_percent = process.cpu_percent().ok();
+                }
+
+                let cpu_percent = match cpu_percent {
+                    Some(percent) => format!("{:.0}%", percent),
+                    None => string!("0%"),
+                };
+
+                let memory_usage = match memory_usage {
+                    Some(usage) => helpers::format_memory(usage.rss()),
+                    None => string!("0b"),
+                };
+
+                let status = if item.running {
+                    "online   ".green().bold()
+                } else {
+                    match item.crash.crashed {
+                        true => "crashed   ",
+                        false => "stopped   ",
+                    }
+                    .red()
+                    .bold()
+                };
+
+                processes.push(ProcessItem {
+                    status: ColoredString(status),
+                    cpu: format!("{cpu_percent}   "),
+                    mem: format!("{memory_usage}   "),
+                    restarts: format!("{}  ", item.restarts),
+                    name: format!("{}   ", item.name.clone()),
+                    id: ColoredString(id.to_string().cyan().bold()),
+                    pid: ternary!(item.running, format!("{}  ", item.pid), string!("n/a  ")),
+                    watch: ternary!(item.watch.enabled, format!("{}  ", item.watch.path), string!("disabled  ")),
+                    uptime: ternary!(item.running, format!("{}  ", helpers::format_duration(item.started)), string!("none  ")),
+                });
             }
 
-            let cpu_percent = match cpu_percent {
-                Some(percent) => format!("{:.0}%", percent),
-                None => string!("0%"),
-            };
+            let table = Table::new(&processes)
+                .with(Style::rounded().remove_verticals())
+                .with(BorderColor::filled(Color::FG_BRIGHT_BLACK))
+                .with(Colorization::exact([Color::FG_BRIGHT_CYAN], Rows::first()))
+                .with(Modify::new(Columns::single(1)).with(Width::truncate(35).suffix("...  ")))
+                .to_string();
 
-            let memory_usage = match memory_usage {
-                Some(usage) => helpers::format_memory(usage.rss()),
-                None => string!("0b"),
+            if let Ok(json) = serde_json::to_string(&processes) {
+                match format.as_str() {
+                    "raw" => println!("{:?}", processes),
+                    "json" => println!("{json}"),
+                    "default" => println!("{table}"),
+                    _ => {}
+                };
             };
+        }
+    };
 
-            let status = if item.running {
-                "online   ".green().bold()
-            } else {
-                match item.crash.crashed {
-                    true => "crashed   ",
-                    false => "stopped   ",
-                }
-                .red()
-                .bold()
-            };
+    if let Some(servers) = config::servers().servers {
+        let mut failed: Vec<(String, String)> = vec![];
 
-            processes.push(ProcessItem {
-                status: ColoredString(status),
-                cpu: format!("{cpu_percent}   "),
-                mem: format!("{memory_usage}   "),
-                restarts: format!("{}  ", item.restarts),
-                name: format!("{}   ", item.name.clone()),
-                id: ColoredString(id.to_string().cyan().bold()),
-                pid: ternary!(item.running, format!("{}  ", item.pid), string!("n/a  ")),
-                watch: ternary!(item.watch.enabled, format!("{}  ", item.watch.path), string!("disabled  ")),
-                uptime: ternary!(item.running, format!("{}  ", helpers::format_duration(item.started)), string!("none  ")),
-            });
+        println!("{} Internal daemon", *helpers::SUCCESS);
+        render_list(&mut Runner::new());
+
+        for (name, server) in servers {
+            match Runner::connect(name.clone(), server.clone()) {
+                Some(mut runner) => render_list(&mut runner),
+                None => failed.push((name.clone(), server.address.clone())),
+            }
         }
 
-        let table = Table::new(&processes)
-            .with(Style::rounded().remove_verticals())
-            .with(BorderColor::filled(Color::FG_BRIGHT_BLACK))
-            .with(Colorization::exact([Color::FG_BRIGHT_CYAN], Rows::first()))
-            .with(Modify::new(Columns::single(1)).with(Width::truncate(35).suffix("...  ")))
-            .to_string();
-
-        if let Ok(json) = serde_json::to_string(&processes) {
-            match format.as_str() {
-                "raw" => println!("{:?}", processes),
-                "json" => println!("{json}"),
-                "default" => println!("{table}"),
-                _ => {}
-            };
-        };
+        if !failed.is_empty() {
+            println!("{} Failed servers:", *helpers::FAIL);
+            failed
+                .iter()
+                .for_each(|server| println!(" {} {} {}", "-".yellow(), format!("{}", server.0), format!("[{}]", server.1).white()));
+        }
+    } else {
+        render_list(&mut Runner::new());
     }
 }

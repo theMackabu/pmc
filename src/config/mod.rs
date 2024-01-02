@@ -7,12 +7,13 @@ use colored::Colorize;
 use macros_rs::{crashln, string};
 use std::fs;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use structs::{Config, Daemon, Runner, Secure, Web};
+use structs::{Config, Daemon, Runner, Secure, Servers, Web};
 
 pub fn read() -> Config {
     match home::home_dir() {
         Some(path) => {
             let path = path.display();
+
             let config_path = format!("{path}/.pmc/config.toml");
 
             if !Exists::file(config_path.clone()).unwrap() {
@@ -47,6 +48,24 @@ pub fn read() -> Config {
                     crashln!("{} Error writing config.\n{}", *helpers::FAIL, string!(err).white())
                 }
                 log::info!("created config file");
+            }
+
+            file::read(config_path)
+        }
+        None => crashln!("{} Impossible to get your home directory", *helpers::FAIL),
+    }
+}
+
+pub fn servers() -> Servers {
+    match home::home_dir() {
+        Some(path) => {
+            let path = path.display();
+            let config_path = format!("{path}/.pmc/servers.toml");
+
+            if !Exists::file(config_path.clone()).unwrap() {
+                if let Err(err) = fs::write(&config_path, "") {
+                    crashln!("{} Error writing servers.\n{}", *helpers::FAIL, string!(err).white())
+                }
             }
 
             file::read(config_path)

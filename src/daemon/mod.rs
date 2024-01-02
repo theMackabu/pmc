@@ -41,7 +41,7 @@ extern "C" fn handle_termination_signal(_: libc::c_int) {
 }
 
 fn restart_process() {
-    for (id, item) in Runner::new().items() {
+    for (id, item) in Runner::new().items_mut() {
         if item.running && item.watch.enabled {
             let path = item.path.join(item.watch.path.clone());
             let hash = hash::create(path);
