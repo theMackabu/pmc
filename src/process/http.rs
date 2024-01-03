@@ -1,9 +1,9 @@
-use crate::process::{Process, Remote};
+use crate::process::Remote;
 use macros_rs::{fmtstr, string};
 use reqwest::blocking::{Client, Response};
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use serde::Serialize;
-use std::{collections::BTreeMap, path::PathBuf};
+use std::path::PathBuf;
 
 #[derive(Serialize)]
 struct ActionBody {
@@ -29,6 +29,11 @@ fn client(token: &Option<String>) -> (Client, HeaderMap) {
     return (client, headers);
 }
 
+pub fn info(Remote { address, token }: &Remote, id: usize) -> Result<Response, anyhow::Error> {
+    let (client, headers) = client(token);
+    Ok(client.get(fmtstr!("{address}/process/{id}/info")).headers(headers).send()?)
+}
+
 pub fn create(Remote { address, token }: &Remote, name: &String, script: &String, path: PathBuf, watch: &Option<String>) -> Result<Response, anyhow::Error> {
     let (client, headers) = client(token);
     let content = CreateBody { name, script, path, watch };
@@ -41,6 +46,11 @@ pub fn restart(Remote { address, token }: &Remote, id: usize) -> Result<Response
     let content = ActionBody { method: string!("restart") };
 
     Ok(client.post(fmtstr!("{address}/process/{id}/action")).json(&content).headers(headers).send()?)
+}
+
+pub fn rename(Remote { address, token }: &Remote, id: usize, name: String) -> Result<Response, anyhow::Error> {
+    let (client, headers) = client(token);
+    Ok(client.post(fmtstr!("{address}/process/{id}/rename")).body(name).headers(headers).send()?)
 }
 
 pub fn stop(Remote { address, token }: &Remote, id: usize) -> Result<Response, anyhow::Error> {

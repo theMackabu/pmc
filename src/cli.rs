@@ -12,7 +12,7 @@ use pmc::{
     file::{self, Exists},
     helpers::{self, ColoredString},
     log,
-    process::Runner,
+    process::{http, ItemSingle, Runner},
 };
 
 use tabled::{
@@ -50,10 +50,11 @@ pub fn start(name: &Option<String>, args: &Option<Args>, watch: &Option<String>,
 
     match args {
         Some(Args::Id(id)) => {
+            let runner: Runner = Runner::new();
             println!("{} Applying {kind}action restartProcess on ({id})", *helpers::SUCCESS);
 
             if *server_name == "internal" {
-                let item = runner.get(*id);
+                let mut item = runner.get(*id);
 
                 match watch {
                     Some(path) => item.watch(path),
@@ -71,7 +72,12 @@ pub fn start(name: &Option<String>, args: &Option<Args>, watch: &Option<String>,
 
                 if let Some(server) = servers.get(server_name) {
                     match Runner::connect(server_name.clone(), server.clone(), false) {
-                        Some(mut remote) => remote.get(*id).restart(),
+                        Some(remote) => {
+                            let mut item = remote.get(*id);
+
+                            name.as_ref().map(|n| item.rename(n.trim().replace("\n", "")));
+                            item.restart();
+                        }
                         None => crashln!("{} Failed to connect (name={server_name}, address={})", *helpers::FAIL, server.address),
                     };
                 }
@@ -119,54 +125,54 @@ pub fn start(name: &Option<String>, args: &Option<Args>, watch: &Option<String>,
 }
 
 pub fn stop(id: &usize, server_name: &String) {
+    let mut runner: Runner = Runner::new();
     let (kind, list_name) = format(server_name);
     println!("{} Applying {kind}action stopProcess on ({id})", *helpers::SUCCESS);
 
-    if *server_name == "internal" {
-        let mut runner = Runner::new();
-        runner.get(*id).stop();
-        log!("process stopped (id={id})");
-    } else {
+    if *server_name != "internal" {
         let Some(servers) = config::servers().servers else {
             crashln!("{} Server '{server_name}' does not exist", *helpers::FAIL)
         };
 
         if let Some(server) = servers.get(server_name) {
-            match Runner::connect(server_name.clone(), server.clone(), false) {
-                Some(mut remote) => remote.get(*id).stop(),
+            runner = match Runner::connect(server_name.clone(), server.clone(), false) {
+                Some(remote) => remote,
                 None => crashln!("{} Failed to connect (name={server_name}, address={})", *helpers::FAIL, server.address),
             };
         }
     }
 
+    runner.get(*id).stop();
     println!("{} stopped {kind}({id}) ✓", *helpers::SUCCESS);
+    log!("process stopped {kind}(id={id})");
+
     list(&string!("default"), &list_name);
 }
 
 pub fn remove(id: &usize, server_name: &String) {
+    let mut runner: Runner = Runner::new();
     let (kind, _) = format(server_name);
     println!("{} Applying {kind}action removeProcess on ({id})", *helpers::SUCCESS);
 
-    if *server_name == "internal" {
-        Runner::new().remove(*id);
-    } else {
+    if *server_name != "internal" {
         let Some(servers) = config::servers().servers else {
             crashln!("{} Server '{server_name}' does not exist", *helpers::FAIL)
         };
 
         if let Some(server) = servers.get(server_name) {
-            match Runner::connect(server_name.clone(), server.clone(), false) {
-                Some(mut remote) => remote.remove(*id),
+            runner = match Runner::connect(server_name.clone(), server.clone(), false) {
+                Some(remote) => remote,
                 None => crashln!("{} Failed to remove (name={server_name}, address={})", *helpers::FAIL, server.address),
             };
         }
     }
 
+    runner.remove(*id);
     println!("{} removed {kind}({id}) ✓", *helpers::SUCCESS);
     log!("process removed (id={id})");
 }
 
-pub fn info(id: &usize, format: &String) {
+pub fn info(id: &usize, format: &String, server_name: &String) {
     #[derive(Clone, Debug, Tabled)]
     struct Info {
         #[tabled(rename = "error log path ")]
@@ -217,61 +223,7 @@ pub fn info(id: &usize, format: &String) {
         }
     }
 
-    if let Some(home) = home::home_dir() {
-        let config = config::read().runner;
-        let item = Runner::new().get(*id).clone();
-        let mut memory_usage: Option<MemoryInfo> = None;
-        let mut cpu_percent: Option<f32> = None;
-
-        if let Ok(mut process) = Process::new(item.pid as u32) {
-            memory_usage = process.memory_info().ok();
-            cpu_percent = process.cpu_percent().ok();
-        }
-
-        let cpu_percent =
-            match cpu_percent {
-                Some(percent) => format!("{:.2}%", percent),
-                None => string!("0%"),
-            };
-
-        let memory_usage = match memory_usage {
-            Some(usage) => helpers::format_memory(usage.rss()),
-            None => string!("0b"),
-        };
-
-        let status =
-            if item.running {
-                "online   ".green().bold()
-            } else {
-                match item.crash.crashed {
-                    true => "crashed   ",
-                    false => "stopped   ",
-                }
-                .red()
-                .bold()
-            };
-
-        let path = file::make_relative(&item.path, &home)
-            .map(|relative_path| relative_path.to_string_lossy().into_owned())
-            .unwrap_or_else(|| crashln!("{} Unable to get your current directory", *helpers::FAIL));
-
-        let data = vec![Info {
-            cpu_percent,
-            memory_usage,
-            id: string!(id),
-            restarts: item.restarts,
-            name: item.name.clone(),
-            path: format!("{} ", path),
-            status: ColoredString(status),
-            log_out: global!("pmc.logs.out", item.name.as_str()),
-            log_error: global!("pmc.logs.error", item.name.as_str()),
-            pid: ternary!(item.running, format!("{}", item.pid), string!("n/a")),
-            command: format!("{} {} '{}'", config.shell, config.args.join(" "), item.script),
-            hash: ternary!(item.watch.enabled, format!("{}  ", item.watch.hash), string!("none  ")),
-            watch: ternary!(item.watch.enabled, format!("{path}/{}  ", item.watch.path), string!("disabled  ")),
-            uptime: ternary!(item.running, format!("{}", helpers::format_duration(item.started)), string!("none")),
-        }];
-
+    let render_info = |data: Vec<Info>| {
         let table = Table::new(data.clone())
             .with(Rotate::Left)
             .with(Style::rounded().remove_horizontals())
@@ -290,13 +242,134 @@ pub fn info(id: &usize, format: &String) {
                 }
             };
         };
+    };
+
+    if *server_name == "internal" {
+        if let Some(home) = home::home_dir() {
+            let config = config::read().runner;
+            let mut runner = Runner::new();
+            let item = runner.process(*id);
+
+            let mut memory_usage: Option<MemoryInfo> = None;
+            let mut cpu_percent: Option<f32> = None;
+
+            let path = file::make_relative(&item.path, &home).to_string_lossy().into_owned();
+
+            if let Ok(mut process) = Process::new(item.pid as u32) {
+                memory_usage = process.memory_info().ok();
+                cpu_percent = process.cpu_percent().ok();
+            }
+
+            let cpu_percent = match cpu_percent {
+                Some(percent) => format!("{:.2}%", percent),
+                None => string!("0%"),
+            };
+
+            let memory_usage = match memory_usage {
+                Some(usage) => helpers::format_memory(usage.rss()),
+                None => string!("0b"),
+            };
+
+            let status = if item.running {
+                "online   ".green().bold()
+            } else {
+                match item.crash.crashed {
+                    true => "crashed   ",
+                    false => "stopped   ",
+                }
+                .red()
+                .bold()
+            };
+
+            let data = vec![Info {
+                cpu_percent,
+                memory_usage,
+                id: string!(id),
+                restarts: item.restarts,
+                name: item.name.clone(),
+                path: format!("{} ", path),
+                status: ColoredString(status),
+                log_out: global!("pmc.logs.out", item.name.as_str()),
+                log_error: global!("pmc.logs.error", item.name.as_str()),
+                pid: ternary!(item.running, format!("{}", item.pid), string!("n/a")),
+                command: format!("{} {} '{}'", config.shell, config.args.join(" "), item.script),
+                hash: ternary!(item.watch.enabled, format!("{}  ", item.watch.hash), string!("none  ")),
+                watch: ternary!(item.watch.enabled, format!("{path}/{}  ", item.watch.path), string!("disabled  ")),
+                uptime: ternary!(item.running, format!("{}", helpers::format_duration(item.started)), string!("none")),
+            }];
+
+            render_info(data)
+        } else {
+            crashln!("{} Impossible to get your home directory", *helpers::FAIL);
+        }
     } else {
-        crashln!("{} Impossible to get your home directory", *helpers::FAIL);
+        let mut item: Option<(pmc::process::Process, Runner)> = None;
+
+        let Some(servers) = config::servers().servers else {
+            crashln!("{} Server '{server_name}' does not exist", *helpers::FAIL)
+        };
+
+        if let Some(server) = servers.get(server_name) {
+            item = match Runner::connect(server_name.clone(), server.clone(), false) {
+                Some(mut remote) => Some((remote.process(*id).clone(), remote)),
+                None => crashln!("{} Failed to connect (name={server_name}, address={})", *helpers::FAIL, server.address),
+            };
+        }
+
+        if let Some((item, remote)) = item {
+            let info = http::info(&remote.remote.unwrap(), *id);
+            let path = item.path.to_string_lossy().into_owned();
+
+            let status = if item.running {
+                "online   ".green().bold()
+            } else {
+                match item.crash.crashed {
+                    true => "crashed   ",
+                    false => "stopped   ",
+                }
+                .red()
+                .bold()
+            };
+
+            if let Ok(info) = info {
+                let stats = info.json::<ItemSingle>().unwrap().stats;
+
+                let cpu_percent = match stats.cpu_percent {
+                    Some(percent) => format!("{:.2}%", percent),
+                    None => string!("0%"),
+                };
+
+                let memory_usage = match stats.memory_usage {
+                    Some(usage) => helpers::format_memory(usage.rss()),
+                    None => string!("0b"),
+                };
+
+                let data = vec![Info {
+                    cpu_percent,
+                    memory_usage,
+                    id: string!(id),
+                    path: path.clone(),
+                    command: item.script,
+                    restarts: item.restarts,
+                    name: item.name.clone(),
+                    status: ColoredString(status),
+                    log_out: global!("pmc.logs.out", item.name.as_str()),
+                    log_error: global!("pmc.logs.error", item.name.as_str()),
+                    pid: ternary!(item.running, format!("{}", item.pid), string!("n/a")),
+                    hash: ternary!(item.watch.enabled, format!("{}  ", item.watch.hash), string!("none  ")),
+                    watch: ternary!(item.watch.enabled, format!("{path}/{}  ", item.watch.path), string!("disabled  ")),
+                    uptime: ternary!(item.running, format!("{}", helpers::format_duration(item.started)), string!("none")),
+                }];
+
+                render_info(data)
+            }
+        }
     }
 }
 
 pub fn logs(id: &usize, lines: &usize) {
-    let item = Runner::new().get(*id).clone();
+    let mut runner = Runner::new();
+    let item = runner.process(*id);
     let log_error = global!("pmc.logs.error", item.name.as_str());
     let log_out = global!("pmc.logs.out", item.name.as_str());
 
@@ -310,11 +383,24 @@ pub fn logs(id: &usize, lines: &usize) {
     }
 }
 
-pub fn env(id: &usize) {
-    let item = Runner::new().get(*id).clone();
-    for (key, value) in item.env.iter() {
-        println!("{}: {}", key, value.green());
+pub fn env(id: &usize, server_name: &String) {
+    let mut runner: Runner = Runner::new();
+
+    if *server_name != "internal" {
+        let Some(servers) = config::servers().servers else {
+            crashln!("{} Server '{server_name}' does not exist", *helpers::FAIL)
+        };
+
+        if let Some(server) = servers.get(server_name) {
+            runner = match Runner::connect(server_name.clone(), server.clone(), false) {
+                Some(remote) => remote,
+                None => crashln!("{} Failed to connect (name={server_name}, address={})", *helpers::FAIL, server.address),
+            };
+        }
     }
+
+    let item = runner.process(*id);
+    item.env.iter().for_each(|(key, value)| println!("{}: {}", key, value.green()));
 }
 
 pub fn list(format: &String, server_name: &String) {

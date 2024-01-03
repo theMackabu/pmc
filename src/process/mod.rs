@@ -1,10 +1,14 @@
-mod http;
-
 use crate::{
     config,
     config::structs::Server,
     file, helpers,
     service::{run, stop, ProcessMetadata},
+};
+
+use std::{
+    env,
+    path::PathBuf,
+    sync::{Arc, Mutex},
 };
 
 use chrono::serde::ts_milliseconds;
@@ -15,49 +19,48 @@ use psutil::process::{self, MemoryInfo};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, HashMap};
-use std::{env, path::PathBuf};
 use utoipa::ToSchema;
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, Deserialize, ToSchema)]
 pub struct ItemSingle {
-    info: Info,
-    stats: Stats,
-    watch: Watch,
-    log: Log,
-    raw: Raw,
+    pub info: Info,
+    pub stats: Stats,
+    pub watch: Watch,
+    pub log: Log,
+    pub raw: Raw,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, Deserialize, ToSchema)]
 pub struct Info {
-    id: usize,
-    pid: i64,
-    name: String,
-    status: String,
+    pub id: usize,
+    pub pid: i64,
+    pub name: String,
+    pub status: String,
     #[schema(value_type = String, example = "/path")]
-    path: PathBuf,
-    uptime: String,
-    command: String,
+    pub path: PathBuf,
+    pub uptime: String,
+    pub command: String,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, Deserialize, ToSchema)]
 pub struct Stats {
-    restarts: u64,
-    start_time: i64,
-    cpu_percent: Option<f32>,
-    memory_usage: Option<MemoryInfo>,
+    pub restarts: u64,
+    pub start_time: i64,
+    pub cpu_percent: Option<f32>,
+    pub memory_usage: Option<MemoryInfo>,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, Deserialize, ToSchema)]
 pub struct Log {
-    out: String,
-    error: String,
+    pub out: String,
+    pub error: String,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, Deserialize, ToSchema)]
 pub struct Raw {
-    running: bool,
-    crashed: bool,
-    crashes: u64,
+    pub running: bool,
+    pub crashed: bool,
+    pub crashes: u64,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -74,6 +77,12 @@ pub struct ProcessItem {
     watch_path: String,
     #[schema(value_type = String, example = "2000-01-01T01:00:00.000Z")]
     start_time: DateTime<Utc>,
+}
+
+#[derive(Clone)]
+pub struct ProcessWrapper {
+    pub id: usize,
+    pub runner: Arc<Mutex<Runner>>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -211,29 +220,30 @@ impl Runner {
                 crashln!("{} Failed to start process {id}\nError: {:#?}", *helpers::FAIL, err);
             };
         } else {
-            let item = self.get(id);
-            let Process { path, script, name, .. } = item.clone();
+            let process = self.process(id);
+            let config = config::read().runner;
+            let Process { path, script, name, .. } = process.clone();
 
-            if let Err(err) = std::env::set_current_dir(&item.path) {
+            if let Err(err) = std::env::set_current_dir(&process.path) {
                 crashln!("{} Failed to set working directory {:?}\nError: {:#?}", *helpers::FAIL, path, err);
             };
 
-            item.stop();
+            stop(process.pid);
+            process.running = false;
+            process.crash.crashed = false;
+            process.crash.value = 0;
 
-            let config = config::read().runner;
-
-            item.crash.crashed = false;
-            item.pid = run(ProcessMetadata {
-                command: script,
+            process.pid = run(ProcessMetadata {
                 args: config.args,
                 name: name.clone(),
                 shell: config.shell,
                 log_path: config.log_path,
+                command: script.to_string(),
             });
 
-            item.running = true;
-            item.started = Utc::now();
-            then!(dead, item.restarts += 1);
+            process.running = true;
+            process.started = Utc::now();
+            then!(dead, process.restarts += 1);
         }
 
         return self;
@@ -258,7 +268,7 @@ impl Runner {
     }
 
     pub fn set_status(&mut self, id: usize, status: Status) {
-        self.get(id).running = status.to_bool();
+        self.process(id).running = status.to_bool();
         dump::write(&self);
     }
 
@@ -271,15 +281,22 @@ impl Runner {
     pub fn exists(&mut self, id: usize) -> bool { self.list.contains_key(&id) }
     pub fn info(&mut self, id: usize) -> Option<&Process> { self.list.get(&id) }
     pub fn list<'l>(&'l mut self) -> impl Iterator<Item = (&'l usize, &'l mut Process)> { self.list.iter_mut().map(|(k, v)| (k, v)) }
-    pub fn get(&mut self, id: usize) -> &mut Process { self.list.get_mut(&id).unwrap_or_else(|| crashln!("{} Process ({id}) not found", *helpers::FAIL)) }
+    pub fn process(&mut self, id: usize) -> &mut Process { self.list.get_mut(&id).unwrap_or_else(|| crashln!("{} Process ({id}) not found", *helpers::FAIL)) }
+
+    pub fn get(self, id: usize) -> ProcessWrapper {
+        ProcessWrapper {
+            id,
+            runner: Arc::new(Mutex::new(self)),
+        }
+    }
 
     pub fn set_crashed(&mut self, id: usize) -> &mut Self {
-        self.get(id).crash.crashed = true;
+        self.process(id).crash.crashed = true;
         return self;
     }
 
     pub fn new_crash(&mut self, id: usize) -> &mut Self {
-        self.get(id).crash.value += 1;
+        self.process(id).crash.value += 1;
         return self;
     }
 
@@ -289,28 +306,34 @@ impl Runner {
                 crashln!("{} Failed to stop process {id}\nError: {:#?}", *helpers::FAIL, err);
             };
         } else {
-            let item = self.get(id);
-            stop(item.pid);
-
-            item.running = false;
-            item.crash.crashed = false;
-            item.crash.value = 0;
+            let process = self.process(id);
+            stop(process.pid);
+            process.running = false;
+            process.crash.crashed = false;
+            process.crash.value = 0;
         }
 
         return self;
     }
 
     pub fn rename(&mut self, id: usize, name: String) -> &mut Self {
-        self.get(id).name = name;
+        if let Some(remote) = &self.remote {
+            if let Err(err) = http::rename(remote, id, name) {
+                crashln!("{} Failed to rename process {id}\nError: {:#?}", *helpers::FAIL, err);
+            };
+        } else {
+            self.process(id).name = name;
+        }
+
         return self;
     }
 
     pub fn watch(&mut self, id: usize, path: &str, enabled: bool) -> &mut Self {
-        let item = self.get(id);
-        item.watch = Watch {
+        let process = self.process(id);
+        process.watch = Watch {
             enabled,
             path: string!(path),
-            hash: ternary!(enabled, hash::create(item.path.join(path)), string!("")),
+            hash: ternary!(enabled, hash::create(process.path.join(path)), string!("")),
         };
 
         return self;
@@ -366,34 +389,63 @@ impl Runner {
     }
 }
 
-impl Process {
-    pub fn stop(&mut self) { Runner::new().stop(self.id).save(); }
-    pub fn watch(&mut self, path: &str) { Runner::new().watch(self.id, path, true).save(); }
-    pub fn disable_watch(&mut self) { Runner::new().watch(self.id, "", false).save(); }
-    pub fn rename(&mut self, name: String) { Runner::new().rename(self.id, name).save(); }
-    pub fn restart(&mut self) { Runner::new().restart(self.id, false).save(); }
+impl ProcessWrapper {
+    pub fn stop(&mut self) {
+        let runner_arc = Arc::clone(&self.runner);
+        let mut runner = runner_arc.lock().unwrap();
+        runner.stop(self.id).save();
+    }
 
-    pub fn crashed(&mut self) -> &mut Process {
-        Runner::new().new_crash(self.id).save();
-        Runner::new().restart(self.id, true).save();
-        return self;
+    pub fn watch(&mut self, path: &str) {
+        let runner_arc = Arc::clone(&self.runner);
+        let mut runner = runner_arc.lock().unwrap();
+        runner.watch(self.id, path, true).save();
+    }
+
+    pub fn disable_watch(&mut self) {
+        let runner_arc = Arc::clone(&self.runner);
+        let mut runner = runner_arc.lock().unwrap();
+        runner.watch(self.id, "", false).save();
+    }
+
+    pub fn rename(&mut self, name: String) {
+        let runner_arc = Arc::clone(&self.runner);
+        let mut runner = runner_arc.lock().unwrap();
+        runner.rename(self.id, name).save();
+    }
+
+    pub fn restart(&mut self) {
+        let runner_arc = Arc::clone(&self.runner);
+        let mut runner = runner_arc.lock().unwrap();
+        runner.restart(self.id, false).save();
+    }
+
+    pub fn crashed(&mut self) {
+        let runner_arc = Arc::clone(&self.runner);
+        let mut runner = runner_arc.lock().unwrap();
+        runner.new_crash(self.id).save();
+        runner.restart(self.id, true).save();
     }
 
     pub fn json(&mut self) -> Value {
+        let runner_arc = Arc::clone(&self.runner);
+        let mut runner = runner_arc.lock().unwrap();
+
+        let item = runner.process(self.id);
         let config = config::read().runner;
 
         let mut memory_usage: Option<MemoryInfo> = None;
         let mut cpu_percent: Option<f32> = None;
 
-        if let Ok(mut process) = process::Process::new(self.pid as u32) {
+        if let Ok(mut process) = process::Process::new(item.pid as u32) {
             memory_usage = process.memory_info().ok();
             cpu_percent = process.cpu_percent().ok();
         }
 
-        let status = if self.running {
+        let status = if item.running {
             string!("online")
         } else {
-            match self.crash.crashed {
+            match item.crash.crashed {
                 true => string!("crashed"),
                 false => string!("stopped"),
             }
@@ -402,32 +454,32 @@ impl Process {
         json!(ItemSingle {
             info: Info {
                 status,
-                id: self.id,
-                pid: self.pid,
-                name: self.name.clone(),
-                path: self.path.clone(),
-                uptime: helpers::format_duration(self.started),
-                command: format!("{} {} '{}'", config.shell, config.args.join(" "), self.script.clone()),
+                id: item.id,
+                pid: item.pid,
+                name: item.name.clone(),
+                path: item.path.clone(),
+                uptime: helpers::format_duration(item.started),
+                command: format!("{} {} '{}'", config.shell, config.args.join(" "), item.script.clone()),
             },
             stats: Stats {
                 cpu_percent,
                 memory_usage,
-                restarts: self.restarts,
-                start_time: self.started.timestamp_millis(),
+                restarts: item.restarts,
+                start_time: item.started.timestamp_millis(),
             },
             watch: Watch {
-                enabled: self.watch.enabled,
-                hash: self.watch.hash.clone(),
-                path: self.watch.path.clone(),
+                enabled: item.watch.enabled,
+                hash: item.watch.hash.clone(),
+                path: item.watch.path.clone(),
             },
             log: Log {
-                out: global!("pmc.logs.out", self.name.as_str()),
-                error: global!("pmc.logs.error", self.name.as_str()),
+                out: global!("pmc.logs.out", item.name.as_str()),
+                error: global!("pmc.logs.error", item.name.as_str()),
             },
             raw: Raw {
-                running: self.running,
-                crashed: self.crash.crashed,
-                crashes: self.crash.value,
+                running: item.running,
+                crashed: item.crash.crashed,
+                crashes: item.crash.value,
             }
         })
     }
@@ -435,4 +487,5 @@ impl Process {
 
 pub mod dump;
 pub mod hash;
+pub mod http;
 pub mod id;

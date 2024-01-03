@@ -7,7 +7,7 @@ use std::{
     env,
     fs::{self, File},
     io::{self, BufRead, BufReader},
-    path::{Path, PathBuf, StripPrefixError},
+    path::{Path, PathBuf},
     thread::sleep,
     time::Duration,
 };
@@ -33,11 +33,10 @@ pub fn cwd() -> PathBuf {
     }
 }
 
-// fix
-pub fn make_relative(current: &Path, home: &Path) -> Option<std::path::PathBuf> {
+pub fn make_relative(current: &Path, home: &Path) -> PathBuf {
     match current.strip_prefix(home) {
-        Ok(relative_path) => Some(Path::new("~").join(relative_path)),
-        Err(StripPrefixError { .. }) => None,
+        Err(_) => Path::new(home).join(current),
+        Ok(relative_path) => Path::new("~").join(relative_path),
     }
 }
 

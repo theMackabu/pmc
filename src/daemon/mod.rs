@@ -42,12 +42,14 @@ extern "C" fn handle_termination_signal(_: libc::c_int) {
 
 fn restart_process() {
     for (id, item) in Runner::new().items_mut() {
+        let mut runner = Runner::new();
+
         if item.running && item.watch.enabled {
             let path = item.path.join(item.watch.path.clone());
             let hash = hash::create(path);
 
             if hash != item.watch.hash {
-                item.restart();
+                runner.restart(item.id, false);
                 log!("[daemon] watch reload {} (id={id}, hash={hash})", item.name);
                 continue;
             }
@@ -63,11 +65,11 @@ fn restart_process() {
 
         if item.running && item.crash.value == config::read().daemon.restarts {
             log!("[daemon] {} has crashed (id={id})", item.name);
-            item.stop();
-            Runner::new().set_crashed(*id).save();
+            runner.stop(item.id);
+            runner.set_crashed(*id).save();
             continue;
         } else {
-            item.crashed();
+            runner.get(item.id).crashed();
             log!("[daemon] restarted {} (id={id}, crashes={})", item.name, item.crash.value);
         }
     }
