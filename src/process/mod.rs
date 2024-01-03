@@ -15,7 +15,7 @@ use chrono::serde::ts_milliseconds;
 use chrono::{DateTime, Utc};
 use global_placeholders::global;
 use macros_rs::{crashln, string, ternary, then};
-use psutil::process::{self, MemoryInfo};
+use psutil::process;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, HashMap};
@@ -48,6 +48,12 @@ pub struct Stats {
     pub start_time: i64,
     pub cpu_percent: Option<f32>,
     pub memory_usage: Option<MemoryInfo>,
+}
+
+#[derive(Serialize, Deserialize, ToSchema)]
+pub struct MemoryInfo {
+    pub rss: u64,
+    pub vms: u64,
 }
 
 #[derive(Serialize, Deserialize, ToSchema)]
@@ -347,8 +353,13 @@ impl Runner {
             let mut cpu_percent: Option<f32> = None;
 
             if let Ok(mut process) = process::Process::new(item.pid as u32) {
-                memory_usage = process.memory_info().ok();
+                let mem_info_psutil = process.memory_info().ok();
+
                 cpu_percent = process.cpu_percent().ok();
+                memory_usage = Some(MemoryInfo {
+                    rss: mem_info_psutil.as_ref().unwrap().rss(),
+                    vms: mem_info_psutil.as_ref().unwrap().vms(),
+                });
             }
 
             let cpu_percent = match cpu_percent {
@@ -357,7 +368,7 @@ impl Runner {
             };
 
             let memory_usage = match memory_usage {
-                Some(usage) => helpers::format_memory(usage.rss()),
+                Some(usage) => helpers::format_memory(usage.rss),
                 None => string!("0b"),
             };
 
@@ -438,8 +449,13 @@ impl ProcessWrapper {
         let mut cpu_percent: Option<f32> = None;
 
         if let Ok(mut process) = process::Process::new(item.pid as u32) {
-            memory_usage = process.memory_info().ok();
+            let mem_info_psutil = process.memory_info().ok();
+
             cpu_percent = process.cpu_percent().ok();
+            memory_usage = Some(MemoryInfo {
+                rss: mem_info_psutil.as_ref().unwrap().rss(),
+                vms: mem_info_psutil.as_ref().unwrap().vms(),
+            });
         }
 
         let status = if item.running {
