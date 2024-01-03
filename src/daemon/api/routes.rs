@@ -63,7 +63,7 @@ pub(crate) struct CreateBody {
     name: Option<String>,
     #[schema(example = "node index.js")]
     script: String,
-    #[schema(example = "/projects/app")]
+    #[schema(value_type = String, example = "/projects/app")]
     path: PathBuf,
     #[schema(example = "src")]
     watch: Option<String>,
@@ -285,22 +285,16 @@ pub async fn log_handler_raw(id: usize, kind: String) -> Result<impl Reply, Reje
 )]
 pub async fn info_handler(id: usize) -> Result<impl Reply, Rejection> {
     let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["info"]).start_timer();
+    let runner = Runner::new();
+    let mut item = runner.get(id);
 
     HTTP_COUNTER.inc();
-    match Runner::new().info(id) {
-        Some(item) => {
-            timer.observe_duration();
-            Ok(json(&item.clone().json()))
-        }
-        None => {
-            timer.observe_duration();
-            Err(reject::not_found())
-        }
-    }
+    timer.observe_duration();
+    Ok(json(&item.json()))
 }
 
 #[inline]
-#[utoipa::path(post, tag = "Process", path = "/process/create", request_body(content = String),
+#[utoipa::path(post, tag = "Process", path = "/process/create", request_body(content = CreateBody),
     responses(
         (status = 200, description = "Create process successful", body = ActionResponse),
         (status = INTERNAL_SERVER_ERROR, description = "Failed to create process", body = ErrorMessage)
@@ -333,13 +327,15 @@ pub async fn create_handler(body: CreateBody) -> Result<impl Reply, Rejection> {
 )]
 pub async fn rename_handler(id: usize, body: String) -> Result<impl Reply, Rejection> {
     let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["rename"]).start_timer();
+
     let mut runner = Runner::new();
+    let process = Runner::new().process(id).clone();
 
     HTTP_COUNTER.inc();
     if runner.exists(id) {
-        let item = runner.get(id);
+        let mut item = runner.get(id);
         item.rename(body.trim().replace("\n", ""));
-        then!(item.running, item.restart());
+        then!(process.running, item.restart());
         timer.observe_duration();
         Ok(attempt(true, "rename"))
     } else {

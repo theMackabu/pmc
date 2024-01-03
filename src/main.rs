@@ -150,8 +150,8 @@ fn main() {
         Commands::Start { name, args, watch, server } => cli::start(name, args, watch, server),
         Commands::Stop { id, server } => cli::stop(id, server),
         Commands::Remove { id, server } => cli::remove(id, server),
-        Commands::Env { id, server } => cli::env(id),
-        Commands::Details { id, format, server } => cli::info(id, format),
+        Commands::Env { id, server } => cli::env(id, server),
+        Commands::Details { id, format, server } => cli::info(id, format, server),
         Commands::List { format, server } => cli::list(format, server),
         Commands::Logs { id, lines, server } => cli::logs(id, lines),
 
