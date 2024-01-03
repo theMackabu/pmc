@@ -343,7 +343,7 @@ pub fn info(id: &usize, format: &String, server_name: &String) {
                 };
 
                 let memory_usage = match stats.memory_usage {
-                    Some(usage) => helpers::format_memory(usage.rss()),
+                    Some(usage) => helpers::format_memory(usage.rss),
                     None => string!("0b"),
                 };
 
@@ -437,7 +437,7 @@ pub fn env(id: &usize, server_name: &String) {
 }
 
 pub fn list(format: &String, server_name: &String) {
-    let render_list = |runner: &mut Runner| {
+    let render_list = |runner: &mut Runner, internal: bool| {
         let mut processes: Vec<ProcessItem> = Vec::new();
 
         #[derive(Tabled, Debug)]
@@ -476,23 +476,42 @@ pub fn list(format: &String, server_name: &String) {
             println!("{} Process table empty", *helpers::SUCCESS);
         } else {
             for (id, item) in runner.items() {
-                let mut memory_usage: Option<MemoryInfo> = None;
-                let mut cpu_percent: Option<f32> = None;
+                let mut cpu_percent: String = string!("0%");
+                let mut memory_usage: String = string!("0b");
 
-                if let Ok(mut process) = Process::new(item.pid as u32) {
-                    memory_usage = process.memory_info().ok();
-                    cpu_percent = process.cpu_percent().ok();
+                if internal {
+                    let mut usage_internals: (Option<f32>, Option<MemoryInfo>) = (None, None);
+
+                    if let Ok(mut process) = Process::new(item.pid as u32) {
+                        usage_internals = (process.cpu_percent().ok(), process.memory_info().ok());
+                    }
+
+                    cpu_percent = match usage_internals.0 {
+                        Some(percent) => format!("{:.0}%", percent),
+                        None => string!("0%"),
+                    };
+
+                    memory_usage = match usage_internals.1 {
+                        Some(usage) => helpers::format_memory(usage.rss()),
+                        None => string!("0b"),
+                    };
+                } else {
+                    let info = http::info(&runner.remote.as_ref().unwrap(), id);
+
+                    if let Ok(info) = info {
+                        let stats = info.json::<ItemSingle>().unwrap().stats;
+
+                        cpu_percent = match stats.cpu_percent {
+                            Some(percent) => format!("{:.2}%", percent),
+                            None => string!("0%"),
+                        };
+
+                        memory_usage = match stats.memory_usage {
+                            Some(usage) => helpers::format_memory(usage.rss),
+                            None => string!("0b"),
+                        };
+                    }
                 }
-
-                let cpu_percent = match cpu_percent {
-                    Some(percent) => format!("{:.0}%", percent),
-                    None => string!("0%"),
-                };
-
-                let memory_usage = match memory_usage {
-                    Some(usage) => helpers::format_memory(usage.rss()),
-                    None => string!("0b"),
-                };
 
                 let status = if item.running {
                     "online   ".green().bold()
@@ -541,13 +560,13 @@ pub fn list(format: &String, server_name: &String) {
 
         if let Some(server) = servers.get(server_name) {
             match Runner::connect(server_name.clone(), server.clone(), true) {
-                Some(mut remote) => render_list(&mut remote),
+                Some(mut remote) => render_list(&mut remote, false),
                 None => println!("{} Failed to fetch (name={server_name}, address={})", *helpers::FAIL, server.address),
             }
         } else {
             if matches!(&**server_name, "internal" | "all") {
                 println!("{} Internal daemon", *helpers::SUCCESS);
-                render_list(&mut Runner::new());
+                render_list(&mut Runner::new(), true);
             } else {
                 crashln!("{} Server '{server_name}' does not exist", *helpers::FAIL);
             }
@@ -556,7 +575,7 @@ pub fn list(format: &String, server_name: &String) {
         if *server_name == "all" {
             for (name, server) in servers {
                 match Runner::connect(name.clone(), server.clone(), true) {
-                    Some(mut remote) => render_list(&mut remote),
+                    Some(mut remote) => render_list(&mut remote, false),
                     None => failed.push((name, server.address)),
                 }
             }
@@ -569,6 +588,6 @@ pub fn list(format: &String, server_name: &String) {
                 .for_each(|server| println!(" {} {} {}", "-".yellow(), format!("{}", server.0), format!("[{}]", server.1).white()));
         }
     } else {
-        render_list(&mut Runner::new());
+        render_list(&mut Runner::new(), true);
     }
 }
