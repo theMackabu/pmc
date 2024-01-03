@@ -12,7 +12,10 @@ use pmc::{
     file::{self, Exists},
     helpers::{self, ColoredString},
     log,
-    process::{http, ItemSingle, Runner},
+    process::{
+        http::{self, LogResponse},
+        ItemSingle, Runner,
+    },
 };
 
 use tabled::{
@@ -367,19 +370,49 @@ pub fn info(id: &usize, format: &String, server_name: &String) {
     }
 }
 
-pub fn logs(id: &usize, lines: &usize) {
-    let mut runner = Runner::new();
-    let item = runner.process(*id);
-    let log_error = global!("pmc.logs.error", item.name.as_str());
-    let log_out = global!("pmc.logs.out", item.name.as_str());
+pub fn logs(id: &usize, lines: &usize, server_name: &String) {
+    let mut runner: Runner = Runner::new();
 
-    if Exists::file(log_error.clone()).unwrap() && Exists::file(log_out.clone()).unwrap() {
+    if *server_name != "internal" {
+        let Some(servers) = config::servers().servers else {
+            crashln!("{} Server '{server_name}' does not exist", *helpers::FAIL)
+        };
+
+        if let Some(server) = servers.get(server_name) {
+            runner = match Runner::connect(server_name.clone(), server.clone(), false) {
+                Some(remote) => remote,
+                None => crashln!("{} Failed to connect (name={server_name}, address={})", *helpers::FAIL, server.address),
+            };
+        }
+
+        let item = runner.clone().process(*id).clone();
+        let log_out = http::logs(&runner.remote.as_ref().unwrap(), *id, "out");
+        let log_error = http::logs(&runner.remote.as_ref().unwrap(), *id, "error");
+
         println!("{}", format!("Showing last {lines} lines for process [{id}] (change the value with --lines option)").yellow());
 
-        file::logs(*lines, &log_error, *id, "error", &item.name);
-        file::logs(*lines, &log_out, *id, "out", &item.name);
+        if let Ok(logs) = log_error {
+            let logs = logs.json::<LogResponse>().unwrap().logs;
+            file::logs_internal(logs, *lines, &item.name, *id, "error", &item.name)
+        }
+
+        if let Ok(logs) = log_out {
+            let logs = logs.json::<LogResponse>().unwrap().logs;
+            file::logs_internal(logs, *lines, &item.name, *id, "out", &item.name)
+        }
     } else {
-        crashln!("{} Logs for process ({id}) not found", *helpers::FAIL);
+        let item = runner.process(*id);
+        let log_out = global!("pmc.logs.out", item.name.as_str());
+        let log_error = global!("pmc.logs.error", item.name.as_str());
+
+        if Exists::file(log_error.clone()).unwrap() && Exists::file(log_out.clone()).unwrap() {
+            println!("{}", format!("Showing last {lines} lines for process [{id}] (change the value with --lines option)").yellow());
+
+            file::logs(*lines, &log_error, *id, "error", &item.name);
+            file::logs(*lines, &log_out, *id, "out", &item.name);
+        } else {
+            crashln!("{} Logs for process ({id}) not found", *helpers::FAIL);
+        }
     }
 }
 

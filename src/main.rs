@@ -153,7 +153,7 @@ fn main() {
         Commands::Env { id, server } => cli::env(id, server),
         Commands::Details { id, format, server } => cli::info(id, format, server),
         Commands::List { format, server } => cli::list(format, server),
-        Commands::Logs { id, lines, server } => cli::logs(id, lines),
+        Commands::Logs { id, lines, server } => cli::logs(id, lines, server),
 
         Commands::Daemon { command } => match command {
             Daemon::Stop => daemon::stop(),

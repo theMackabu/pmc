@@ -16,8 +16,12 @@ pub fn logs(lines_to_tail: usize, log_file: &str, id: usize, log_type: &str, ite
     let file = File::open(log_file).unwrap();
     let reader = BufReader::new(file);
     let lines: Vec<String> = reader.lines().collect::<io::Result<_>>().unwrap();
-    let color = ternary!(log_type == "out", "green", "red");
 
+    logs_internal(lines, lines_to_tail, log_file, id, log_type, item_name)
+}
+
+pub fn logs_internal(lines: Vec<String>, lines_to_tail: usize, log_file: &str, id: usize, log_type: &str, item_name: &str) {
+    let color = ternary!(log_type == "out", "green", "red");
     println!("{}", format!("\n{log_file} last {lines_to_tail} lines:").bright_black());
 
     let start_index = if lines.len() > lines_to_tail { lines.len() - lines_to_tail } else { 0 };
