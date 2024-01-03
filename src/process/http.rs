@@ -2,12 +2,17 @@ use crate::process::Remote;
 use macros_rs::{fmtstr, string};
 use reqwest::blocking::{Client, Response};
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 #[derive(Serialize)]
 struct ActionBody {
     pub method: String,
+}
+
+#[derive(Deserialize)]
+pub struct LogResponse {
+    pub logs: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -32,6 +37,11 @@ fn client(token: &Option<String>) -> (Client, HeaderMap) {
 pub fn info(Remote { address, token }: &Remote, id: usize) -> Result<Response, anyhow::Error> {
     let (client, headers) = client(token);
     Ok(client.get(fmtstr!("{address}/process/{id}/info")).headers(headers).send()?)
+}
+
+pub fn logs(Remote { address, token }: &Remote, id: usize, kind: &str) -> Result<Response, anyhow::Error> {
+    let (client, headers) = client(token);
+    Ok(client.get(fmtstr!("{address}/process/{id}/logs/{kind}")).headers(headers).send()?)
 }
 
 pub fn create(Remote { address, token }: &Remote, name: &String, script: &String, path: PathBuf, watch: &Option<String>) -> Result<Response, anyhow::Error> {

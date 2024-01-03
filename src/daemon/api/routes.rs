@@ -329,7 +329,7 @@ pub async fn rename_handler(id: usize, body: String) -> Result<impl Reply, Rejec
     let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["rename"]).start_timer();
 
     let mut runner = Runner::new();
-    let process = Runner::new().process(id).clone();
+    let process = runner.clone().process(id).clone();
 
     HTTP_COUNTER.inc();
     if runner.exists(id) {
