@@ -10,7 +10,7 @@ use tera::{Context, Tera};
 use utoipa::ToSchema;
 
 use pmc::{
-    file, helpers,
+    config, file, helpers,
     process::{dump, Runner},
 };
 
@@ -55,6 +55,16 @@ pub(crate) struct DocMemoryInfo {
 pub(crate) struct ActionBody {
     #[schema(example = "restart")]
     method: String,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(crate) struct ConfigBody {
+    #[schema(example = "bash")]
+    shell: String,
+    #[schema(min_items = 1, example = json!(["-c"]))]
+    args: Vec<String>,
+    #[schema(example = "/home/user/.pmc/logs")]
+    log_path: String,
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -163,7 +173,9 @@ pub async fn view_process(id: usize, store: (Tera, String)) -> Result<Box<dyn Re
 }
 
 #[inline]
-#[utoipa::path(get, tag = "Daemon", path = "/prometheus", responses((status = 200, description = "Get prometheus metrics", body = String)))]
+#[utoipa::path(get, tag = "Daemon", path = "/daemon/prometheus", 
+    responses((status = 200, description = "Get prometheus metrics", body = String))
+)]
 pub async fn prometheus_handler() -> Result<impl Reply, Infallible> {
     let encoder = TextEncoder::new();
     let mut buffer = Vec::<u8>::new();
@@ -174,7 +186,9 @@ pub async fn prometheus_handler() -> Result<impl Reply, Infallible> {
 }
 
 #[inline]
-#[utoipa::path(get, path = "/dump", tag = "Process", responses((status = 200, description = "Dump processes successfully", body = [u8])))]
+#[utoipa::path(get, tag = "Daemon", path = "/daemon/dump", security(()),
+    responses((status = 200, description = "Dump processes successfully", body = [u8]))
+)]
 pub async fn dump_handler() -> Result<impl Reply, Infallible> {
     let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["dump"]).start_timer();
 
@@ -185,7 +199,29 @@ pub async fn dump_handler() -> Result<impl Reply, Infallible> {
 }
 
 #[inline]
-#[utoipa::path(get, path = "/list", tag = "Process", responses((status = 200, description = "List processes successfully", body = [ProcessItem])))]
+#[utoipa::path(get, tag = "Daemon", path = "/daemon/config", 
+    responses((status = 200, description = "Get daemon config successfully", body = ConfigBody))
+)]
+pub async fn config_handler() -> Result<impl Reply, Infallible> {
+    let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["dump"]).start_timer();
+    let config = config::read().runner;
+
+    HTTP_COUNTER.inc();
+
+    let response = json!(ConfigBody {
+        shell: config.shell,
+        args: config.args,
+        log_path: config.log_path,
+    });
+
+    timer.observe_duration();
+    Ok(json(&response))
+}
+
+#[inline]
+#[utoipa::path(get, path = "/list", tag = "Process", 
+    responses((status = 200, description = "List processes successfully", body = [ProcessItem]))
+)]
 pub async fn list_handler() -> Result<impl Reply, Infallible> {
     let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["list"]).start_timer();
     let data = Runner::new().json();
@@ -406,7 +442,9 @@ pub async fn action_handler(id: usize, body: ActionBody) -> Result<impl Reply, R
 }
 
 #[inline]
-#[utoipa::path(get, tag = "Daemon", path = "/metrics", responses((status = 200, description = "Get daemon metrics", body = MetricsRoot)))]
+#[utoipa::path(get, tag = "Daemon", path = "/daemon/metrics", 
+    responses((status = 200, description = "Get daemon metrics", body = MetricsRoot))
+)]
 pub async fn metrics_handler() -> Result<impl Reply, Infallible> {
     let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["metrics"]).start_timer();
     let mut pid: Option<i32> = None;
@@ -427,11 +465,10 @@ pub async fn metrics_handler() -> Result<impl Reply, Infallible> {
         }
     }
 
-    let memory_usage =
-        match memory_usage {
-            Some(usage) => helpers::format_memory(usage.rss()),
-            None => string!("0b"),
-        };
+    let memory_usage = match memory_usage {
+        Some(usage) => helpers::format_memory(usage.rss()),
+        None => string!("0b"),
+    };
 
     let cpu_percent = match cpu_percent {
         Some(percent) => format!("{:.2}%", percent),

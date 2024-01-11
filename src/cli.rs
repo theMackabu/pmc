@@ -320,7 +320,8 @@ pub fn info(id: &usize, format: &String, server_name: &String) {
         }
 
         if let Some((item, remote)) = item {
-            let info = http::info(&remote.remote.unwrap(), *id);
+            let remote = remote.remote.unwrap();
+            let info = http::info(&remote, *id);
             let path = item.path.to_string_lossy().into_owned();
 
             let status = if item.running {
@@ -352,14 +353,14 @@ pub fn info(id: &usize, format: &String, server_name: &String) {
                     memory_usage,
                     id: string!(id),
                     path: path.clone(),
-                    command: item.script,
                     restarts: item.restarts,
                     name: item.name.clone(),
                     status: ColoredString(status),
-                    log_out: global!("pmc.logs.out", item.name.as_str()),
-                    log_error: global!("pmc.logs.error", item.name.as_str()),
+                    log_out: format!("{}/{{}}-out.log", remote.config.log_path),
+                    log_error: format!("{}/{{}}-error.log", remote.config.log_path),
                     pid: ternary!(item.running, format!("{}", item.pid), string!("n/a")),
                     hash: ternary!(item.watch.enabled, format!("{}  ", item.watch.hash), string!("none  ")),
+                    command: format!("{} {} '{}'", remote.config.shell, remote.config.args.join(" "), item.script),
                     watch: ternary!(item.watch.enabled, format!("{path}/{}  ", item.watch.path), string!("disabled  ")),
                     uptime: ternary!(item.running, format!("{}", helpers::format_duration(item.started)), string!("none")),
                 }];
@@ -405,7 +406,7 @@ pub fn logs(id: &usize, lines: &usize, server_name: &String) {
         let log_out = global!("pmc.logs.out", item.name.as_str());
         let log_error = global!("pmc.logs.error", item.name.as_str());
 
-        if Exists::file(log_error.clone()).unwrap() && Exists::file(log_out.clone()).unwrap() {
+        if Exists::check(&log_error).file() && Exists::check(&log_out).file() {
             println!("{}", format!("Showing last {lines} lines for process [{id}] (change the value with --lines option)").yellow());
 
             file::logs(*lines, &log_error, *id, "error", &item.name);

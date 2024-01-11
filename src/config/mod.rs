@@ -1,13 +1,32 @@
 pub mod structs;
 
-use crate::file::{self, Exists};
-use crate::helpers;
+use crate::{
+    file::{self, Exists},
+    helpers,
+    process::RemoteConfig,
+};
 
 use colored::Colorize;
-use macros_rs::{crashln, string};
-use std::fs;
+use macros_rs::{crashln, fmtstr, string};
+use reqwest::blocking::Client;
+use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
+use std::fs::write;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use structs::{Config, Daemon, Runner, Secure, Servers, Web};
+
+pub fn from(address: &str, token: Option<&str>) -> Result<RemoteConfig, anyhow::Error> {
+    let client = Client::new();
+    let mut headers = HeaderMap::new();
+
+    if let Some(token) = token {
+        headers.insert(AUTHORIZATION, HeaderValue::from_static(fmtstr!("token {token}")));
+    }
+
+    let response = client.get(fmtstr!("{address}/daemon/config")).headers(headers).send()?;
+    let json = response.json::<RemoteConfig>()?;
+
+    Ok(json)
+}
 
 pub fn read() -> Config {
     match home::home_dir() {
@@ -16,7 +35,7 @@ pub fn read() -> Config {
 
             let config_path = format!("{path}/.pmc/config.toml");
 
-            if !Exists::file(config_path.clone()).unwrap() {
+            if !Exists::check(&config_path).file() {
                 let config = Config {
                     runner: Runner {
                         shell: string!("bash"),
@@ -44,7 +63,7 @@ pub fn read() -> Config {
                     Err(err) => crashln!("{} Cannot parse config.\n{}", *helpers::FAIL, string!(err).white()),
                 };
 
-                if let Err(err) = fs::write(&config_path, contents) {
+                if let Err(err) = write(&config_path, contents) {
                     crashln!("{} Error writing config.\n{}", *helpers::FAIL, string!(err).white())
                 }
                 log::info!("created config file");
@@ -62,8 +81,8 @@ pub fn servers() -> Servers {
             let path = path.display();
             let config_path = format!("{path}/.pmc/servers.toml");
 
-            if !Exists::file(config_path.clone()).unwrap() {
-                if let Err(err) = fs::write(&config_path, "") {
+            if !Exists::check(&config_path).file() {
+                if let Err(err) = write(&config_path, "") {
                     crashln!("{} Error writing servers.\n{}", *helpers::FAIL, string!(err).white())
                 }
             }

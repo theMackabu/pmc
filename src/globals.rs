@@ -1,21 +1,19 @@
 use global_placeholders::init;
 use macros_rs::crashln;
-use pmc::config;
-use pmc::file::Exists;
-use pmc::helpers;
+use pmc::{config, file::Exists, helpers};
 use std::fs;
 
 pub fn init() {
     match home::home_dir() {
         Some(path) => {
             let path = path.display();
-            if !Exists::folder(format!("{path}/.pmc/")).unwrap() {
+            if !Exists::check(&format!("{path}/.pmc/")).folder() {
                 fs::create_dir_all(format!("{path}/.pmc/")).unwrap();
                 log::info!("created pmc base dir");
             }
 
             let config = config::read();
-            if !Exists::folder(config.runner.log_path.clone()).unwrap() {
+            if !Exists::check(&config.runner.log_path).folder() {
                 fs::create_dir_all(&config.runner.log_path).unwrap();
                 log::info!("created pmc log dir");
             }

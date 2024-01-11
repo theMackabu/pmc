@@ -12,7 +12,7 @@ const Login = (props: { base: string }) => {
 		event.preventDefault();
 		$settings.setKey('token', token);
 
-		fetch(props.base + '/metrics', {
+		fetch(props.base + '/daemon/metrics', {
 			headers: { Authorization: 'token ' + token },
 		}).then((response) => {
 			if (response.status === 200) {

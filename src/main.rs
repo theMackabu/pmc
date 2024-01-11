@@ -5,7 +5,7 @@ mod webui;
 
 use crate::cli::Args;
 use clap::{Parser, Subcommand};
-use clap_verbosity_flag::Verbosity;
+use clap_verbosity_flag::{LogLevel, Verbosity};
 use macros_rs::{str, string, then};
 
 fn validate_id_script(s: &str) -> Result<Args, String> {
@@ -16,13 +16,19 @@ fn validate_id_script(s: &str) -> Result<Args, String> {
     }
 }
 
+#[derive(Copy, Clone, Debug, Default)]
+struct NoneLevel;
+impl LogLevel for NoneLevel {
+    fn default() -> Option<log::Level> { None }
+}
+
 #[derive(Parser)]
 #[command(version = str!(cli::get_version(false)))]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
     #[clap(flatten)]
-    verbose: Verbosity,
+    verbose: Verbosity<NoneLevel>,
 }
 
 #[derive(Subcommand)]
