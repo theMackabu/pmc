@@ -165,11 +165,11 @@ fn main() {
             Daemon::Stop => daemon::stop(),
             Daemon::Reset => daemon::reset(),
             Daemon::Health { format } => daemon::health(format),
-            Daemon::Restore { api, webui } => daemon::restart(api, webui, level.as_str() != "ERROR"),
+            Daemon::Restore { api, webui } => daemon::restart(api, webui, level.as_str() != "OFF"),
         },
     };
 
     if !matches!(&cli.command, Commands::Daemon { .. }) {
-        then!(!daemon::pid::exists(), daemon::start(false));
+        then!(!daemon::pid::exists(), daemon::restart(&false, &false, false));
     }
 }

@@ -161,7 +161,7 @@ impl Runner {
     pub fn new() -> Self { dump::read() }
 
     pub fn connect(name: String, Server { address, token }: Server, verbose: bool) -> Option<Self> {
-        let remote_config = match config::from(&address, token.as_deref()) {
+        let remote_config = match config::from(&address.trim_end_matches('/'), token.as_deref()) {
             Ok(config) => config,
             Err(err) => {
                 log::error!("{err}");
@@ -169,7 +169,7 @@ impl Runner {
             }
         };
 
-        if let Ok(dump) = dump::from(&address, token.as_deref()) {
+        if let Ok(dump) = dump::from(&address.trim_end_matches('/'), token.as_deref()) {
             then!(verbose, println!("{} Fetched remote (name={name}, address={address})", *helpers::SUCCESS));
             Some(Runner {
                 remote: Some(Remote {
