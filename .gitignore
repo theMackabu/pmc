@@ -27,3 +27,6 @@ pnpm-debug.log*
 # environment variables
 .env
 .env.production
+
+# todo
+*.todo

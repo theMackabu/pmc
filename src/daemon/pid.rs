@@ -35,7 +35,7 @@ pub fn remove() {
     if Exists::check(&global!("pmc.pid")).file() {
         log::warn!("Stale PID file detected. Removing the PID file.");
         if let Err(err) = fs::remove_file(global!("pmc.pid")) {
-            crashln!("{} Failed to remove PID file: {}", *helpers::FAIL, err);
+            log::error!("Failed to remove PID file: {}", err);
         }
     } else {
         log::info!("No Stale PID file detected.");
