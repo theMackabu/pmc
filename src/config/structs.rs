@@ -49,3 +49,12 @@ pub struct Server {
     pub address: String,
     pub token: Option<String>,
 }
+
+impl Server {
+    pub fn get(&self) -> Self {
+        Self {
+            token: self.token.clone(),
+            address: self.address.trim_end_matches('/').to_string(),
+        }
+    }
+}

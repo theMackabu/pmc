@@ -74,7 +74,7 @@ pub fn start(name: &Option<String>, args: &Option<Args>, watch: &Option<String>,
                 };
 
                 if let Some(server) = servers.get(server_name) {
-                    match Runner::connect(server_name.clone(), server.clone(), false) {
+                    match Runner::connect(server_name.clone(), server.get(), false) {
                         Some(remote) => {
                             let mut item = remote.get(*id);
 
@@ -111,7 +111,7 @@ pub fn start(name: &Option<String>, args: &Option<Args>, watch: &Option<String>,
                 };
 
                 if let Some(server) = servers.get(server_name) {
-                    match Runner::connect(server_name.clone(), server.clone(), false) {
+                    match Runner::connect(server_name.clone(), server.get(), false) {
                         Some(mut remote) => remote.start(&name, script, file::cwd(), watch),
                         None => crashln!("{} Failed to connect (name={server_name}, address={})", *helpers::FAIL, server.address),
                     };
@@ -138,7 +138,7 @@ pub fn stop(id: &usize, server_name: &String) {
         };
 
         if let Some(server) = servers.get(server_name) {
-            runner = match Runner::connect(server_name.clone(), server.clone(), false) {
+            runner = match Runner::connect(server_name.clone(), server.get(), false) {
                 Some(remote) => remote,
                 None => crashln!("{} Failed to connect (name={server_name}, address={})", *helpers::FAIL, server.address),
             };
@@ -163,7 +163,7 @@ pub fn remove(id: &usize, server_name: &String) {
         };
 
         if let Some(server) = servers.get(server_name) {
-            runner = match Runner::connect(server_name.clone(), server.clone(), false) {
+            runner = match Runner::connect(server_name.clone(), server.get(), false) {
                 Some(remote) => remote,
                 None => crashln!("{} Failed to remove (name={server_name}, address={})", *helpers::FAIL, server.address),
             };
@@ -313,7 +313,7 @@ pub fn info(id: &usize, format: &String, server_name: &String) {
         };
 
         if let Some(server) = servers.get(server_name) {
-            item = match Runner::connect(server_name.clone(), server.clone(), false) {
+            item = match Runner::connect(server_name.clone(), server.get(), false) {
                 Some(mut remote) => Some((remote.process(*id).clone(), remote)),
                 None => crashln!("{} Failed to connect (name={server_name}, address={})", *helpers::FAIL, server.address),
             };
@@ -380,7 +380,7 @@ pub fn logs(id: &usize, lines: &usize, server_name: &String) {
         };
 
         if let Some(server) = servers.get(server_name) {
-            runner = match Runner::connect(server_name.clone(), server.clone(), false) {
+            runner = match Runner::connect(server_name.clone(), server.get(), false) {
                 Some(remote) => remote,
                 None => crashln!("{} Failed to connect (name={server_name}, address={})", *helpers::FAIL, server.address),
             };
@@ -426,7 +426,7 @@ pub fn env(id: &usize, server_name: &String) {
         };
 
         if let Some(server) = servers.get(server_name) {
-            runner = match Runner::connect(server_name.clone(), server.clone(), false) {
+            runner = match Runner::connect(server_name.clone(), server.get(), false) {
                 Some(remote) => remote,
                 None => crashln!("{} Failed to connect (name={server_name}, address={})", *helpers::FAIL, server.address),
             };
@@ -560,7 +560,7 @@ pub fn list(format: &String, server_name: &String) {
         let mut failed: Vec<(String, String)> = vec![];
 
         if let Some(server) = servers.get(server_name) {
-            match Runner::connect(server_name.clone(), server.clone(), true) {
+            match Runner::connect(server_name.clone(), server.get(), true) {
                 Some(mut remote) => render_list(&mut remote, false),
                 None => println!("{} Failed to fetch (name={server_name}, address={})", *helpers::FAIL, server.address),
             }
@@ -575,7 +575,7 @@ pub fn list(format: &String, server_name: &String) {
 
         if *server_name == "all" {
             for (name, server) in servers {
-                match Runner::connect(name.clone(), server.clone(), true) {
+                match Runner::connect(name.clone(), server.get(), true) {
                     Some(mut remote) => render_list(&mut remote, false),
                     None => failed.push((name, server.address)),
                 }
