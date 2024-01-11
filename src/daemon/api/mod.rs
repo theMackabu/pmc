@@ -54,19 +54,20 @@ pub async fn start(webui: bool) {
     let docs_path = fmtstr!("{}/docs.json", s_path.trim_end_matches('/').to_string());
     let auth = header::exact("authorization", fmtstr!("token {}", config.secure.token));
 
-    let tmpl =
-        match webui::create_template_filter() {
-            Ok(template) => template,
-            Err(err) => crashln!("{err}"),
-        };
+    let tmpl = match webui::create_template_filter() {
+        Ok(template) => template,
+        Err(err) => crashln!("{err}"),
+    };
 
     #[derive(OpenApi)]
     #[openapi(
+        security((), ("token" = [])),
         paths(
             routes::action_handler,
             routes::env_handler,
             routes::info_handler,
             routes::dump_handler,
+            routes::config_handler,
             routes::list_handler,
             routes::log_handler,
             routes::log_handler_raw,
@@ -88,6 +89,7 @@ pub async fn start(webui: bool) {
             routes::Daemon,
             routes::Version,
             routes::ActionBody,
+            routes::ConfigBody,
             routes::CreateBody,
             routes::MetricsRoot,
             routes::LogResponse,
@@ -97,11 +99,13 @@ pub async fn start(webui: bool) {
     )]
     struct ApiDoc;
 
-    let app_dump = path!("dump").and(get()).and_then(routes::dump_handler);
-    let app_metrics = path!("metrics").and(get()).and_then(routes::metrics_handler);
-    let app_prometheus = path!("prometheus").and(get()).and_then(routes::prometheus_handler);
-    let app_docs_json = path!("docs.json").and(get()).map(|| json(&ApiDoc::openapi()));
-    let app_docs = path!("docs").and(get()).map(|| html(RapiDoc::new(docs_path).custom_html(DOCS).to_html()));
+    let daemon_dump = path!("daemon" / "dump").and(get()).and_then(routes::dump_handler);
+    let daemon_config = path!("daemon" / "config").and(get()).and_then(routes::config_handler);
+    let daemon_metrics = path!("daemon" / "metrics").and(get()).and_then(routes::metrics_handler);
+    let daemon_prometheus = path!("daemon" / "prometheus").and(get()).and_then(routes::prometheus_handler);
+
+    let docs_json = path!("docs.json").and(get()).map(|| json(&ApiDoc::openapi()));
+    let docs_view = path!("docs").and(get()).map(|| html(RapiDoc::new(docs_path).custom_html(DOCS).to_html()));
 
     let process_list = path!("list").and(get()).and_then(routes::list_handler);
     let process_env = path!("process" / usize / "env").and(get()).and_then(routes::env_handler);
@@ -141,16 +145,17 @@ pub async fn start(webui: bool) {
         .or(process_create)
         .or(process_action)
         .or(process_rename)
-        .or(app_metrics)
-        .or(app_prometheus)
-        .or(app_dump);
+        .or(daemon_dump)
+        .or(daemon_config)
+        .or(daemon_metrics)
+        .or(daemon_prometheus);
 
     let use_routes_basic = || async {
         let base_route = path::end().map(|| json(&json!({"healthy": true})).into_response());
 
         let internal = match config.secure.enabled {
-            true => routes.clone().and(auth).or(root_redirect()).or(base_route).or(app_docs_json).or(app_docs).boxed(),
-            false => routes.clone().or(root_redirect()).or(base_route).or(app_docs_json).or(app_docs).boxed(),
+            true => routes.clone().and(auth).or(root_redirect()).or(base_route).or(docs_json).or(docs_view).boxed(),
+            false => routes.clone().or(root_redirect()).or(base_route).or(docs_json).or(docs_view).boxed(),
         };
 
         serve(base.clone().and(internal).recover(handle_rejection).with(log)).run(config::read().get_address()).await
@@ -160,8 +165,8 @@ pub async fn start(webui: bool) {
         let web_routes = web_login.or(web_dashboard).or(web_view_process).or(static_dir!("src/webui/assets"));
 
         let internal = match config.secure.enabled {
-            true => routes.clone().and(auth).or(root_redirect()).or(web_routes).or(app_docs_json).or(app_docs).boxed(),
-            false => routes.clone().or(root_redirect()).or(web_routes).or(app_docs_json).or(app_docs).boxed(),
+            true => routes.clone().and(auth).or(root_redirect()).or(web_routes).or(docs_json).or(docs_view).boxed(),
+            false => routes.clone().or(root_redirect()).or(web_routes).or(docs_json).or(docs_view).boxed(),
         };
 
         serve(base.clone().and(internal).recover(handle_rejection).with(log)).run(config::read().get_address()).await

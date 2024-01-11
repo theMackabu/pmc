@@ -3,7 +3,7 @@ use merkle_hash::{bytes_to_hex, Algorithm, MerkleTree};
 use std::path::PathBuf;
 
 pub fn create(path: PathBuf) -> String {
-    log::debug!("creating hash for {:?}", path);
+    log::info!("creating hash for {:?}", path);
     let tree = match MerkleTree::builder(&path.to_str().unwrap()).algorithm(Algorithm::Blake3).hash_names(false).build() {
         Ok(v) => v,
         Err(e) => crashln!("Invalid UTF-8 sequence: {}", e),

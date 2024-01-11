@@ -11,7 +11,7 @@ use reqwest::blocking::Client;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use std::{collections::BTreeMap, fs};
 
-pub fn from<'r>(address: &str, token: Option<&str>) -> Result<Runner, anyhow::Error> {
+pub fn from(address: &str, token: Option<&str>) -> Result<Runner, anyhow::Error> {
     let client = Client::new();
     let mut headers = HeaderMap::new();
 
@@ -19,14 +19,14 @@ pub fn from<'r>(address: &str, token: Option<&str>) -> Result<Runner, anyhow::Er
         headers.insert(AUTHORIZATION, HeaderValue::from_static(fmtstr!("token {token}")));
     }
 
-    let response = client.get(fmtstr!("{address}/dump")).headers(headers).send()?;
+    let response = client.get(fmtstr!("{address}/daemon/dump")).headers(headers).send()?;
     let bytes = response.bytes()?;
 
     Ok(file::from_rmp(&bytes))
 }
 
 pub fn read() -> Runner {
-    if !Exists::file(global!("pmc.dump")).unwrap() {
+    if !Exists::check(&global!("pmc.dump")).file() {
         let runner = Runner {
             id: Id::new(0),
             list: BTreeMap::new(),
@@ -41,7 +41,7 @@ pub fn read() -> Runner {
 }
 
 pub fn raw() -> Vec<u8> {
-    if !Exists::file(global!("pmc.dump")).unwrap() {
+    if !Exists::check(&global!("pmc.dump")).file() {
         let runner = Runner {
             id: Id::new(0),
             list: BTreeMap::new(),

@@ -13,7 +13,10 @@ impl Logger {
         Ok(Logger { file })
     }
 
-    pub fn write(&mut self, message: &str) { writeln!(&mut self.file, "[{}] {}", Local::now().format("%Y-%m-%d %H:%M:%S%.3f"), message).unwrap() }
+    pub fn write(&mut self, message: &str) {
+        log::info!("{message}");
+        writeln!(&mut self.file, "[{}] {}", Local::now().format("%Y-%m-%d %H:%M:%S%.3f"), message).unwrap()
+    }
 }
 
 #[macro_export]

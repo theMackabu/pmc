@@ -1,7 +1,6 @@
 use crate::{helpers, log};
-use anyhow::Error;
 use colored::Colorize;
-use macros_rs::{crashln, str, string, ternary};
+use macros_rs::{crashln, string, ternary};
 
 use std::{
     env,
@@ -44,10 +43,14 @@ pub fn make_relative(current: &Path, home: &Path) -> PathBuf {
     }
 }
 
-pub struct Exists;
-impl Exists {
-    pub fn folder(dir_name: String) -> Result<bool, Error> { Ok(Path::new(str!(dir_name)).is_dir()) }
-    pub fn file(file_name: String) -> Result<bool, Error> { Ok(Path::new(str!(file_name)).exists()) }
+pub struct Exists<'p> {
+    path: &'p str,
+}
+
+impl<'p> Exists<'p> {
+    pub fn check(path: &'p str) -> Self { Self { path } }
+    pub fn folder(&self) -> bool { Path::new(self.path).is_dir() }
+    pub fn file(&self) -> bool { Path::new(self.path).exists() }
 }
 
 pub fn raw(path: String) -> Vec<u8> {

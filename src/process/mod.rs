@@ -133,6 +133,14 @@ pub struct Runner {
 pub struct Remote {
     address: String,
     token: Option<String>,
+    pub config: RemoteConfig,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct RemoteConfig {
+    pub shell: String,
+    pub args: Vec<String>,
+    pub log_path: String,
 }
 
 pub enum Status {
@@ -153,18 +161,26 @@ impl Runner {
     pub fn new() -> Self { dump::read() }
 
     pub fn connect(name: String, Server { address, token }: Server, verbose: bool) -> Option<Self> {
-        match dump::from(&address, token.as_deref()) {
-            Ok(dump) => {
-                then!(verbose, println!("{} Fetched remote (name={name}, address={address})", *helpers::SUCCESS));
-                return Some(Runner {
-                    remote: Some(Remote { token, address: string!(address) }),
-                    ..dump
-                });
-            }
+        let remote_config = match config::from(&address, token.as_deref()) {
+            Ok(config) => config,
             Err(err) => {
-                log::debug!("{err}");
+                log::error!("{err}");
                 return None;
             }
+        };
+
+        if let Ok(dump) = dump::from(&address, token.as_deref()) {
+            then!(verbose, println!("{} Fetched remote (name={name}, address={address})", *helpers::SUCCESS));
+            Some(Runner {
+                remote: Some(Remote {
+                    token,
+                    address: string!(address),
+                    config: remote_config,
+                }),
+                ..dump
+            })
+        } else {
+            None
         }
     }
 
@@ -237,7 +253,6 @@ impl Runner {
             stop(process.pid);
             process.running = false;
             process.crash.crashed = false;
-            process.crash.value = 0;
 
             process.pid = run(ProcessMetadata {
                 args: config.args,
@@ -249,6 +264,8 @@ impl Runner {
 
             process.running = true;
             process.started = Utc::now();
+
+            then!(!dead, process.crash.value = 0);
             then!(dead, process.restarts += 1);
         }
 
@@ -372,15 +389,14 @@ impl Runner {
                 None => string!("0b"),
             };
 
-            let status =
-                if item.running {
-                    string!("online")
-                } else {
-                    match item.crash.crashed {
-                        true => string!("crashed"),
-                        false => string!("stopped"),
-                    }
-                };
+            let status = if item.running {
+                string!("online")
+            } else {
+                match item.crash.crashed {
+                    true => string!("crashed"),
+                    false => string!("stopped"),
+                }
+            };
 
             processes.push(ProcessItem {
                 id,

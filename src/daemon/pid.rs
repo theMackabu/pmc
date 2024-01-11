@@ -2,7 +2,7 @@ use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
 use global_placeholders::global;
 use macros_rs::crashln;
-use pmc::helpers;
+use pmc::{file::Exists, helpers};
 use std::{fs, io};
 
 pub fn exists() -> bool { fs::metadata(global!("pmc.pid")).is_ok() }
@@ -32,9 +32,13 @@ pub fn write(pid: u32) {
 }
 
 pub fn remove() {
-    log::debug!("Stale PID file detected. Removing the PID file.");
-    if let Err(err) = fs::remove_file(global!("pmc.pid")) {
-        crashln!("{} Failed to remove PID file: {}", *helpers::FAIL, err);
+    if Exists::check(&global!("pmc.pid")).file() {
+        log::warn!("Stale PID file detected. Removing the PID file.");
+        if let Err(err) = fs::remove_file(global!("pmc.pid")) {
+            crashln!("{} Failed to remove PID file: {}", *helpers::FAIL, err);
+        }
+    } else {
+        log::info!("No Stale PID file detected.");
     }
 }
 

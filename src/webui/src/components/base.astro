@@ -40,7 +40,7 @@ const { title, description } = Astro.props;
 		super();
 
 		const base = this.dataset.base;
-		fetch(base + '/metrics', {
+		fetch(base + '/daemon/metrics', {
 			headers: { Authorization: 'token ' + $settings.get().token },
 		}).then(response => {
 			if (window.location.pathname.includes("login")) {
