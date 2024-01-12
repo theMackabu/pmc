@@ -144,7 +144,6 @@ pub struct Stats {
 
 #[derive(Serialize, ToSchema)]
 pub struct Servers {
-    #[schema(example = json!([{"name": "example", "address": "http://127.0.0.1:5630", "token": "test_token"}]))]
     pub servers: Vec<Server>,
 }
 
@@ -212,7 +211,7 @@ pub async fn prometheus_handler(_t: Token) -> String {
         (status = UNAUTHORIZED, description = "Authentication failed or not provided", body = AuthMessage)
     )
 )]
-pub async fn servers_handler(_t: Token) -> Json<Vec<Server>> {
+pub async fn servers_handler(_t: Token) -> Json<Servers> {
     let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["servers"]).start_timer();
     let server_list = config::servers();
 
@@ -230,7 +229,7 @@ pub async fn servers_handler(_t: Token) -> Json<Vec<Server>> {
     HTTP_COUNTER.inc();
     timer.observe_duration();
 
-    Json(servers)
+    Json(Servers { servers })
 }
 
 #[get("/daemon/dump")]
