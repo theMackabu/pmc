@@ -8,7 +8,7 @@ use colored::Colorize;
 use global_placeholders::global;
 use macros_rs::{crashln, fmtstr, string};
 use reqwest::blocking::Client;
-use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
+use reqwest::header::{HeaderMap, HeaderValue};
 use std::{collections::BTreeMap, fs};
 
 pub fn from(address: &str, token: Option<&str>) -> Result<Runner, anyhow::Error> {
@@ -16,7 +16,7 @@ pub fn from(address: &str, token: Option<&str>) -> Result<Runner, anyhow::Error>
     let mut headers = HeaderMap::new();
 
     if let Some(token) = token {
-        headers.insert(AUTHORIZATION, HeaderValue::from_static(fmtstr!("token {token}")));
+        headers.insert("token", HeaderValue::from_static(Box::leak(Box::from(token))));
     }
 
     let response = client.get(fmtstr!("{address}/daemon/dump")).headers(headers).send()?;

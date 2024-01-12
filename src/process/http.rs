@@ -1,7 +1,7 @@
 use crate::process::Remote;
-use macros_rs::{fmtstr, string};
+use macros_rs::{fmtstr, str, string};
 use reqwest::blocking::{Client, Response};
-use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
+use reqwest::header::{HeaderMap, HeaderValue};
 use serde::Serialize;
 use std::path::PathBuf;
 
@@ -28,7 +28,7 @@ fn client(token: &Option<String>) -> (Client, HeaderMap) {
     let mut headers = HeaderMap::new();
 
     if let Some(token) = token {
-        headers.insert(AUTHORIZATION, HeaderValue::from_static(fmtstr!("token {token}")));
+        headers.insert("token", HeaderValue::from_static(str!(token.to_owned())));
     }
 
     return (client, headers);

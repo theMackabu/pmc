@@ -1,17 +1,26 @@
+use super::helpers::{not_found, NotFound};
+use super::structs::ErrorMessage;
+
 use chrono::{DateTime, Utc};
 use global_placeholders::global;
 use macros_rs::{string, ternary, then};
 use prometheus::{Encoder, TextEncoder};
 use psutil::process::{MemoryInfo, Process};
-use serde::{Deserialize, Serialize};
-use serde_json::json;
-use std::convert::Infallible;
+use serde::Deserialize;
+
+use rocket::{
+    get, post,
+    serde::{json::Json, Serialize},
+};
+
+use serde_json::{json, Value};
 use tera::{Context, Tera};
 use utoipa::ToSchema;
 
 use pmc::{
-    config, file, helpers,
-    process::{dump, Runner},
+    config::{self, structs::Servers},
+    file, helpers,
+    process::{dump, ItemSingle, ProcessItem, Runner},
 };
 
 use crate::daemon::{
@@ -27,11 +36,16 @@ use warp::{
 };
 
 use std::{
+    collections::{BTreeMap, HashMap},
+    convert::Infallible,
     env,
     fs::{self, File},
     io::{self, BufRead, BufReader},
     path::PathBuf,
 };
+
+pub(crate) struct Token;
+type EnvList = Json<HashMap<String, String>>;
 
 #[allow(dead_code)]
 #[derive(ToSchema)]
@@ -80,11 +94,17 @@ pub(crate) struct CreateBody {
 }
 
 #[derive(Serialize, ToSchema)]
-pub(crate) struct ActionResponse<'a> {
+pub(crate) struct ActionResponse {
     #[schema(example = true)]
     done: bool,
     #[schema(example = "name")]
-    action: &'a str,
+    action: &'static str,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(crate) struct Server {
+    pub address: String,
+    pub token: Option<String>,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -93,20 +113,20 @@ pub(crate) struct LogResponse {
 }
 
 #[derive(Serialize, ToSchema)]
-pub struct MetricsRoot<'a> {
-    pub version: Version<'a>,
+pub struct MetricsRoot {
+    pub version: Version,
     pub daemon: Daemon,
 }
 
 #[derive(Serialize, ToSchema)]
-pub struct Version<'a> {
+pub struct Version {
     #[schema(example = "v1.0.0")]
     pub pkg: String,
-    pub hash: &'a str,
+    pub hash: &'static str,
     #[schema(example = "2000-01-01")]
-    pub build_date: &'a str,
+    pub build_date: &'static str,
     #[schema(example = "release")]
-    pub target: &'a str,
+    pub target: &'static str,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -127,30 +147,15 @@ pub struct Stats {
     pub cpu_percent: String,
 }
 
-#[inline]
-fn attempt(done: bool, method: &str) -> reply::Json {
-    let data = json!(ActionResponse {
+fn attempt(done: bool, method: &str) -> ActionResponse {
+    ActionResponse {
         done,
-        action: ternary!(done, method, "DOES_NOT_EXIST")
-    });
-
-    json(&data)
+        action: ternary!(done, Box::leak(Box::from(method)), "DOES_NOT_EXIST"),
+    }
 }
 
-#[inline]
 fn render(name: &str, tmpl: &Tera, ctx: &Context) -> Result<String, Rejection> { tmpl.render(name, &ctx).or(Err(reject::not_found())) }
 
-#[inline]
-pub async fn login(store: (Tera, String)) -> Result<Box<dyn Reply>, Rejection> {
-    let mut ctx = Context::new();
-    let (tmpl, path) = store;
-
-    ctx.insert("base_path", &path);
-    let payload = render("login", &tmpl, &ctx)?;
-    Ok(Box::new(reply::html(payload)))
-}
-
-#[inline]
 pub async fn dashboard(store: (Tera, String)) -> Result<Box<dyn Reply>, Rejection> {
     let mut ctx = Context::new();
     let (tmpl, path) = store;
@@ -160,7 +165,15 @@ pub async fn dashboard(store: (Tera, String)) -> Result<Box<dyn Reply>, Rejectio
     Ok(Box::new(reply::html(payload)))
 }
 
-#[inline]
+pub async fn login(store: (Tera, String)) -> Result<Box<dyn Reply>, Rejection> {
+    let mut ctx = Context::new();
+    let (tmpl, path) = store;
+
+    ctx.insert("base_path", &path);
+    let payload = render("login", &tmpl, &ctx)?;
+    Ok(Box::new(reply::html(payload)))
+}
+
 pub async fn view_process(id: usize, store: (Tera, String)) -> Result<Box<dyn Reply>, Rejection> {
     let mut ctx = Context::new();
     let (tmpl, path) = store;
@@ -172,78 +185,106 @@ pub async fn view_process(id: usize, store: (Tera, String)) -> Result<Box<dyn Re
     Ok(Box::new(reply::html(payload)))
 }
 
-#[inline]
-#[utoipa::path(get, tag = "Daemon", path = "/daemon/prometheus", 
-    responses((status = 200, description = "Get prometheus metrics", body = String))
+#[get("/daemon/prometheus")]
+#[utoipa::path(get, tag = "Daemon", path = "/daemon/prometheus", security((), ("api_key" = [])),
+    responses(
+        (status = 200, description = "Get prometheus metrics", body = String),
+        (status = UNAUTHORIZED, description = "Authentication failed or not provided", body = AuthMessage)
+    )
 )]
-pub async fn prometheus_handler() -> Result<impl Reply, Infallible> {
+pub async fn prometheus_handler(_t: Token) -> String {
     let encoder = TextEncoder::new();
     let mut buffer = Vec::<u8>::new();
     let metric_families = prometheus::gather();
 
     encoder.encode(&metric_families, &mut buffer).unwrap();
-    Ok(format!("{}", String::from_utf8(buffer.clone()).unwrap()))
+    String::from_utf8(buffer.clone()).unwrap()
 }
 
-#[inline]
-#[utoipa::path(get, tag = "Daemon", path = "/daemon/dump", security(()),
-    responses((status = 200, description = "Dump processes successfully", body = [u8]))
+#[get("/daemon/servers")]
+#[utoipa::path(get, tag = "Daemon", path = "/daemon/servers", security((), ("api_key" = [])),
+    responses(
+        (status = 200, description = "Get daemon servers successfully", body = Servers),
+        (status = UNAUTHORIZED, description = "Authentication failed or not provided", body = AuthMessage)
+    )
 )]
-pub async fn dump_handler() -> Result<impl Reply, Infallible> {
+pub async fn servers_handler(_t: Token) -> Json<Servers> {
+    let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["servers"]).start_timer();
+
+    HTTP_COUNTER.inc();
+    timer.observe_duration();
+
+    Json(config::servers())
+}
+
+#[get("/daemon/dump")]
+#[utoipa::path(get, tag = "Daemon", path = "/daemon/dump", security((), ("api_key" = [])),
+    responses(
+        (status = 200, description = "Dump processes successfully", body = [u8]),
+        (status = UNAUTHORIZED, description = "Authentication failed or not provided", body = AuthMessage)
+    )
+)]
+pub async fn dump_handler(_t: Token) -> Vec<u8> {
     let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["dump"]).start_timer();
 
     HTTP_COUNTER.inc();
     timer.observe_duration();
 
-    Ok(dump::raw())
+    dump::raw()
 }
 
-#[inline]
-#[utoipa::path(get, tag = "Daemon", path = "/daemon/config", 
-    responses((status = 200, description = "Get daemon config successfully", body = ConfigBody))
+#[get("/daemon/config")]
+#[utoipa::path(get, tag = "Daemon", path = "/daemon/config", security((), ("api_key" = [])),
+    responses(
+        (status = 200, description = "Get daemon config successfully", body = ConfigBody),
+        (status = UNAUTHORIZED, description = "Authentication failed or not provided", body = AuthMessage)
+    )
 )]
-pub async fn config_handler() -> Result<impl Reply, Infallible> {
+pub async fn config_handler(_t: Token) -> Json<ConfigBody> {
     let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["dump"]).start_timer();
     let config = config::read().runner;
 
     HTTP_COUNTER.inc();
+    timer.observe_duration();
 
-    let response = json!(ConfigBody {
+    Json(ConfigBody {
         shell: config.shell,
         args: config.args,
         log_path: config.log_path,
-    });
-
-    timer.observe_duration();
-    Ok(json(&response))
+    })
 }
 
-#[inline]
-#[utoipa::path(get, path = "/list", tag = "Process", 
-    responses((status = 200, description = "List processes successfully", body = [ProcessItem]))
+#[get("/list")]
+#[utoipa::path(get, path = "/list", tag = "Process", security((), ("api_key" = [])),
+    responses(
+        (status = 200, description = "List processes successfully", body = [ProcessItem]),
+        (status = UNAUTHORIZED, description = "Authentication failed or not provided", body = AuthMessage)
+    )
 )]
-pub async fn list_handler() -> Result<impl Reply, Infallible> {
+pub async fn list_handler(_t: Token) -> Json<Vec<ProcessItem>> {
     let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["list"]).start_timer();
-    let data = Runner::new().json();
+    let data = Runner::new().fetch();
 
     HTTP_COUNTER.inc();
     timer.observe_duration();
 
-    Ok(json(&data))
+    Json(data)
 }
 
-#[inline]
-#[utoipa::path(get, tag = "Process", path = "/process/{id}/logs/{kind}",
+#[get("/process/<id>/logs/<kind>")]
+#[utoipa::path(get, tag = "Process", path = "/process/{id}/logs/{kind}", 
+    security((), ("api_key" = [])),
     params(
         ("id" = usize, Path, description = "Process id to get logs for", example = 0),
         ("kind" = String, Path, description = "Log output type", example = "out")
     ),
     responses(
         (status = 200, description = "Process logs of {type} fetched", body = LogResponse),
-        (status = NOT_FOUND, description = "Process was not found", body = ErrorMessage)
+        (status = NOT_FOUND, description = "Process was not found", body = ErrorMessage),
+        (status = UNAUTHORIZED, description = "Authentication failed or not provided", body = AuthMessage)
     )
 )]
-pub async fn log_handler(id: usize, kind: String) -> Result<impl Reply, Rejection> {
+pub async fn logs_handler(id: usize, kind: String, _t: Token) -> Result<Json<LogResponse>, NotFound> {
     let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["log"]).start_timer();
 
     HTTP_COUNTER.inc();
@@ -261,30 +302,32 @@ pub async fn log_handler(id: usize, kind: String) -> Result<impl Reply, Rejectio
                     let logs: Vec<String> = reader.lines().collect::<io::Result<_>>().unwrap();
 
                     timer.observe_duration();
-                    Ok(json(&json!(LogResponse { logs })))
+                    Ok(Json(LogResponse { logs }))
                 }
-                Err(_) => Ok(json(&json!(LogResponse { logs: vec![] }))),
+                Err(_) => Ok(Json(LogResponse { logs: vec![] })),
             }
         }
         None => {
             timer.observe_duration();
-            Err(reject::not_found())
+            Err(not_found("Process was not found"))
         }
     }
 }
 
-#[inline]
-#[utoipa::path(get, tag = "Process", path = "/process/{id}/logs/{kind}/raw",
+#[get("/process/<id>/logs/<kind>/raw")]
+#[utoipa::path(get, tag = "Process", path = "/process/{id}/logs/{kind}/raw", 
+    security((), ("api_key" = [])),
     params(
         ("id" = usize, Path, description = "Process id to get logs for", example = 0),
         ("kind" = String, Path, description = "Log output type", example = "out")
     ),
     responses(
         (status = 200, description = "Process logs of {type} fetched raw", body = String),
-        (status = NOT_FOUND, description = "Process was not found", body = ErrorMessage)
+        (status = NOT_FOUND, description = "Process was not found", body = ErrorMessage),
+        (status = UNAUTHORIZED, description = "Authentication failed or not provided", body = AuthMessage)
     )
 )]
-pub async fn log_handler_raw(id: usize, kind: String) -> Result<impl Reply, Rejection> {
+pub async fn logs_raw_handler(id: usize, kind: String, _t: Token) -> Result<String, NotFound> {
     let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["log"]).start_timer();
 
     HTTP_COUNTER.inc();
@@ -302,150 +345,168 @@ pub async fn log_handler_raw(id: usize, kind: String) -> Result<impl Reply, Reje
             };
 
             timer.observe_duration();
-            Ok(Response::new(Body::from(data)))
+            Ok(data)
         }
         None => {
             timer.observe_duration();
-            Err(reject::not_found())
+            Err(not_found("Process was not found"))
         }
     }
 }
 
-#[inline]
-#[utoipa::path(get, tag = "Process", path = "/process/{id}/info",
+#[get("/process/<id>/info")]
+#[utoipa::path(get, tag = "Process", path = "/process/{id}/info", security((), ("api_key" = [])),
     params(("id" = usize, Path, description = "Process id to get information for", example = 0)),
     responses(
         (status = 200, description = "Current process info retrieved", body = ItemSingle),
-        (status = NOT_FOUND, description = "Process was not found", body = ErrorMessage)
+        (status = NOT_FOUND, description = "Process was not found", body = ErrorMessage),
+        (status = UNAUTHORIZED, description = "Authentication failed or not provided", body = AuthMessage)
     )
 )]
-pub async fn info_handler(id: usize) -> Result<impl Reply, Rejection> {
+pub async fn info_handler(id: usize, _t: Token) -> Result<Json<ItemSingle>, NotFound> {
     let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["info"]).start_timer();
     let runner = Runner::new();
-    let mut item = runner.get(id);
 
-    HTTP_COUNTER.inc();
-    timer.observe_duration();
-    Ok(json(&item.json()))
+    if runner.exists(id) {
+        let item = runner.get(id);
+        HTTP_COUNTER.inc();
+        timer.observe_duration();
+        Ok(Json(item.fetch()))
+    } else {
+        Err(not_found("Process was not found"))
+    }
 }
 
-#[inline]
-#[utoipa::path(post, tag = "Process", path = "/process/create", request_body(content = CreateBody),
+#[post("/process/create", format = "json", data = "<body>")]
+#[utoipa::path(post, tag = "Process", path = "/process/create", request_body(content = CreateBody), 
+    security((), ("api_key" = [])),
     responses(
         (status = 200, description = "Create process successful", body = ActionResponse),
-        (status = INTERNAL_SERVER_ERROR, description = "Failed to create process", body = ErrorMessage)
+        (status = INTERNAL_SERVER_ERROR, description = "Failed to create process", body = ErrorMessage),
+        (status = UNAUTHORIZED, description = "Authentication failed or not provided", body = AuthMessage)
     )
 )]
-pub async fn create_handler(body: CreateBody) -> Result<impl Reply, Rejection> {
+pub async fn create_handler(body: Json<CreateBody>, _t: Token) -> Result<Json<ActionResponse>, ()> {
     let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["create"]).start_timer();
     let mut runner = Runner::new();
 
     HTTP_COUNTER.inc();
 
-    let name = match body.name {
+    let name = match &body.name {
         Some(name) => string!(name),
         None => string!(body.script.split_whitespace().next().unwrap_or_default()),
     };
 
-    runner.start(&name, &body.script, body.path, &body.watch).save();
+    runner.start(&name, &body.script, body.path.clone(), &body.watch).save();
     timer.observe_duration();
 
-    Ok(attempt(true, "create"))
+    Ok(Json(attempt(true, "create")))
 }
 
-#[inline]
-#[utoipa::path(post, tag = "Process", path = "/process/{id}/rename", request_body(content = String),
+#[post("/process/<id>/rename", format = "text", data = "<body>")]
+#[utoipa::path(post, tag = "Process", path = "/process/{id}/rename", request_body(content = String), 
+    security((), ("api_key" = [])),
     params(("id" = usize, Path, description = "Process id to rename", example = 0)),
     responses(
         (status = 200, description = "Rename process successful", body = ActionResponse),
-        (status = NOT_FOUND, description = "Process was not found", body = ErrorMessage)
+        (status = NOT_FOUND, description = "Process was not found", body = ErrorMessage),
+        (status = UNAUTHORIZED, description = "Authentication failed or not provided", body = AuthMessage)
     )
 )]
-pub async fn rename_handler(id: usize, body: String) -> Result<impl Reply, Rejection> {
+pub async fn rename_handler(id: usize, body: String, _t: Token) -> Result<Json<ActionResponse>, NotFound> {
     let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["rename"]).start_timer();
+    let runner = Runner::new();
 
-    let mut runner = Runner::new();
-    let process = runner.clone().process(id).clone();
-
-    HTTP_COUNTER.inc();
-    if runner.exists(id) {
-        let mut item = runner.get(id);
-        item.rename(body.trim().replace("\n", ""));
-        then!(process.running, item.restart());
-        timer.observe_duration();
-        Ok(attempt(true, "rename"))
-    } else {
-        timer.observe_duration();
-        Err(reject::not_found())
+    match runner.clone().info(id) {
+        Some(process) => {
+            HTTP_COUNTER.inc();
+            let mut item = runner.get(id);
+            item.rename(body.trim().replace("\n", ""));
+            then!(process.running, item.restart());
+            timer.observe_duration();
+            Ok(Json(attempt(true, "rename")))
+        }
+        None => {
+            timer.observe_duration();
+            Err(not_found("Process was not found"))
+        }
     }
 }
 
-#[inline]
+#[get("/process/<id>/env")]
 #[utoipa::path(get, tag = "Process", path = "/process/{id}/env",
     params(("id" = usize, Path, description = "Process id to fetch env from", example = 0)),
     responses(
         (status = 200, description = "Current process env", body = HashMap<String, String>),
-        (status = NOT_FOUND, description = "Process was not found", body = ErrorMessage)
+        (status = NOT_FOUND, description = "Process was not found", body = ErrorMessage),
+        (status = UNAUTHORIZED, description = "Authentication failed or not provided", body = AuthMessage)
     )
 )]
-pub async fn env_handler(id: usize) -> Result<impl Reply, Rejection> {
+pub async fn env_handler(id: usize, _t: Token) -> Result<EnvList, NotFound> {
     let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["env"]).start_timer();
 
     HTTP_COUNTER.inc();
     match Runner::new().info(id) {
         Some(item) => {
             timer.observe_duration();
-            Ok(json(&item.clone().env))
+            Ok(Json(item.clone().env))
         }
         None => {
             timer.observe_duration();
-            Err(reject::not_found())
+            Err(not_found("Process was not found"))
         }
     }
 }
 
-#[inline]
+#[post("/process/<id>/action", format = "json", data = "<body>")]
 #[utoipa::path(post, tag = "Process", path = "/process/{id}/action", request_body = ActionBody,
+    security((), ("api_key" = [])),
     params(("id" = usize, Path, description = "Process id to run action on", example = 0)),
     responses(
         (status = 200, description = "Run action on process successful", body = ActionResponse),
-        (status = NOT_FOUND, description = "Process/action was not found", body = ErrorMessage)
+        (status = NOT_FOUND, description = "Process/action was not found", body = ErrorMessage),
+        (status = UNAUTHORIZED, description = "Authentication failed or not provided", body = AuthMessage)
     )
 )]
-pub async fn action_handler(id: usize, body: ActionBody) -> Result<impl Reply, Rejection> {
+pub async fn action_handler(id: usize, body: Json<ActionBody>, _t: Token) -> Result<Json<ActionResponse>, NotFound> {
     let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["action"]).start_timer();
     let mut runner = Runner::new();
     let method = body.method.as_str();
 
-    HTTP_COUNTER.inc();
-    match method {
-        "start" | "restart" => {
-            runner.get(id).restart();
-            timer.observe_duration();
-            Ok(attempt(true, method))
+    if runner.exists(id) {
+        HTTP_COUNTER.inc();
+        match method {
+            "start" | "restart" => {
+                runner.get(id).restart();
+                timer.observe_duration();
+                Ok(Json(attempt(true, method)))
+            }
+            "stop" | "kill" => {
+                runner.get(id).stop();
+                timer.observe_duration();
+                Ok(Json(attempt(true, method)))
+            }
+            "remove" | "delete" => {
+                runner.remove(id);
+                timer.observe_duration();
+                Ok(Json(attempt(true, method)))
+            }
+            _ => {
+                timer.observe_duration();
+                Err(not_found("Process was not found"))
+            }
         }
-        "stop" | "kill" => {
-            runner.get(id).stop();
-            timer.observe_duration();
-            Ok(attempt(true, method))
-        }
-        "remove" | "delete" => {
-            runner.remove(id);
-            timer.observe_duration();
-            Ok(attempt(true, method))
-        }
-        _ => {
-            timer.observe_duration();
-            Err(reject::not_found())
-        }
+    } else {
+        Err(not_found("Process was not found"))
     }
 }
 
-#[inline]
-#[utoipa::path(get, tag = "Daemon", path = "/daemon/metrics", 
-    responses((status = 200, description = "Get daemon metrics", body = MetricsRoot))
+#[get("/daemon/metrics")]
+#[utoipa::path(get, tag = "Daemon", path = "/daemon/metrics", security((), ("api_key" = [])),
+    responses((status = 200, description = "Get daemon metrics", body = MetricsRoot),
+    (status = UNAUTHORIZED, description = "Authentication failed or not provided", body = AuthMessage))
 )]
-pub async fn metrics_handler() -> Result<impl Reply, Infallible> {
+pub async fn metrics_handler(_t: Token) -> Json<MetricsRoot> {
     let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["metrics"]).start_timer();
     let mut pid: Option<i32> = None;
     let mut cpu_percent: Option<f32> = None;
@@ -480,7 +541,8 @@ pub async fn metrics_handler() -> Result<impl Reply, Infallible> {
         None => string!("none"),
     };
 
-    let response = json!(MetricsRoot {
+    timer.observe_duration();
+    Json(MetricsRoot {
         version: Version {
             pkg: format!("v{}", env!("CARGO_PKG_VERSION")),
             hash: env!("GIT_HASH_FULL"),
@@ -488,15 +550,12 @@ pub async fn metrics_handler() -> Result<impl Reply, Infallible> {
             target: env!("PROFILE"),
         },
         daemon: Daemon {
-            pid: pid,
+            pid,
+            uptime,
             running: pid::exists(),
-            uptime: uptime,
             process_count: runner.count(),
             daemon_type: global!("pmc.daemon.kind"),
-            stats: Stats { memory_usage, cpu_percent }
-        }
-    });
-
-    timer.observe_duration();
-    Ok(json(&response))
+            stats: Stats { memory_usage, cpu_percent },
+        },
+    })
 }
