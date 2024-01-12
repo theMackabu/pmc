@@ -1,21 +1,24 @@
-use super::helpers::{not_found, NotFound};
-use super::structs::ErrorMessage;
-
 use chrono::{DateTime, Utc};
 use global_placeholders::global;
 use macros_rs::{string, ternary, then};
 use prometheus::{Encoder, TextEncoder};
 use psutil::process::{MemoryInfo, Process};
 use serde::Deserialize;
-
-use rocket::{
-    get, post,
-    serde::{json::Json, Serialize},
-};
-
-use serde_json::{json, Value};
 use tera::{Context, Tera};
 use utoipa::ToSchema;
+
+use rocket::{
+    get,
+    http::ContentType,
+    post,
+    serde::{json::Json, Serialize},
+    State,
+};
+
+use super::{
+    helpers::{not_found, NotFound},
+    TeraState,
+};
 
 use pmc::{
     config::{self, structs::Servers},
@@ -28,16 +31,8 @@ use crate::daemon::{
     pid,
 };
 
-use warp::{
-    hyper::body::Body,
-    reject,
-    reply::{self, json, Response},
-    Rejection, Reply,
-};
-
 use std::{
-    collections::{BTreeMap, HashMap},
-    convert::Infallible,
+    collections::HashMap,
     env,
     fs::{self, File},
     io::{self, BufRead, BufReader},
@@ -154,35 +149,35 @@ fn attempt(done: bool, method: &str) -> ActionResponse {
     }
 }
 
-fn render(name: &str, tmpl: &Tera, ctx: &Context) -> Result<String, Rejection> { tmpl.render(name, &ctx).or(Err(reject::not_found())) }
+fn render(name: &str, tmpl: &Tera, ctx: &Context) -> Result<String, NotFound> { tmpl.render(name, &ctx).or(Err(not_found("Page was not found"))) }
 
-pub async fn dashboard(store: (Tera, String)) -> Result<Box<dyn Reply>, Rejection> {
+#[get("/")]
+pub async fn dashboard(state: &State<TeraState>) -> Result<(ContentType, String), NotFound> {
     let mut ctx = Context::new();
-    let (tmpl, path) = store;
 
-    ctx.insert("base_path", &path);
-    let payload = render("dashboard", &tmpl, &ctx)?;
-    Ok(Box::new(reply::html(payload)))
+    ctx.insert("base_path", &state.path);
+    let payload = render("dashboard", &state.tera, &ctx)?;
+    Ok((ContentType::HTML, payload))
 }
 
-pub async fn login(store: (Tera, String)) -> Result<Box<dyn Reply>, Rejection> {
+#[get("/login")]
+pub async fn login(state: &State<TeraState>) -> Result<(ContentType, String), NotFound> {
     let mut ctx = Context::new();
-    let (tmpl, path) = store;
 
-    ctx.insert("base_path", &path);
-    let payload = render("login", &tmpl, &ctx)?;
-    Ok(Box::new(reply::html(payload)))
+    ctx.insert("base_path", &state.path);
+    let payload = render("login", &state.tera, &ctx)?;
+    Ok((ContentType::HTML, payload))
 }
 
-pub async fn view_process(id: usize, store: (Tera, String)) -> Result<Box<dyn Reply>, Rejection> {
+#[get("/view/<id>")]
+pub async fn view_process(id: usize, state: &State<TeraState>) -> Result<(ContentType, String), NotFound> {
     let mut ctx = Context::new();
-    let (tmpl, path) = store;
 
-    ctx.insert("base_path", &path);
+    ctx.insert("base_path", &state.path);
     ctx.insert("process_id", &id);
 
-    let payload = render("view", &tmpl, &ctx)?;
-    Ok(Box::new(reply::html(payload)))
+    let payload = render("view", &state.tera, &ctx)?;
+    Ok((ContentType::HTML, payload))
 }
 
 #[get("/daemon/prometheus")]

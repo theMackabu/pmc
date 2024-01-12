@@ -1,5 +1,6 @@
 use chrono::Local;
 use global_placeholders::global;
+use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
 use std::io::{self, Write};
 
@@ -13,12 +14,20 @@ impl Logger {
         Ok(Logger { file })
     }
 
-    pub fn write(&mut self, message: &str) {
-        log::info!("{message}");
-        writeln!(&mut self.file, "[{}] {}", Local::now().format("%Y-%m-%d %H:%M:%S%.3f"), message).unwrap()
+    pub fn write(&mut self, message: &str, args: HashMap<String, String>) {
+        let args = args.iter().map(|(key, value)| format!("{}={}", key, value)).collect::<Vec<String>>().join(", ");
+        let msg = format!("{message} ({args})");
+
+        log::info!("{msg}");
+        writeln!(&mut self.file, "[{}] {msg}", Local::now().format("%Y-%m-%d %H:%M:%S%.3f")).unwrap()
     }
 }
 
 #[macro_export]
-macro_rules! log { ($message:expr $(, $arg:expr)*) =>
-    { crate::daemon::log::Logger::new().unwrap().write(format!($message $(, $arg)*).as_str()) }}
+macro_rules! log {
+    ($msg:expr, $($key:expr => $value:expr),* $(,)?) => {{
+        let mut args = std::collections::HashMap::new();
+        $(args.insert($key.to_string(), format!("{}", $value));)*
+        crate::daemon::log::Logger::new().unwrap().write($msg, args)
+    }}
+}

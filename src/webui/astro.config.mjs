@@ -4,6 +4,6 @@ import react from '@astrojs/react';
 import relativeLinks from './links';
 
 export default defineConfig({
-	build: { format: 'file', assets: 'static' },
+	build: { format: 'file', assets: 'assets' },
 	integrations: [tailwind(), react(), relativeLinks()],
 });

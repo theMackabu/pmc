@@ -20,5 +20,5 @@ impl Logger {
 }
 
 #[macro_export]
-macro_rules! log { ($message:expr $(, $arg:expr)*) =>
-    { log::Logger::new().unwrap().write(format!($message $(, $arg)*).as_str()) }}
+macro_rules! log {($($arg:tt)*) =>
+    { log::Logger::new().unwrap().write(format!($($arg)*).as_str()) }}

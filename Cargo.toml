@@ -23,11 +23,11 @@ macros-rs = "0.5.0"
 termcolor = "1.4.0"
 rmp-serde = "1.1.2"
 once_cell = "1.19.0"
-static_dir = "0.2.0"
 env_logger = "0.10.1"
 merkle_hash = "3.5.0"
 lazy_static = "1.4.0"
 prometheus = "0.13.3"
+include_dir = "0.7.3"
 serde_json = "1.0.109"
 simple-logging = "2.0.2"
 utoipa-rapidoc = "2.0.0"
@@ -36,14 +36,13 @@ utoipa-swagger-ui = "5.0.0"
 clap-verbosity-flag = "2.1.1"
 global_placeholders = "0.1.0"
 tokio = { version = "1.35.1", features = ["full"] }
+rocket = { version = "0.5.0", features = ["json"] }
 psutil = { version = "3.2.2", features = ["serde"] }
 tabled = { version = "0.15.0", features = ["ansi"] }
 chrono = { version = "0.4.31", features = ["serde"] }
 serde = { version = "1.0.193", features = ["derive"] }
 utoipa = { version = "4.1.0", features = ["serde_yaml"] }
 reqwest = { version = "0.11.23", features = ["blocking", "json"] }
-rocket = { version = "0.5.0", features = ["json"] }
-warp = "0.3.6"
 
 [build-dependencies]
 tar = "0.4.40"

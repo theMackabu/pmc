@@ -1,11 +1,9 @@
 use pmc::config;
-use std::error::Error;
 use tera::Tera;
-use warp::{filters, Filter};
 
-pub fn create_template_filter() -> Result<filters::BoxedFilter<((Tera, String),)>, Box<dyn Error>> {
-    let s_path = config::read().get_path();
+pub fn create_templates() -> (Tera, String) {
     let mut tera = Tera::default();
+    let path = config::read().get_path();
 
     tera.add_raw_templates(vec![
         ("view", include_str!("dist/view.html")),
@@ -14,5 +12,7 @@ pub fn create_template_filter() -> Result<filters::BoxedFilter<((Tera, String),)
     ])
     .unwrap();
 
-    Ok(warp::any().map(move || (tera.clone(), s_path.trim_end_matches('/').to_string())).boxed())
+    return (tera, path.trim_end_matches('/').to_string());
 }
+
+pub mod assets;

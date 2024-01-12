@@ -133,20 +133,13 @@ fn main() {
     match profile.as_str() {
         "debug" => println!("cargo:rustc-env=PROFILE=debug"),
         "release" => {
+            /* cleanup */
+            fs::remove_dir_all(format!("src/webui/dist")).ok();
             println!("cargo:rustc-env=PROFILE=release");
-
-            #[allow(unused_must_use)]
-            for name in vec!["assets", "dist"] {
-                fs::remove_dir_all(format!("src/webui/{name}"));
-            }
 
             /* pre-build */
             let path = download_node();
             download_then_build(path);
-
-            /* move assets */
-            fs::create_dir_all("src/webui/assets/").expect("Failed to move assets");
-            fs::rename("src/webui/dist/static", "src/webui/assets/static").expect("Failed to move assets");
 
             /* cc linking */
             cxx_build::bridge("src/lib.rs")
