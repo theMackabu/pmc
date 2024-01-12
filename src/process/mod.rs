@@ -17,7 +17,6 @@ use global_placeholders::global;
 use macros_rs::{crashln, string, ternary, then};
 use psutil::process;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
 use std::collections::{BTreeMap, HashMap};
 use utoipa::ToSchema;
 

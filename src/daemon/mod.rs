@@ -36,7 +36,7 @@ static ENABLE_WEBUI: AtomicBool = AtomicBool::new(false);
 
 extern "C" fn handle_termination_signal(_: libc::c_int) {
     pid::remove();
-    log!("[daemon] killed (pid={})", process::id());
+    log!("[daemon] killed", "pid" => process::id());
     unsafe { libc::_exit(0) }
 }
 
@@ -50,27 +50,27 @@ fn restart_process() {
 
             if hash != item.watch.hash {
                 runner.restart(item.id, false);
-                log!("[daemon] watch reload {} (id={id}, hash={hash})", item.name);
+                log!("[daemon] watch reload", "name" => item.name, "hash" => "hash");
                 continue;
             }
         }
 
         if !item.running && pid::running(item.pid as i32) {
             Runner::new().set_status(*id, Status::Running);
-            log!("[daemon] fix status {} (id={id})", item.name);
+            log!("[daemon] process fix status", "name" => item.name, "id" => id);
             continue;
         }
 
         then!(!item.running || pid::running(item.pid as i32), continue);
 
         if item.running && item.crash.value == config::read().daemon.restarts {
-            log!("[daemon] {} has crashed (id={id})", item.name);
+            log!("[daemon] process has crashed", "name" => item.name, "id" => id);
             runner.stop(item.id);
             runner.set_crashed(*id).save();
             continue;
         } else {
             runner.get(item.id).crashed();
-            log!("[daemon] restarted {} (id={id}, crashes={})", item.name, item.crash.value);
+            log!("[daemon] restarted", "name" => item.name, "id" => id, "crashes" => item.crash.value);
         }
     }
 }
@@ -190,7 +190,7 @@ pub fn stop() {
             Ok(pid) => {
                 pmc::service::stop(pid as i64);
                 pid::remove();
-                log!("[daemon] stopped (pid={pid})");
+                log!("[daemon] stopped", "pid" => pid);
                 println!("{} PMC daemon stopped", *helpers::SUCCESS);
             }
             Err(err) => crashln!("{} Failed to read PID file: {}", *helpers::FAIL, err),
@@ -229,7 +229,6 @@ pub fn start(verbose: bool) {
 
     #[inline]
     #[tokio::main]
-
     async extern "C" fn init() {
         pid::name("PMC Restart Handler Daemon");
 
@@ -241,10 +240,10 @@ pub fn start(verbose: bool) {
         DAEMON_START_TIME.set(Utc::now().timestamp_millis() as f64);
 
         pid::write(process::id());
-        log!("[daemon] new fork (pid={})", process::id());
+        log!("[daemon] new fork", "pid" => process::id());
 
         if api_enabled {
-            log!("[api] server started (address={})", config::read().fmt_address());
+            log!("[api] server queued", "address" => config::read().fmt_address());
             tokio::spawn(async move { api::start(ui_enabled).await });
         }
 
