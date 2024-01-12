@@ -250,9 +250,9 @@ pub async fn log_handler(id: usize, kind: String) -> Result<impl Reply, Rejectio
     match Runner::new().info(id) {
         Some(item) => {
             let log_file = match kind.as_str() {
-                "out" | "stdout" => global!("pmc.logs.out", item.name.as_str()),
-                "error" | "stderr" => global!("pmc.logs.error", item.name.as_str()),
-                _ => global!("pmc.logs.out", item.name.as_str()),
+                "out" | "stdout" => item.logs().out,
+                "error" | "stderr" => item.logs().error,
+                _ => item.logs().out,
             };
 
             match File::open(log_file) {
@@ -291,13 +291,13 @@ pub async fn log_handler_raw(id: usize, kind: String) -> Result<impl Reply, Reje
     match Runner::new().info(id) {
         Some(item) => {
             let log_file = match kind.as_str() {
-                "out" | "stdout" => global!("pmc.logs.out", item.name.as_str()),
-                "error" | "stderr" => global!("pmc.logs.error", item.name.as_str()),
-                _ => global!("pmc.logs.out", item.name.as_str()),
+                "out" | "stdout" => item.logs().out,
+                "error" | "stderr" => item.logs().error,
+                _ => item.logs().out,
             };
 
-            let data = match fs::read_to_string(log_file) {
-                Ok(data) => data,
+            let data = match fs::read_to_string(&log_file) {
+                Ok(data) => format!("# PATH {log_file}\n{data}"),
                 Err(err) => err.to_string(),
             };
 

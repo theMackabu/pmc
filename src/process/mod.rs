@@ -69,6 +69,12 @@ pub struct Raw {
     pub crashes: u64,
 }
 
+#[derive(Clone)]
+pub struct LogInfo {
+    pub out: String,
+    pub error: String,
+}
+
 #[derive(Serialize, ToSchema)]
 pub struct ProcessItem {
     pid: i64,
@@ -155,6 +161,15 @@ impl Status {
             Status::Running => true,
         }
     }
+}
+
+macro_rules! lock {
+    ($runner:expr) => {{
+        match $runner.lock() {
+            Ok(runner) => runner,
+            Err(err) => crashln!("Unable to lock mutex: {err}"),
+        }
+    }};
 }
 
 impl Runner {
@@ -302,7 +317,7 @@ impl Runner {
     pub fn count(&mut self) -> usize { self.list().count() }
     pub fn is_empty(&self) -> bool { self.list.is_empty() }
     pub fn exists(&mut self, id: usize) -> bool { self.list.contains_key(&id) }
-    pub fn info(&mut self, id: usize) -> Option<&Process> { self.list.get(&id) }
+    pub fn info(&self, id: usize) -> Option<&Process> { self.list.get(&id) }
     pub fn list<'l>(&'l mut self) -> impl Iterator<Item = (&'l usize, &'l mut Process)> { self.list.iter_mut().map(|(k, v)| (k, v)) }
     pub fn process(&mut self, id: usize) -> &mut Process { self.list.get_mut(&id).unwrap_or_else(|| crashln!("{} Process ({id}) not found", *helpers::FAIL)) }
 
@@ -416,47 +431,44 @@ impl Runner {
     }
 }
 
+impl Process {
+    /// Get a log paths of the process item
+    pub fn logs(&self) -> LogInfo {
+        let name = self.name.replace(" ", "_");
+
+        LogInfo {
+            out: global!("pmc.logs.out", name.as_str()),
+            error: global!("pmc.logs.error", name.as_str()),
+        }
+    }
+}
+
 impl ProcessWrapper {
-    pub fn stop(&mut self) {
-        let runner_arc = Arc::clone(&self.runner);
-        let mut runner = runner_arc.lock().unwrap();
-        runner.stop(self.id).save();
-    }
+    /// Stop the process item
+    pub fn stop(&mut self) { lock!(self.runner).stop(self.id).save(); }
 
-    pub fn watch(&mut self, path: &str) {
-        let runner_arc = Arc::clone(&self.runner);
-        let mut runner = runner_arc.lock().unwrap();
-        runner.watch(self.id, path, true).save();
-    }
+    /// Restart the process item
+    pub fn restart(&mut self) { lock!(self.runner).restart(self.id, false).save(); }
 
-    pub fn disable_watch(&mut self) {
-        let runner_arc = Arc::clone(&self.runner);
-        let mut runner = runner_arc.lock().unwrap();
-        runner.watch(self.id, "", false).save();
-    }
+    /// Rename the process item
+    pub fn rename(&mut self, name: String) { lock!(self.runner).rename(self.id, name).save(); }
 
-    pub fn rename(&mut self, name: String) {
-        let runner_arc = Arc::clone(&self.runner);
-        let mut runner = runner_arc.lock().unwrap();
-        runner.rename(self.id, name).save();
-    }
+    /// Enable watching a path on the process item
+    pub fn watch(&mut self, path: &str) { lock!(self.runner).watch(self.id, path, true).save(); }
 
-    pub fn restart(&mut self) {
-        let runner_arc = Arc::clone(&self.runner);
-        let mut runner = runner_arc.lock().unwrap();
-        runner.restart(self.id, false).save();
-    }
+    /// Disable watching on the process item
+    pub fn disable_watch(&mut self) { lock!(self.runner).watch(self.id, "", false).save(); }
 
+    /// Set the process item as crashed
     pub fn crashed(&mut self) {
-        let runner_arc = Arc::clone(&self.runner);
-        let mut runner = runner_arc.lock().unwrap();
+        let mut runner = lock!(self.runner);
         runner.new_crash(self.id).save();
         runner.restart(self.id, true).save();
     }
 
+    /// Get a json dump of the process item
     pub fn json(&mut self) -> Value {
-        let runner_arc = Arc::clone(&self.runner);
-        let mut runner = runner_arc.lock().unwrap();
+        let mut runner = lock!(self.runner);
 
         let item = runner.process(self.id);
         let config = config::read().runner;
@@ -505,8 +517,8 @@ impl ProcessWrapper {
                 path: item.watch.path.clone(),
             },
             log: Log {
-                out: global!("pmc.logs.out", item.name.as_str()),
-                error: global!("pmc.logs.error", item.name.as_str()),
+                out: item.logs().out,
+                error: item.logs().error,
             },
             raw: Raw {
                 running: item.running,

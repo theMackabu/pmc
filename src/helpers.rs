@@ -19,6 +19,10 @@ impl serde::Serialize for ColoredString {
     }
 }
 
+impl From<colored::ColoredString> for ColoredString {
+    fn from(cs: colored::ColoredString) -> Self { ColoredString(cs) }
+}
+
 impl fmt::Display for ColoredString {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "{}", self.0) }
 }
