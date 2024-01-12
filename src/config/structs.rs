@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use utoipa::{schema, ToSchema};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Config {
@@ -40,9 +39,8 @@ pub struct Secure {
     pub token: String,
 }
 
-#[derive(Debug, Deserialize, Serialize, ToSchema)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Servers {
-    #[schema(example = json!({"example": {"address": "http://127.0.0.1:5630", "token": "test_token"}}))]
     pub servers: Option<BTreeMap<String, Server>>,
 }
 
