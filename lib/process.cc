@@ -4,11 +4,17 @@
 #include <sys/wait.h>
 #include <signal.h>
 #include <iostream>
+#include <algorithm>
 
 using namespace std;
 
 namespace process {
 volatile sig_atomic_t childExitStatus = 0;
+
+std::string format(std::string text) {
+    std::replace(text.begin(), text.end(), ' ', '_');
+    return text;
+}
 
 pair<std::string, std::string> split(const std::string& str) {
     size_t length = str.length();
@@ -29,8 +35,9 @@ void sigchld_handler(int signo) {
 }
 
 void Runner::New(const std::string &name, const std::string &logPath) {
-  std::string stdoutFileName = logPath + "/" + name + "-out.log";
-  std::string stderrFileName = logPath + "/" + name + "-error.log";
+  std::string formattedName = format(name);
+  std::string stdoutFileName = logPath + "/" + formattedName + "-out.log";
+  std::string stderrFileName = logPath + "/" + formattedName + "-error.log";
   
   stdout_fd = open(stdoutFileName.c_str(), O_WRONLY | O_CREAT | O_APPEND, 0644);
   stderr_fd = open(stderrFileName.c_str(), O_WRONLY | O_CREAT | O_APPEND, 0644);

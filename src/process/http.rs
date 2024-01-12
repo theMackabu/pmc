@@ -2,7 +2,7 @@ use crate::process::Remote;
 use macros_rs::{fmtstr, string};
 use reqwest::blocking::{Client, Response};
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::path::PathBuf;
 
 #[derive(Serialize)]
@@ -10,9 +10,9 @@ struct ActionBody {
     pub method: String,
 }
 
-#[derive(Deserialize)]
 pub struct LogResponse {
-    pub logs: Vec<String>,
+    pub path: &'static str,
+    pub lines: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -39,9 +39,15 @@ pub fn info(Remote { address, token, .. }: &Remote, id: usize) -> Result<Respons
     Ok(client.get(fmtstr!("{address}/process/{id}/info")).headers(headers).send()?)
 }
 
-pub fn logs(Remote { address, token, .. }: &Remote, id: usize, kind: &str) -> Result<Response, anyhow::Error> {
+pub fn logs(Remote { address, token, .. }: &Remote, id: usize, kind: &str) -> Result<LogResponse, anyhow::Error> {
     let (client, headers) = client(token);
-    Ok(client.get(fmtstr!("{address}/process/{id}/logs/{kind}")).headers(headers).send()?)
+    let response = client.get(fmtstr!("{address}/process/{id}/logs/{kind}/raw")).headers(headers).send()?;
+    let log = response.text()?;
+
+    Ok(LogResponse {
+        lines: log.lines().skip(1).map(|line| line.to_string()).collect::<Vec<String>>(),
+        path: Box::leak(Box::from(log.lines().next().unwrap_or("").split_whitespace().last().unwrap_or(""))),
+    })
 }
 
 pub fn create(Remote { address, token, .. }: &Remote, name: &String, script: &String, path: PathBuf, watch: &Option<String>) -> Result<Response, anyhow::Error> {

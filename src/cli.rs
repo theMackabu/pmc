@@ -1,5 +1,4 @@
 use colored::Colorize;
-use global_placeholders::global;
 use macros_rs::{crashln, string, ternary};
 use psutil::process::{MemoryInfo, Process};
 use regex::Regex;
@@ -8,14 +7,10 @@ use serde_json::json;
 use std::env;
 
 use pmc::{
-    config,
-    file::{self, Exists},
+    config, file,
     helpers::{self, ColoredString},
     log,
-    process::{
-        http::{self, LogResponse},
-        ItemSingle, Runner,
-    },
+    process::{http, ItemSingle, Runner},
 };
 
 use tabled::{
@@ -35,7 +30,7 @@ pub enum Args {
 }
 
 fn format(server_name: &String) -> (String, String) {
-    let kind = ternary!(server_name == "internal", "", "remote ").to_string();
+    let kind = ternary!(matches!(&**server_name, "internal" | "local"), "", "remote ").to_string();
     return (kind, server_name.to_string());
 }
 
@@ -56,7 +51,7 @@ pub fn start(name: &Option<String>, args: &Option<Args>, watch: &Option<String>,
             let runner: Runner = Runner::new();
             println!("{} Applying {kind}action restartProcess on ({id})", *helpers::SUCCESS);
 
-            if *server_name == "internal" {
+            if matches!(&**server_name, "internal" | "local") {
                 let mut item = runner.get(*id);
 
                 match watch {
@@ -70,7 +65,7 @@ pub fn start(name: &Option<String>, args: &Option<Args>, watch: &Option<String>,
                 log!("process started (id={id})");
             } else {
                 let Some(servers) = config::servers().servers else {
-                    crashln!("{} Server '{server_name}' does not exist", *helpers::FAIL)
+                    crashln!("{} Failed to read servers", *helpers::FAIL)
                 };
 
                 if let Some(server) = servers.get(server_name) {
@@ -82,8 +77,10 @@ pub fn start(name: &Option<String>, args: &Option<Args>, watch: &Option<String>,
                             item.restart();
                         }
                         None => crashln!("{} Failed to connect (name={server_name}, address={})", *helpers::FAIL, server.address),
-                    };
-                }
+                    }
+                } else {
+                    crashln!("{} Server '{server_name}' does not exist", *helpers::FAIL)
+                };
             }
 
             println!("{} restarted {kind}({id}) ✓", *helpers::SUCCESS);
@@ -94,7 +91,7 @@ pub fn start(name: &Option<String>, args: &Option<Args>, watch: &Option<String>,
                 Some(name) => string!(name),
                 None => string!(script.split_whitespace().next().unwrap_or_default()),
             };
-            if *server_name == "internal" {
+            if matches!(&**server_name, "internal" | "local") {
                 let pattern = Regex::new(r"(?m)^[a-zA-Z0-9]+(/[a-zA-Z0-9]+)*(\.js|\.ts)?$").unwrap();
 
                 if pattern.is_match(script) {
@@ -107,7 +104,7 @@ pub fn start(name: &Option<String>, args: &Option<Args>, watch: &Option<String>,
                 log!("process created (name={name})");
             } else {
                 let Some(servers) = config::servers().servers else {
-                    crashln!("{} Server '{server_name}' does not exist", *helpers::FAIL)
+                    crashln!("{} Failed to read servers", *helpers::FAIL)
                 };
 
                 if let Some(server) = servers.get(server_name) {
@@ -115,7 +112,9 @@ pub fn start(name: &Option<String>, args: &Option<Args>, watch: &Option<String>,
                         Some(mut remote) => remote.start(&name, script, file::cwd(), watch),
                         None => crashln!("{} Failed to connect (name={server_name}, address={})", *helpers::FAIL, server.address),
                     };
-                }
+                } else {
+                    crashln!("{} Server '{server_name}' does not exist", *helpers::FAIL)
+                };
             }
 
             println!("{} Creating {kind}process with ({name})", *helpers::SUCCESS);
@@ -132,9 +131,9 @@ pub fn stop(id: &usize, server_name: &String) {
     let (kind, list_name) = format(server_name);
     println!("{} Applying {kind}action stopProcess on ({id})", *helpers::SUCCESS);
 
-    if *server_name != "internal" {
+    if !matches!(&**server_name, "internal" | "local") {
         let Some(servers) = config::servers().servers else {
-            crashln!("{} Server '{server_name}' does not exist", *helpers::FAIL)
+            crashln!("{} Failed to read servers", *helpers::FAIL)
         };
 
         if let Some(server) = servers.get(server_name) {
@@ -142,7 +141,9 @@ pub fn stop(id: &usize, server_name: &String) {
                 Some(remote) => remote,
                 None => crashln!("{} Failed to connect (name={server_name}, address={})", *helpers::FAIL, server.address),
             };
-        }
+        } else {
+            crashln!("{} Server '{server_name}' does not exist", *helpers::FAIL)
+        };
     }
 
     runner.get(*id).stop();
@@ -157,9 +158,9 @@ pub fn remove(id: &usize, server_name: &String) {
     let (kind, _) = format(server_name);
     println!("{} Applying {kind}action removeProcess on ({id})", *helpers::SUCCESS);
 
-    if *server_name != "internal" {
+    if !matches!(&**server_name, "internal" | "local") {
         let Some(servers) = config::servers().servers else {
-            crashln!("{} Server '{server_name}' does not exist", *helpers::FAIL)
+            crashln!("{} Failed to read servers", *helpers::FAIL)
         };
 
         if let Some(server) = servers.get(server_name) {
@@ -167,7 +168,9 @@ pub fn remove(id: &usize, server_name: &String) {
                 Some(remote) => remote,
                 None => crashln!("{} Failed to remove (name={server_name}, address={})", *helpers::FAIL, server.address),
             };
-        }
+        } else {
+            crashln!("{} Server '{server_name}' does not exist", *helpers::FAIL)
+        };
     }
 
     runner.remove(*id);
@@ -247,7 +250,7 @@ pub fn info(id: &usize, format: &String, server_name: &String) {
         };
     };
 
-    if *server_name == "internal" {
+    if matches!(&**server_name, "internal" | "local") {
         if let Some(home) = home::home_dir() {
             let config = config::read().runner;
             let mut runner = Runner::new();
@@ -290,10 +293,10 @@ pub fn info(id: &usize, format: &String, server_name: &String) {
                 id: string!(id),
                 restarts: item.restarts,
                 name: item.name.clone(),
+                log_out: item.logs().out,
                 path: format!("{} ", path),
+                log_error: item.logs().error,
                 status: ColoredString(status),
-                log_out: global!("pmc.logs.out", item.name.as_str()),
-                log_error: global!("pmc.logs.error", item.name.as_str()),
                 pid: ternary!(item.running, format!("{}", item.pid), string!("n/a")),
                 command: format!("{} {} '{}'", config.shell, config.args.join(" "), item.script),
                 hash: ternary!(item.watch.enabled, format!("{}  ", item.watch.hash), string!("none  ")),
@@ -306,67 +309,67 @@ pub fn info(id: &usize, format: &String, server_name: &String) {
             crashln!("{} Impossible to get your home directory", *helpers::FAIL);
         }
     } else {
-        let mut item: Option<(pmc::process::Process, Runner)> = None;
-
+        let data: (pmc::process::Process, Runner);
         let Some(servers) = config::servers().servers else {
-            crashln!("{} Server '{server_name}' does not exist", *helpers::FAIL)
+            crashln!("{} Failed to read servers", *helpers::FAIL)
         };
 
         if let Some(server) = servers.get(server_name) {
-            item = match Runner::connect(server_name.clone(), server.get(), false) {
-                Some(mut remote) => Some((remote.process(*id).clone(), remote)),
+            data = match Runner::connect(server_name.clone(), server.get(), false) {
+                Some(mut remote) => (remote.process(*id).clone(), remote),
                 None => crashln!("{} Failed to connect (name={server_name}, address={})", *helpers::FAIL, server.address),
             };
-        }
+        } else {
+            crashln!("{} Server '{server_name}' does not exist", *helpers::FAIL)
+        };
 
-        if let Some((item, remote)) = item {
-            let remote = remote.remote.unwrap();
-            let info = http::info(&remote, *id);
-            let path = item.path.to_string_lossy().into_owned();
+        let (item, remote) = data;
+        let remote = remote.remote.unwrap();
+        let info = http::info(&remote, *id);
+        let path = item.path.to_string_lossy().into_owned();
 
-            let status = if item.running {
-                "online   ".green().bold()
-            } else {
-                match item.crash.crashed {
-                    true => "crashed   ",
-                    false => "stopped   ",
-                }
-                .red()
-                .bold()
+        let status = if item.running {
+            "online   ".green().bold()
+        } else {
+            match item.crash.crashed {
+                true => "crashed   ",
+                false => "stopped   ",
+            }
+            .red()
+            .bold()
+        };
+
+        if let Ok(info) = info {
+            let stats = info.json::<ItemSingle>().unwrap().stats;
+
+            let cpu_percent = match stats.cpu_percent {
+                Some(percent) => format!("{percent:.2}%"),
+                None => string!("0%"),
             };
 
-            if let Ok(info) = info {
-                let stats = info.json::<ItemSingle>().unwrap().stats;
+            let memory_usage = match stats.memory_usage {
+                Some(usage) => helpers::format_memory(usage.rss),
+                None => string!("0b"),
+            };
 
-                let cpu_percent = match stats.cpu_percent {
-                    Some(percent) => format!("{:.2}%", percent),
-                    None => string!("0%"),
-                };
+            let data = vec![Info {
+                cpu_percent,
+                memory_usage,
+                id: string!(id),
+                path: path.clone(),
+                status: status.into(),
+                restarts: item.restarts,
+                name: item.name.clone(),
+                pid: ternary!(item.running, format!("{pid}", pid = item.pid), string!("n/a")),
+                log_out: format!("{}/{}-out.log", remote.config.log_path, item.name),
+                log_error: format!("{}/{}-error.log", remote.config.log_path, item.name),
+                hash: ternary!(item.watch.enabled, format!("{}  ", item.watch.hash), string!("none  ")),
+                command: format!("{} {} '{}'", remote.config.shell, remote.config.args.join(" "), item.script),
+                watch: ternary!(item.watch.enabled, format!("{path}/{}  ", item.watch.path), string!("disabled  ")),
+                uptime: ternary!(item.running, format!("{}", helpers::format_duration(item.started)), string!("none")),
+            }];
 
-                let memory_usage = match stats.memory_usage {
-                    Some(usage) => helpers::format_memory(usage.rss),
-                    None => string!("0b"),
-                };
-
-                let data = vec![Info {
-                    cpu_percent,
-                    memory_usage,
-                    id: string!(id),
-                    path: path.clone(),
-                    restarts: item.restarts,
-                    name: item.name.clone(),
-                    status: ColoredString(status),
-                    log_out: format!("{}/{{}}-out.log", remote.config.log_path),
-                    log_error: format!("{}/{{}}-error.log", remote.config.log_path),
-                    pid: ternary!(item.running, format!("{}", item.pid), string!("n/a")),
-                    hash: ternary!(item.watch.enabled, format!("{}  ", item.watch.hash), string!("none  ")),
-                    command: format!("{} {} '{}'", remote.config.shell, remote.config.args.join(" "), item.script),
-                    watch: ternary!(item.watch.enabled, format!("{path}/{}  ", item.watch.path), string!("disabled  ")),
-                    uptime: ternary!(item.running, format!("{}", helpers::format_duration(item.started)), string!("none")),
-                }];
-
-                render_info(data)
-            }
+            render_info(data)
         }
     }
 }
@@ -374,9 +377,9 @@ pub fn info(id: &usize, format: &String, server_name: &String) {
 pub fn logs(id: &usize, lines: &usize, server_name: &String) {
     let mut runner: Runner = Runner::new();
 
-    if *server_name != "internal" {
+    if !matches!(&**server_name, "internal" | "local") {
         let Some(servers) = config::servers().servers else {
-            crashln!("{} Server '{server_name}' does not exist", *helpers::FAIL)
+            crashln!("{} Failed to read servers", *helpers::FAIL)
         };
 
         if let Some(server) = servers.get(server_name) {
@@ -384,45 +387,40 @@ pub fn logs(id: &usize, lines: &usize, server_name: &String) {
                 Some(remote) => remote,
                 None => crashln!("{} Failed to connect (name={server_name}, address={})", *helpers::FAIL, server.address),
             };
-        }
+        } else {
+            crashln!("{} Server '{server_name}' does not exist", *helpers::FAIL)
+        };
 
-        let item = runner.clone().process(*id).clone();
-        let log_out = http::logs(&runner.remote.as_ref().unwrap(), *id, "out");
-        let log_error = http::logs(&runner.remote.as_ref().unwrap(), *id, "error");
-
+        let item = runner.info(*id).unwrap_or_else(|| crashln!("{} Process ({id}) not found", *helpers::FAIL));
         println!("{}", format!("Showing last {lines} lines for process [{id}] (change the value with --lines option)").yellow());
 
-        if let Ok(logs) = log_error {
-            let logs = logs.json::<LogResponse>().unwrap().logs;
-            file::logs_internal(logs, *lines, &item.name, *id, "error", &item.name)
-        }
+        for kind in vec!["error", "out"] {
+            let logs = http::logs(&runner.remote.as_ref().unwrap(), *id, kind);
 
-        if let Ok(logs) = log_out {
-            let logs = logs.json::<LogResponse>().unwrap().logs;
-            file::logs_internal(logs, *lines, &item.name, *id, "out", &item.name)
+            if let Ok(log) = logs {
+                if log.lines.is_empty() {
+                    println!("{} No logs found for {}/{kind}", *helpers::FAIL, item.name);
+                    continue;
+                }
+
+                file::logs_internal(log.lines, *lines, log.path, *id, kind, &item.name)
+            }
         }
     } else {
-        let item = runner.process(*id);
-        let log_out = global!("pmc.logs.out", item.name.as_str());
-        let log_error = global!("pmc.logs.error", item.name.as_str());
+        let item = runner.info(*id).unwrap_or_else(|| crashln!("{} Process ({id}) not found", *helpers::FAIL));
+        println!("{}", format!("Showing last {lines} lines for process [{id}] (change the value with --lines option)").yellow());
 
-        if Exists::check(&log_error).file() && Exists::check(&log_out).file() {
-            println!("{}", format!("Showing last {lines} lines for process [{id}] (change the value with --lines option)").yellow());
-
-            file::logs(*lines, &log_error, *id, "error", &item.name);
-            file::logs(*lines, &log_out, *id, "out", &item.name);
-        } else {
-            crashln!("{} Logs for process ({id}) not found", *helpers::FAIL);
-        }
+        file::logs(item, *lines, "error");
+        file::logs(item, *lines, "out");
     }
 }
 
 pub fn env(id: &usize, server_name: &String) {
     let mut runner: Runner = Runner::new();
 
-    if *server_name != "internal" {
+    if !matches!(&**server_name, "internal" | "local") {
         let Some(servers) = config::servers().servers else {
-            crashln!("{} Server '{server_name}' does not exist", *helpers::FAIL)
+            crashln!("{} Failed to read servers", *helpers::FAIL)
         };
 
         if let Some(server) = servers.get(server_name) {
@@ -430,7 +428,9 @@ pub fn env(id: &usize, server_name: &String) {
                 Some(remote) => remote,
                 None => crashln!("{} Failed to connect (name={server_name}, address={})", *helpers::FAIL, server.address),
             };
-        }
+        } else {
+            crashln!("{} Server '{server_name}' does not exist", *helpers::FAIL)
+        };
     }
 
     let item = runner.process(*id);
@@ -526,12 +526,12 @@ pub fn list(format: &String, server_name: &String) {
                 };
 
                 processes.push(ProcessItem {
-                    status: ColoredString(status),
+                    status: status.into(),
                     cpu: format!("{cpu_percent}   "),
                     mem: format!("{memory_usage}   "),
+                    id: id.to_string().cyan().bold().into(),
                     restarts: format!("{}  ", item.restarts),
                     name: format!("{}   ", item.name.clone()),
-                    id: ColoredString(id.to_string().cyan().bold()),
                     pid: ternary!(item.running, format!("{}  ", item.pid), string!("n/a  ")),
                     watch: ternary!(item.watch.enabled, format!("{}  ", item.watch.path), string!("disabled  ")),
                     uptime: ternary!(item.running, format!("{}  ", helpers::format_duration(item.started)), string!("none  ")),
@@ -565,7 +565,7 @@ pub fn list(format: &String, server_name: &String) {
                 None => println!("{} Failed to fetch (name={server_name}, address={})", *helpers::FAIL, server.address),
             }
         } else {
-            if matches!(&**server_name, "internal" | "all") {
+            if matches!(&**server_name, "internal" | "all" | "local") {
                 println!("{} Internal daemon", *helpers::SUCCESS);
                 render_list(&mut Runner::new(), true);
             } else {

@@ -1,29 +1,40 @@
-use crate::{helpers, log};
+use crate::{helpers, log, process::Process};
 use colored::Colorize;
 use macros_rs::{crashln, string, ternary};
 
 use std::{
     env,
     fs::{self, File},
-    io::{self, BufRead, BufReader},
+    io::{BufRead, BufReader},
     path::{Path, PathBuf},
     thread::sleep,
     time::Duration,
 };
 
-pub fn logs(lines_to_tail: usize, log_file: &str, id: usize, log_type: &str, item_name: &str) {
-    let file = File::open(log_file).unwrap();
-    let reader = BufReader::new(file);
-    let lines: Vec<String> = reader.lines().collect::<io::Result<_>>().unwrap();
+pub fn logs(item: &Process, lines_to_tail: usize, kind: &str) {
+    let log_file = match kind {
+        "out" => item.logs().out,
+        "error" => item.logs().error,
+        _ => item.logs().out,
+    };
 
-    logs_internal(lines, lines_to_tail, log_file, id, log_type, item_name)
+    if !Exists::check(&log_file).empty() {
+        let file = File::open(&log_file).unwrap();
+        let reader = BufReader::new(file);
+        let lines = reader.lines().map(|line| line.unwrap_or_else(|err| format!("error reading line: {err}"))).collect();
+
+        logs_internal(lines, lines_to_tail, &log_file, item.id, kind, &item.name)
+    } else {
+        println!("{} No logs found in {log_file}", *helpers::FAIL)
+    }
 }
 
 pub fn logs_internal(lines: Vec<String>, lines_to_tail: usize, log_file: &str, id: usize, log_type: &str, item_name: &str) {
-    let color = ternary!(log_type == "out", "green", "red");
     println!("{}", format!("\n{log_file} last {lines_to_tail} lines:").bright_black());
 
+    let color = ternary!(log_type == "out", "green", "red");
     let start_index = if lines.len() > lines_to_tail { lines.len() - lines_to_tail } else { 0 };
+
     for (_, line) in lines.iter().skip(start_index).enumerate() {
         println!("{} {}", format!("{}|{} |", id, item_name).color(color), line);
     }
@@ -51,6 +62,7 @@ impl<'p> Exists<'p> {
     pub fn check(path: &'p str) -> Self { Self { path } }
     pub fn folder(&self) -> bool { Path::new(self.path).is_dir() }
     pub fn file(&self) -> bool { Path::new(self.path).exists() }
+    pub fn empty(&self) -> bool { fs::metadata(Path::new(self.path)).map(|m| m.len() == 0).unwrap_or(true) }
 }
 
 pub fn raw(path: String) -> Vec<u8> {
