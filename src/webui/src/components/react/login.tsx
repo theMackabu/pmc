@@ -13,7 +13,7 @@ const Login = (props: { base: string }) => {
 		$settings.setKey('token', token);
 
 		fetch(props.base + '/daemon/metrics', {
-			headers: { Authorization: 'token ' + token },
+			headers: { token },
 		}).then((response) => {
 			if (response.status === 200) {
 				window.location.href = props.base;
@@ -36,7 +36,7 @@ const Login = (props: { base: string }) => {
 			<div className="h-screen flex items-center -mt-10">
 				<div className="flex min-h-full flex-1 flex-col justify-center px-0 sm:px-6 lg:px-8">
 					<div className="sm:mx-auto sm:w-full sm:max-w-md">
-						<img className="mx-auto h-10 w-auto" src={`${base}/${favicon}`} alt="PMC" />
+						<img className="mx-auto h-10 w-auto" src={`${props.base}${favicon}`} alt="PMC" />
 						<h2 className="mt-6 text-center text-2xl font-bold leading-9 tracking-tight text-zinc-200">Provide token to continue</h2>
 					</div>
 

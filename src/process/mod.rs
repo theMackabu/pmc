@@ -310,13 +310,13 @@ impl Runner {
         dump::write(&self);
     }
 
-    pub fn items(&mut self) -> BTreeMap<usize, Process> { self.list.clone() }
+    pub fn items(&self) -> BTreeMap<usize, Process> { self.list.clone() }
     pub fn items_mut(&mut self) -> &mut BTreeMap<usize, Process> { &mut self.list }
 
     pub fn save(&self) { then!(self.remote.is_none(), dump::write(&self)) }
     pub fn count(&mut self) -> usize { self.list().count() }
     pub fn is_empty(&self) -> bool { self.list.is_empty() }
-    pub fn exists(&mut self, id: usize) -> bool { self.list.contains_key(&id) }
+    pub fn exists(&self, id: usize) -> bool { self.list.contains_key(&id) }
     pub fn info(&self, id: usize) -> Option<&Process> { self.list.get(&id) }
     pub fn list<'l>(&'l mut self) -> impl Iterator<Item = (&'l usize, &'l mut Process)> { self.list.iter_mut().map(|(k, v)| (k, v)) }
     pub fn process(&mut self, id: usize) -> &mut Process { self.list.get_mut(&id).unwrap_or_else(|| crashln!("{} Process ({id}) not found", *helpers::FAIL)) }
@@ -377,7 +377,7 @@ impl Runner {
         return self;
     }
 
-    pub fn json(&mut self) -> Value {
+    pub fn fetch(&self) -> Vec<ProcessItem> {
         let mut processes: Vec<ProcessItem> = Vec::new();
 
         for (id, item) in self.items() {
@@ -427,7 +427,7 @@ impl Runner {
             });
         }
 
-        json!(processes)
+        return processes;
     }
 }
 
@@ -467,7 +467,7 @@ impl ProcessWrapper {
     }
 
     /// Get a json dump of the process item
-    pub fn json(&mut self) -> Value {
+    pub fn fetch(&self) -> ItemSingle {
         let mut runner = lock!(self.runner);
 
         let item = runner.process(self.id);
@@ -495,7 +495,7 @@ impl ProcessWrapper {
             }
         };
 
-        json!(ItemSingle {
+        ItemSingle {
             info: Info {
                 status,
                 id: item.id,
@@ -524,8 +524,8 @@ impl ProcessWrapper {
                 running: item.running,
                 crashed: item.crash.crashed,
                 crashes: item.crash.value,
-            }
-        })
+            },
+        }
     }
 }
 

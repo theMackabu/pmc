@@ -134,11 +134,10 @@ pub fn health(format: &String) {
         None => string!("0%"),
     };
 
-    let memory_usage =
-        match memory_usage {
-            Some(usage) => helpers::format_memory(usage.rss()),
-            None => string!("0b"),
-        };
+    let memory_usage = match memory_usage {
+        Some(usage) => helpers::format_memory(usage.rss()),
+        None => string!("0b"),
+    };
 
     let uptime = match uptime {
         Some(uptime) => helpers::format_duration(uptime),
@@ -202,22 +201,21 @@ pub fn stop() {
 }
 
 pub fn start(verbose: bool) {
-    let external =
-        match global!("pmc.daemon.kind").as_str() {
-            "external" => true,
-            "default" => false,
-            "rust" => false,
-            "cc" => true,
-            _ => false,
-        };
+    let external = match global!("pmc.daemon.kind").as_str() {
+        "external" => true,
+        "default" => false,
+        "rust" => false,
+        "cc" => true,
+        _ => false,
+    };
 
     println!("{} Spawning PMC daemon (pmc_base={})", *helpers::SUCCESS, global!("pmc.base"));
 
     if ENABLE_API.load(Ordering::Acquire) {
         println!(
-            "{} API server started (address={:?}, webui={})",
+            "{} API server started (address={}, webui={})",
             *helpers::SUCCESS,
-            config::read().get_address(),
+            config::read().fmt_address(),
             ENABLE_WEBUI.load(Ordering::Acquire)
         );
     }
@@ -231,6 +229,7 @@ pub fn start(verbose: bool) {
 
     #[inline]
     #[tokio::main]
+
     async extern "C" fn init() {
         pid::name("PMC Restart Handler Daemon");
 
@@ -245,7 +244,7 @@ pub fn start(verbose: bool) {
         log!("[daemon] new fork (pid={})", process::id());
 
         if api_enabled {
-            log!("[api] server started (address={:?})", config::read().get_address());
+            log!("[api] server started (address={})", config::read().fmt_address());
             tokio::spawn(async move { api::start(ui_enabled).await });
         }
 

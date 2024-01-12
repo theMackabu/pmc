@@ -9,9 +9,9 @@ use crate::{
 use colored::Colorize;
 use macros_rs::{crashln, fmtstr, string};
 use reqwest::blocking::Client;
-use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
+use reqwest::header::{HeaderMap, HeaderValue};
 use std::fs::write;
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::net::{IpAddr, Ipv4Addr};
 use structs::{Config, Daemon, Runner, Secure, Servers, Web};
 
 pub fn from(address: &str, token: Option<&str>) -> Result<RemoteConfig, anyhow::Error> {
@@ -19,7 +19,7 @@ pub fn from(address: &str, token: Option<&str>) -> Result<RemoteConfig, anyhow::
     let mut headers = HeaderMap::new();
 
     if let Some(token) = token {
-        headers.insert(AUTHORIZATION, HeaderValue::from_static(fmtstr!("token {token}")));
+        headers.insert("token", HeaderValue::from_static(Box::leak(Box::from(token))));
     }
 
     let response = client.get(fmtstr!("{address}/daemon/config")).headers(headers).send()?;
@@ -94,7 +94,7 @@ pub fn servers() -> Servers {
 }
 
 impl Config {
-    pub fn get_address(&self) -> SocketAddr {
+    pub fn get_address(&self) -> rocket::figment::Figment {
         let config_split: Vec<u8> = match self.daemon.web.address.as_str() {
             "localhost" => vec![127, 0, 0, 1],
             _ => self.daemon.web.address.split('.').map(|part| part.parse().expect("Failed to parse address part")).collect(),
@@ -102,10 +102,11 @@ impl Config {
 
         let ipv4_address: Ipv4Addr = Ipv4Addr::from([config_split[0], config_split[1], config_split[2], config_split[3]]);
         let ip_address: IpAddr = IpAddr::from(ipv4_address);
-        let port = self.daemon.web.port as u16;
 
-        (ip_address, port).into()
+        rocket::Config::figment().merge(("port", self.daemon.web.port)).merge(("address", ip_address))
     }
+
+    pub fn fmt_address(&self) -> String { format!("{}:{}", self.daemon.web.address.clone(), self.daemon.web.port) }
 
     pub fn get_path(&self) -> String { self.daemon.web.path.clone().unwrap_or(string!("/")) }
 }

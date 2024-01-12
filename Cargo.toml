@@ -1,6 +1,6 @@
 [package]
 name = "pmc"
-version = "1.7.0"
+version = "1.7.1"
 edition = "2021"
 license = "MIT"
 repository = "https://lab.themackabu.dev/self/pmc"
@@ -10,7 +10,6 @@ description = "PMC is a simple and easy to use PM2 alternative"
 log = "0.4.20"
 toml = "0.8.8"
 home = "0.5.9"
-warp = "0.3.6"
 ryu = "1.0.16"
 clap = "4.4.12"
 cxx = "1.0.112"
@@ -43,6 +42,8 @@ chrono = { version = "0.4.31", features = ["serde"] }
 serde = { version = "1.0.193", features = ["derive"] }
 utoipa = { version = "4.1.0", features = ["serde_yaml"] }
 reqwest = { version = "0.11.23", features = ["blocking", "json"] }
+rocket = { version = "0.5.0", features = ["json"] }
+warp = "0.3.6"
 
 [build-dependencies]
 tar = "0.4.40"
