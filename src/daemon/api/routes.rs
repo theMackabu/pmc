@@ -17,12 +17,11 @@ use rocket::{
 
 use super::{
     helpers::{not_found, NotFound},
-    TeraState,
+    EnableWebUI, TeraState,
 };
 
 use pmc::{
-    config::{self, structs::Servers},
-    file, helpers,
+    config, file, helpers,
     process::{dump, ItemSingle, ProcessItem, Runner},
 };
 
@@ -98,6 +97,7 @@ pub(crate) struct ActionResponse {
 
 #[derive(Serialize, ToSchema)]
 pub(crate) struct Server {
+    pub name: String,
     pub address: String,
     pub token: Option<String>,
 }
@@ -142,6 +142,12 @@ pub struct Stats {
     pub cpu_percent: String,
 }
 
+#[derive(Serialize, ToSchema)]
+pub struct Servers {
+    #[schema(example = json!([{"name": "example", "address": "http://127.0.0.1:5630", "token": "test_token"}]))]
+    pub servers: Vec<Server>,
+}
+
 fn attempt(done: bool, method: &str) -> ActionResponse {
     ActionResponse {
         done,
@@ -152,7 +158,7 @@ fn attempt(done: bool, method: &str) -> ActionResponse {
 fn render(name: &str, tmpl: &Tera, ctx: &Context) -> Result<String, NotFound> { tmpl.render(name, &ctx).or(Err(not_found("Page was not found"))) }
 
 #[get("/")]
-pub async fn dashboard(state: &State<TeraState>) -> Result<(ContentType, String), NotFound> {
+pub async fn dashboard(state: &State<TeraState>, _webui: EnableWebUI) -> Result<(ContentType, String), NotFound> {
     let mut ctx = Context::new();
 
     ctx.insert("base_path", &state.path);
@@ -161,7 +167,7 @@ pub async fn dashboard(state: &State<TeraState>) -> Result<(ContentType, String)
 }
 
 #[get("/login")]
-pub async fn login(state: &State<TeraState>) -> Result<(ContentType, String), NotFound> {
+pub async fn login(state: &State<TeraState>, _webui: EnableWebUI) -> Result<(ContentType, String), NotFound> {
     let mut ctx = Context::new();
 
     ctx.insert("base_path", &state.path);
@@ -170,7 +176,7 @@ pub async fn login(state: &State<TeraState>) -> Result<(ContentType, String), No
 }
 
 #[get("/view/<id>")]
-pub async fn view_process(id: usize, state: &State<TeraState>) -> Result<(ContentType, String), NotFound> {
+pub async fn view_process(id: usize, state: &State<TeraState>, _webui: EnableWebUI) -> Result<(ContentType, String), NotFound> {
     let mut ctx = Context::new();
 
     ctx.insert("base_path", &state.path);
@@ -183,7 +189,10 @@ pub async fn view_process(id: usize, state: &State<TeraState>) -> Result<(Conten
 #[get("/daemon/prometheus")]
 #[utoipa::path(get, tag = "Daemon", path = "/daemon/prometheus", security((), ("api_key" = [])),
     responses(
-        (status = 200, description = "Get prometheus metrics", body = String),
+        (
+            description = "Get prometheus metrics", body = String, status = 200,
+            example = json!("# HELP daemon_cpu_percentage The cpu usage graph of the daemon.\n# TYPE daemon_cpu_percentage histogram\ndaemon_cpu_percentage_bucket{le=\"0.005\"} 0"),
+        ),
         (status = UNAUTHORIZED, description = "Authentication failed or not provided", body = AuthMessage)
     )
 )]
@@ -203,13 +212,25 @@ pub async fn prometheus_handler(_t: Token) -> String {
         (status = UNAUTHORIZED, description = "Authentication failed or not provided", body = AuthMessage)
     )
 )]
-pub async fn servers_handler(_t: Token) -> Json<Servers> {
+pub async fn servers_handler(_t: Token) -> Json<Vec<Server>> {
     let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["servers"]).start_timer();
+    let server_list = config::servers();
+
+    let servers = server_list
+        .servers
+        .unwrap()
+        .iter()
+        .map(|(name, item)| Server {
+            name: name.to_string(),
+            token: item.token.to_owned(),
+            address: item.address.to_owned(),
+        })
+        .collect::<Vec<Server>>();
 
     HTTP_COUNTER.inc();
     timer.observe_duration();
 
-    Json(config::servers())
+    Json(servers)
 }
 
 #[get("/daemon/dump")]
@@ -317,7 +338,11 @@ pub async fn logs_handler(id: usize, kind: String, _t: Token) -> Result<Json<Log
         ("kind" = String, Path, description = "Log output type", example = "out")
     ),
     responses(
-        (status = 200, description = "Process logs of {type} fetched raw", body = String),
+        (
+            status = 200, 
+            description = "Process logs of {type} fetched raw", body = String, 
+            example = json!("# PATH path/of/file.log\nserver started on port 3000")
+        ),
         (status = NOT_FOUND, description = "Process was not found", body = ErrorMessage),
         (status = UNAUTHORIZED, description = "Authentication failed or not provided", body = AuthMessage)
     )
@@ -376,7 +401,10 @@ pub async fn info_handler(id: usize, _t: Token) -> Result<Json<ItemSingle>, NotF
 #[utoipa::path(post, tag = "Process", path = "/process/create", request_body(content = CreateBody), 
     security((), ("api_key" = [])),
     responses(
-        (status = 200, description = "Create process successful", body = ActionResponse),
+        (
+            description = "Create process successful", body = ActionResponse,
+            example = json!({"action": "create", "done": true }), status = 200,
+        ),
         (status = INTERNAL_SERVER_ERROR, description = "Failed to create process", body = ErrorMessage),
         (status = UNAUTHORIZED, description = "Authentication failed or not provided", body = AuthMessage)
     )
@@ -399,11 +427,15 @@ pub async fn create_handler(body: Json<CreateBody>, _t: Token) -> Result<Json<Ac
 }
 
 #[post("/process/<id>/rename", format = "text", data = "<body>")]
-#[utoipa::path(post, tag = "Process", path = "/process/{id}/rename", request_body(content = String), 
+#[utoipa::path(post, tag = "Process", path = "/process/{id}/rename", 
     security((), ("api_key" = [])),
+    request_body(content = String, example = json!("example_name")), 
     params(("id" = usize, Path, description = "Process id to rename", example = 0)),
     responses(
-        (status = 200, description = "Rename process successful", body = ActionResponse),
+        (
+            description = "Rename process successful", body = ActionResponse,
+            example = json!({"action": "rename", "done": true }), status = 200,
+        ),
         (status = NOT_FOUND, description = "Process was not found", body = ErrorMessage),
         (status = UNAUTHORIZED, description = "Authentication failed or not provided", body = AuthMessage)
     )
@@ -432,7 +464,10 @@ pub async fn rename_handler(id: usize, body: String, _t: Token) -> Result<Json<A
 #[utoipa::path(get, tag = "Process", path = "/process/{id}/env",
     params(("id" = usize, Path, description = "Process id to fetch env from", example = 0)),
     responses(
-        (status = 200, description = "Current process env", body = HashMap<String, String>),
+        (
+            description = "Current process env", body = HashMap<String, String>,
+            example = json!({"ENV_TEST_VALUE": "example_value"}), status = 200
+        ),
         (status = NOT_FOUND, description = "Process was not found", body = ErrorMessage),
         (status = UNAUTHORIZED, description = "Authentication failed or not provided", body = AuthMessage)
     )

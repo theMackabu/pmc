@@ -8,12 +8,15 @@ use helpers::create_status;
 use include_dir::{include_dir, Dir};
 use lazy_static::lazy_static;
 use macros_rs::fmtstr;
-use pmc::{config, config::structs::Servers, process};
+use pmc::{config, process};
 use prometheus::{opts, register_counter, register_gauge, register_histogram, register_histogram_vec};
 use prometheus::{Counter, Gauge, Histogram, HistogramVec};
 use serde_json::{json, Value};
+use std::sync::atomic::{AtomicBool, Ordering};
 use structs::{AuthMessage, ErrorMessage};
 use utoipa_rapidoc::RapiDoc;
+
+use rocket::request::{self, FromRequest, Request};
 
 use utoipa::{
     openapi::security::{ApiKey, ApiKeyValue, SecurityScheme},
@@ -54,7 +57,6 @@ lazy_static! {
         routes::rename_handler
     ),
     components(schemas(
-        Servers,
         AuthMessage,
         ErrorMessage,
         process::Log,
@@ -67,6 +69,7 @@ lazy_static! {
         routes::Stats,
         routes::Server,
         routes::Daemon,
+        routes::Servers,
         routes::Version,
         routes::ActionBody,
         routes::ConfigBody,
@@ -81,6 +84,8 @@ lazy_static! {
 struct ApiDoc;
 
 struct Logger;
+
+struct EnableWebUI;
 
 struct SecurityAddon;
 
@@ -109,7 +114,22 @@ fn not_found<'m>() -> Json<ErrorMessage> { create_status(Status::NotFound) }
 fn unauthorized<'m>() -> Json<ErrorMessage> { create_status(Status::Unauthorized) }
 
 #[rocket::async_trait]
-impl<'r> rocket::request::FromRequest<'r> for routes::Token {
+impl<'r> FromRequest<'r> for EnableWebUI {
+    type Error = ();
+
+    async fn from_request(_req: &'r Request<'_>) -> request::Outcome<Self, Self::Error> {
+        let webui = IS_WEBUI.load(Ordering::Acquire);
+
+        if webui {
+            Outcome::Success(EnableWebUI)
+        } else {
+            Outcome::Error((Status::NotFound, ()))
+        }
+    }
+}
+
+#[rocket::async_trait]
+impl<'r> FromRequest<'r> for routes::Token {
     type Error = ();
 
     async fn from_request(request: &'r rocket::Request<'_>) -> rocket::request::Outcome<Self, Self::Error> {
@@ -129,13 +149,19 @@ impl<'r> rocket::request::FromRequest<'r> for routes::Token {
     }
 }
 
+static IS_WEBUI: AtomicBool = AtomicBool::new(false);
+
 pub async fn start(webui: bool) {
+    IS_WEBUI.store(webui, Ordering::Release);
+
     let tera = webui::create_templates();
     let s_path = config::read().get_path().trim_end_matches('/').to_string();
 
-    let mut routes = rocket::routes![
-        index,
+    let routes = rocket::routes![
+        docs,
+        health,
         assets,
+        docs_json,
         routes::login,
         routes::dashboard,
         routes::view_process,
@@ -152,26 +178,13 @@ pub async fn start(webui: bool) {
         routes::prometheus_handler,
         routes::create_handler,
         routes::rename_handler,
-        docs_json,
-        docs,
     ];
-
-    if webui {
-        routes.remove(0);
-    } else {
-        routes.remove(1);
-        routes.remove(2);
-        routes.remove(3);
-        routes.remove(4);
-
-        log::debug!("{:?} {:?} {:?} {:?}", routes[1], routes[2], routes[3], routes[4]);
-    }
 
     let rocket = rocket::custom(config::read().get_address())
         .attach(Logger)
         .manage(TeraState { path: tera.1, tera: tera.0 })
         .mount(format!("{s_path}/"), routes)
-        .register(format!("{s_path}/"), rocket::catchers![internal_error, not_allowed, not_found, unauthorized])
+        .register("/", rocket::catchers![internal_error, not_allowed, not_found, unauthorized])
         .launch()
         .await;
 
@@ -198,8 +211,8 @@ pub async fn docs() -> (ContentType, String) {
     (ContentType::HTML, RapiDoc::new(docs_path).custom_html(DOCS).to_html())
 }
 
-#[rocket::get("/")]
-pub async fn index() -> Value { json!({"healthy": true}) }
+#[rocket::get("/health")]
+pub async fn health() -> Value { json!({"healthy": true}) }
 
 #[rocket::get("/docs.json")]
 pub async fn docs_json() -> Value { json!(ApiDoc::openapi()) }

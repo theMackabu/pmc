@@ -5,7 +5,7 @@ use utoipa::ToSchema;
 pub(crate) struct ErrorMessage {
     #[schema(example = 404)]
     pub(crate) code: u16,
-    #[schema(example = "NOT_FOUND")]
+    #[schema(example = "Not Found")]
     pub(crate) message: &'static str,
 }
 
@@ -13,6 +13,6 @@ pub(crate) struct ErrorMessage {
 pub(crate) struct AuthMessage {
     #[schema(example = 401)]
     pub(crate) code: u16,
-    #[schema(example = "UNAUTHORIZED")]
+    #[schema(example = "Unauthorized")]
     pub(crate) message: String,
 }
