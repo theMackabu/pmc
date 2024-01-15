@@ -74,7 +74,7 @@ pub struct LogInfo {
     pub error: String,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, Deserialize, ToSchema)]
 pub struct ProcessItem {
     pid: i64,
     id: usize,

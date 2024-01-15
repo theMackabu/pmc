@@ -1,18 +1,26 @@
-use rocket::serde::Serialize;
-use utoipa::ToSchema;
+#![allow(dead_code)]
 
-#[derive(Serialize, ToSchema)]
+use rocket::http::Status;
+use serde::{Deserialize, Serialize};
+use serde_json::json;
+
+use utoipa::{
+    openapi::{KnownFormat, Object, ObjectBuilder, SchemaFormat, SchemaType},
+    ToSchema,
+};
+
+#[derive(Serialize, Deserialize, ToSchema)]
 pub(crate) struct ErrorMessage {
-    #[schema(example = 404)]
-    pub(crate) code: u16,
+    #[schema(schema_with = status)]
+    pub(crate) code: Status,
     #[schema(example = "Not Found")]
-    pub(crate) message: &'static str,
+    pub(crate) message: String,
 }
 
-#[derive(Serialize, ToSchema)]
-pub(crate) struct AuthMessage {
-    #[schema(example = 401)]
-    pub(crate) code: u16,
-    #[schema(example = "Unauthorized")]
-    pub(crate) message: String,
+fn status() -> Object {
+    ObjectBuilder::new()
+        .schema_type(SchemaType::Integer)
+        .format(Some(SchemaFormat::KnownFormat(KnownFormat::UInt16)))
+        .example(Some(json!(404)))
+        .build()
 }
