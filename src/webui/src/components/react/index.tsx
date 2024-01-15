@@ -1,10 +1,12 @@
 import { api } from '@/api';
+import { $settings } from '@/store';
 import Rename from '@/components/react/rename';
 import { useEffect, useState, Fragment } from 'react';
 import { Menu, Transition } from '@headlessui/react';
 import { EllipsisVerticalIcon } from '@heroicons/react/20/solid';
 
 const Index = (props: { base: string }) => {
+	const servers = JSON.parse($settings.get().servers);
 	const [items, setItems] = useState([]);
 
 	const badge = {
@@ -18,6 +20,15 @@ const Index = (props: { base: string }) => {
 			.get(props.base + '/list')
 			.json()
 			.then((res) => setItems(res));
+
+		api
+			.get(props.base + '/daemon/servers')
+			.json()
+			.then((res) => $settings.setKey('servers', JSON.stringify(res.servers)));
+
+		servers.forEach((s) => {
+			api.get(s.address + '/list').json();
+		});
 	};
 
 	const classNames = (...classes: Array<any>) => classes.filter(Boolean).join(' ');

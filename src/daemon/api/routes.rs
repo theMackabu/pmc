@@ -1,6 +1,8 @@
+#![allow(non_snake_case)]
+
 use chrono::{DateTime, Utc};
 use global_placeholders::global;
-use macros_rs::{string, ternary, then};
+use macros_rs::{fmtstr, string, ternary, then};
 use prometheus::{Encoder, TextEncoder};
 use psutil::process::{MemoryInfo, Process};
 use serde::Deserialize;
@@ -9,20 +11,21 @@ use utoipa::ToSchema;
 
 use rocket::{
     get,
-    http::ContentType,
+    http::{ContentType, Status},
     post,
     serde::{json::Json, Serialize},
     State,
 };
 
 use super::{
-    helpers::{not_found, NotFound},
+    helpers::{generic_error, not_found, GenericError, NotFound},
+    structs::ErrorMessage,
     EnableWebUI, TeraState,
 };
 
 use pmc::{
     config, file, helpers,
-    process::{dump, ItemSingle, ProcessItem, Runner},
+    process::{dump, http::client, ItemSingle, ProcessItem, Runner},
 };
 
 use crate::daemon::{
@@ -96,13 +99,6 @@ pub(crate) struct ActionResponse {
 }
 
 #[derive(Serialize, ToSchema)]
-pub(crate) struct Server {
-    pub name: String,
-    pub address: String,
-    pub token: Option<String>,
-}
-
-#[derive(Serialize, ToSchema)]
 pub(crate) struct LogResponse {
     logs: Vec<String>,
 }
@@ -140,11 +136,6 @@ pub struct Daemon {
 pub struct Stats {
     pub memory_usage: String,
     pub cpu_percent: String,
-}
-
-#[derive(Serialize, ToSchema)]
-pub struct Servers {
-    pub servers: Vec<Server>,
 }
 
 fn attempt(done: bool, method: &str) -> ActionResponse {
@@ -192,7 +183,10 @@ pub async fn view_process(id: usize, state: &State<TeraState>, _webui: EnableWeb
             description = "Get prometheus metrics", body = String, status = 200,
             example = json!("# HELP daemon_cpu_percentage The cpu usage graph of the daemon.\n# TYPE daemon_cpu_percentage histogram\ndaemon_cpu_percentage_bucket{le=\"0.005\"} 0"),
         ),
-        (status = UNAUTHORIZED, description = "Authentication failed or not provided", body = AuthMessage)
+        (
+            status = UNAUTHORIZED, description = "Authentication failed or not provided", body = ErrorMessage, 
+            example = json!({"code": 401, "message": "Unauthorized"})
+        )
     )
 )]
 pub async fn prometheus_handler(_t: Token) -> String {
@@ -207,36 +201,74 @@ pub async fn prometheus_handler(_t: Token) -> String {
 #[get("/daemon/servers")]
 #[utoipa::path(get, tag = "Daemon", path = "/daemon/servers", security((), ("api_key" = [])),
     responses(
-        (status = 200, description = "Get daemon servers successfully", body = Servers),
-        (status = UNAUTHORIZED, description = "Authentication failed or not provided", body = AuthMessage)
+        (status = 200, description = "Get daemon servers successfully", body = [String]),
+        (
+            status = UNAUTHORIZED, description = "Authentication failed or not provided", body = ErrorMessage, 
+            example = json!({"code": 401, "message": "Unauthorized"})
+        )
     )
 )]
-pub async fn servers_handler(_t: Token) -> Json<Servers> {
+pub async fn servers_list(_t: Token) -> Result<Json<Vec<String>>, GenericError> {
     let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["servers"]).start_timer();
-    let server_list = config::servers();
 
-    let servers = server_list
-        .servers
-        .unwrap()
-        .iter()
-        .map(|(name, item)| Server {
-            name: name.to_string(),
-            token: item.token.to_owned(),
-            address: item.address.to_owned(),
-        })
-        .collect::<Vec<Server>>();
+    if let Some(servers) = config::servers().servers {
+        HTTP_COUNTER.inc();
+        timer.observe_duration();
 
-    HTTP_COUNTER.inc();
-    timer.observe_duration();
+        Ok(Json(servers.into_keys().collect()))
+    } else {
+        Err(generic_error(Status::BadRequest, string!("No servers have been added")))
+    }
+}
 
-    Json(Servers { servers })
+#[get("/daemon/server/<name>/list")]
+#[utoipa::path(get, tag = "Daemon", path = "/daemon/server/{name}/list", security((), ("api_key" = [])),
+    params(("name" = String, Path, description = "Name of remote daemon", example = "example"),),
+    responses(
+        (status = 200, description = "Get list from remote daemon successfully", body = [ProcessItem]),
+        (status = NOT_FOUND, description = "Remote daemon does not exist", body = ErrorMessage),
+        (
+            status = UNAUTHORIZED, description = "Authentication failed or not provided", body = ErrorMessage, 
+            example = json!({"code": 401, "message": "Unauthorized"})
+        )
+    )
+)]
+pub async fn servers_handler(name: String, _t: Token) -> Result<Json<Vec<ProcessItem>>, GenericError> {
+    let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["servers"]).start_timer();
+
+    if let Some(servers) = config::servers().servers {
+        let (address, (client, headers)) = match servers.get(&name) {
+            Some(server) => (&server.address, client(&server.token)),
+            None => return Err(generic_error(Status::NotFound, string!("Server was not found"))),
+        };
+
+        HTTP_COUNTER.inc();
+        timer.observe_duration();
+
+        match client.get(fmtstr!("{address}/list")).headers(headers).send() {
+            Ok(data) => {
+                if data.status() != 200 {
+                    let err = data.json::<ErrorMessage>().unwrap();
+                    Err(generic_error(err.code, err.message))
+                } else {
+                    Ok(Json(data.json::<Vec<ProcessItem>>().unwrap()))
+                }
+            }
+            Err(err) => Err(generic_error(Status::InternalServerError, err.to_string())),
+        }
+    } else {
+        Err(generic_error(Status::BadRequest, string!("No servers have been added")))
+    }
 }
 
 #[get("/daemon/dump")]
 #[utoipa::path(get, tag = "Daemon", path = "/daemon/dump", security((), ("api_key" = [])),
     responses(
         (status = 200, description = "Dump processes successfully", body = [u8]),
-        (status = UNAUTHORIZED, description = "Authentication failed or not provided", body = AuthMessage)
+        (
+            status = UNAUTHORIZED, description = "Authentication failed or not provided", body = ErrorMessage, 
+            example = json!({"code": 401, "message": "Unauthorized"})
+        )
     )
 )]
 pub async fn dump_handler(_t: Token) -> Vec<u8> {
@@ -252,7 +284,10 @@ pub async fn dump_handler(_t: Token) -> Vec<u8> {
 #[utoipa::path(get, tag = "Daemon", path = "/daemon/config", security((), ("api_key" = [])),
     responses(
         (status = 200, description = "Get daemon config successfully", body = ConfigBody),
-        (status = UNAUTHORIZED, description = "Authentication failed or not provided", body = AuthMessage)
+        (
+            status = UNAUTHORIZED, description = "Authentication failed or not provided", body = ErrorMessage, 
+            example = json!({"code": 401, "message": "Unauthorized"})
+        )
     )
 )]
 pub async fn config_handler(_t: Token) -> Json<ConfigBody> {
@@ -273,7 +308,10 @@ pub async fn config_handler(_t: Token) -> Json<ConfigBody> {
 #[utoipa::path(get, path = "/list", tag = "Process", security((), ("api_key" = [])),
     responses(
         (status = 200, description = "List processes successfully", body = [ProcessItem]),
-        (status = UNAUTHORIZED, description = "Authentication failed or not provided", body = AuthMessage)
+        (
+            status = UNAUTHORIZED, description = "Authentication failed or not provided", body = ErrorMessage, 
+            example = json!({"code": 401, "message": "Unauthorized"})
+        )
     )
 )]
 pub async fn list_handler(_t: Token) -> Json<Vec<ProcessItem>> {
@@ -296,7 +334,10 @@ pub async fn list_handler(_t: Token) -> Json<Vec<ProcessItem>> {
     responses(
         (status = 200, description = "Process logs of {type} fetched", body = LogResponse),
         (status = NOT_FOUND, description = "Process was not found", body = ErrorMessage),
-        (status = UNAUTHORIZED, description = "Authentication failed or not provided", body = AuthMessage)
+        (
+            status = UNAUTHORIZED, description = "Authentication failed or not provided", body = ErrorMessage, 
+            example = json!({"code": 401, "message": "Unauthorized"})
+        )
     )
 )]
 pub async fn logs_handler(id: usize, kind: String, _t: Token) -> Result<Json<LogResponse>, NotFound> {
@@ -338,12 +379,14 @@ pub async fn logs_handler(id: usize, kind: String, _t: Token) -> Result<Json<Log
     ),
     responses(
         (
-            status = 200, 
-            description = "Process logs of {type} fetched raw", body = String, 
+            description = "Process logs of {type} fetched raw", body = String, status = 200,
             example = json!("# PATH path/of/file.log\nserver started on port 3000")
         ),
         (status = NOT_FOUND, description = "Process was not found", body = ErrorMessage),
-        (status = UNAUTHORIZED, description = "Authentication failed or not provided", body = AuthMessage)
+        (
+            status = UNAUTHORIZED, description = "Authentication failed or not provided", body = ErrorMessage, 
+            example = json!({"code": 401, "message": "Unauthorized"})
+        )
     )
 )]
 pub async fn logs_raw_handler(id: usize, kind: String, _t: Token) -> Result<String, NotFound> {
@@ -379,7 +422,10 @@ pub async fn logs_raw_handler(id: usize, kind: String, _t: Token) -> Result<Stri
     responses(
         (status = 200, description = "Current process info retrieved", body = ItemSingle),
         (status = NOT_FOUND, description = "Process was not found", body = ErrorMessage),
-        (status = UNAUTHORIZED, description = "Authentication failed or not provided", body = AuthMessage)
+        (
+            status = UNAUTHORIZED, description = "Authentication failed or not provided", body = ErrorMessage, 
+            example = json!({"code": 401, "message": "Unauthorized"})
+        )
     )
 )]
 pub async fn info_handler(id: usize, _t: Token) -> Result<Json<ItemSingle>, NotFound> {
@@ -405,7 +451,10 @@ pub async fn info_handler(id: usize, _t: Token) -> Result<Json<ItemSingle>, NotF
             example = json!({"action": "create", "done": true }), status = 200,
         ),
         (status = INTERNAL_SERVER_ERROR, description = "Failed to create process", body = ErrorMessage),
-        (status = UNAUTHORIZED, description = "Authentication failed or not provided", body = AuthMessage)
+        (
+            status = UNAUTHORIZED, description = "Authentication failed or not provided", body = ErrorMessage, 
+            example = json!({"code": 401, "message": "Unauthorized"})
+        )
     )
 )]
 pub async fn create_handler(body: Json<CreateBody>, _t: Token) -> Result<Json<ActionResponse>, ()> {
@@ -436,7 +485,10 @@ pub async fn create_handler(body: Json<CreateBody>, _t: Token) -> Result<Json<Ac
             example = json!({"action": "rename", "done": true }), status = 200,
         ),
         (status = NOT_FOUND, description = "Process was not found", body = ErrorMessage),
-        (status = UNAUTHORIZED, description = "Authentication failed or not provided", body = AuthMessage)
+        (
+            status = UNAUTHORIZED, description = "Authentication failed or not provided", body = ErrorMessage, 
+            example = json!({"code": 401, "message": "Unauthorized"})
+        )
     )
 )]
 pub async fn rename_handler(id: usize, body: String, _t: Token) -> Result<Json<ActionResponse>, NotFound> {
@@ -468,7 +520,10 @@ pub async fn rename_handler(id: usize, body: String, _t: Token) -> Result<Json<A
             example = json!({"ENV_TEST_VALUE": "example_value"}), status = 200
         ),
         (status = NOT_FOUND, description = "Process was not found", body = ErrorMessage),
-        (status = UNAUTHORIZED, description = "Authentication failed or not provided", body = AuthMessage)
+        (
+            status = UNAUTHORIZED, description = "Authentication failed or not provided", body = ErrorMessage, 
+            example = json!({"code": 401, "message": "Unauthorized"})
+        )
     )
 )]
 pub async fn env_handler(id: usize, _t: Token) -> Result<EnvList, NotFound> {
@@ -494,7 +549,10 @@ pub async fn env_handler(id: usize, _t: Token) -> Result<EnvList, NotFound> {
     responses(
         (status = 200, description = "Run action on process successful", body = ActionResponse),
         (status = NOT_FOUND, description = "Process/action was not found", body = ErrorMessage),
-        (status = UNAUTHORIZED, description = "Authentication failed or not provided", body = AuthMessage)
+        (
+            status = UNAUTHORIZED, description = "Authentication failed or not provided", body = ErrorMessage, 
+            example = json!({"code": 401, "message": "Unauthorized"})
+        )
     )
 )]
 pub async fn action_handler(id: usize, body: Json<ActionBody>, _t: Token) -> Result<Json<ActionResponse>, NotFound> {
@@ -532,8 +590,13 @@ pub async fn action_handler(id: usize, body: Json<ActionBody>, _t: Token) -> Res
 
 #[get("/daemon/metrics")]
 #[utoipa::path(get, tag = "Daemon", path = "/daemon/metrics", security((), ("api_key" = [])),
-    responses((status = 200, description = "Get daemon metrics", body = MetricsRoot),
-    (status = UNAUTHORIZED, description = "Authentication failed or not provided", body = AuthMessage))
+    responses(
+        (status = 200, description = "Get daemon metrics", body = MetricsRoot),
+        (
+            status = UNAUTHORIZED, description = "Authentication failed or not provided", body = ErrorMessage, 
+            example = json!({"code": 401, "message": "Unauthorized"})
+        )
+    )
 )]
 pub async fn metrics_handler(_t: Token) -> Json<MetricsRoot> {
     let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["metrics"]).start_timer();

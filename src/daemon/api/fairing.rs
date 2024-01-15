@@ -1,7 +1,11 @@
-use rocket::fairing::{Fairing, Info, Kind};
-use rocket::{http::ContentType, Data, Orbit, Request, Response, Rocket};
+use rocket::{
+    async_trait,
+    fairing::{Fairing, Info, Kind},
+    http::{ContentType, Header},
+    Data, Orbit, Request, Response, Rocket,
+};
 
-#[rocket::async_trait]
+#[async_trait]
 impl Fairing for super::Logger {
     fn info(&self) -> Info {
         Info {
@@ -38,5 +42,23 @@ impl Fairing for super::Logger {
            "size" => response.body_mut().size().await.unwrap_or(0),
            "content_type" => response.content_type().unwrap_or(ContentType::Plain),
         );
+    }
+}
+
+#[async_trait]
+impl Fairing for super::AddCORS {
+    fn info(&self) -> Info {
+        Info {
+            name: "Add CORS headers to responses",
+            kind: Kind::Response,
+        }
+    }
+
+    async fn on_response<'r>(&self, _request: &'r Request<'_>, response: &mut Response<'r>) {
+        response.set_header(Header::new("Access-Control-Allow-Origin", "*"));
+        response.set_header(Header::new("Access-Control-Allow-Credentials", "true"));
+        response.set_header(Header::new("Access-Control-Allow-Methods", "POST, GET, OPTIONS"));
+        response.set_header(Header::new("Access-Control-Allow-Headers", "token, Content-Type, Accept"));
+        response.set_header(Header::new("Access-Control-Expose-Headers", "Content-Encoding, Content-Type"));
     }
 }

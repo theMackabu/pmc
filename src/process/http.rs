@@ -23,7 +23,7 @@ struct CreateBody<'c> {
     pub watch: &'c Option<String>,
 }
 
-fn client(token: &Option<String>) -> (Client, HeaderMap) {
+pub fn client(token: &Option<String>) -> (Client, HeaderMap) {
     let client = Client::new();
     let mut headers = HeaderMap::new();
 

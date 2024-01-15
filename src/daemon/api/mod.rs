@@ -13,10 +13,8 @@ use prometheus::{opts, register_counter, register_gauge, register_histogram, reg
 use prometheus::{Counter, Gauge, Histogram, HistogramVec};
 use serde_json::{json, Value};
 use std::sync::atomic::{AtomicBool, Ordering};
-use structs::{AuthMessage, ErrorMessage};
+use structs::ErrorMessage;
 use utoipa_rapidoc::RapiDoc;
-
-use rocket::request::{self, FromRequest, Request};
 
 use utoipa::{
     openapi::security::{ApiKey, ApiKeyValue, SecurityScheme},
@@ -27,6 +25,7 @@ use rocket::{
     catch,
     http::{ContentType, Status},
     outcome::Outcome,
+    request::{self, FromRequest, Request},
     serde::json::Json,
 };
 
@@ -41,6 +40,16 @@ lazy_static! {
 #[derive(OpenApi)]
 #[openapi(
     modifiers(&SecurityAddon),
+    servers(
+        (url = "{ssl}://{address}:{port}/{path}", description = "Remote API",
+            variables(
+                ("ssl" = (default = "http", enum_values("http", "https"))),
+                ("address" = (default = "localhost", description = "Address for API")),
+                ("port" = (default = "5630", description = "Port for API")),
+                ("path" = (default = "", description = "Path for API"))
+            )
+        )
+    ),
     paths(
         routes::action_handler,
         routes::env_handler,
@@ -50,6 +59,7 @@ lazy_static! {
         routes::config_handler,
         routes::list_handler,
         routes::logs_handler,
+        routes::servers_list,
         routes::logs_raw_handler,
         routes::metrics_handler,
         routes::prometheus_handler,
@@ -57,7 +67,6 @@ lazy_static! {
         routes::rename_handler
     ),
     components(schemas(
-        AuthMessage,
         ErrorMessage,
         process::Log,
         process::Raw,
@@ -67,9 +76,7 @@ lazy_static! {
         process::ItemSingle,
         process::ProcessItem,
         routes::Stats,
-        routes::Server,
         routes::Daemon,
-        routes::Servers,
         routes::Version,
         routes::ActionBody,
         routes::ConfigBody,
@@ -82,11 +89,9 @@ lazy_static! {
 )]
 
 struct ApiDoc;
-
 struct Logger;
-
+struct AddCORS;
 struct EnableWebUI;
-
 struct SecurityAddon;
 
 struct TeraState {
@@ -123,7 +128,7 @@ impl<'r> FromRequest<'r> for EnableWebUI {
         if webui {
             Outcome::Success(EnableWebUI)
         } else {
-            Outcome::Error((Status::NotFound, ()))
+            Outcome::Error((rocket::http::Status::NotFound, ()))
         }
     }
 }
@@ -145,7 +150,7 @@ impl<'r> FromRequest<'r> for routes::Token {
             }
         }
 
-        Outcome::Error((Status::Unauthorized, ()))
+        Outcome::Error((rocket::http::Status::Unauthorized, ()))
     }
 }
 
@@ -169,6 +174,7 @@ pub async fn start(webui: bool) {
         routes::env_handler,
         routes::info_handler,
         routes::dump_handler,
+        routes::servers_list,
         routes::servers_handler,
         routes::config_handler,
         routes::list_handler,
@@ -182,6 +188,7 @@ pub async fn start(webui: bool) {
 
     let rocket = rocket::custom(config::read().get_address())
         .attach(Logger)
+        .attach(AddCORS)
         .manage(TeraState { path: tera.1, tera: tera.0 })
         .mount(format!("{s_path}/"), routes)
         .register("/", rocket::catchers![internal_error, not_allowed, not_found, unauthorized])
