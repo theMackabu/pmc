@@ -6,6 +6,12 @@ license = "MIT"
 repository = "https://lab.themackabu.dev/self/pmc"
 description = "PMC is a simple and easy to use PM2 alternative"
 
+[build-dependencies]
+tar = "0.4.40"
+chrono = "0.4.31"
+flate2 = "1.0.28"
+cxx-build = "1.0.112"
+
 [dependencies]
 log = "0.4.20"
 toml = "0.8.8"
@@ -35,18 +41,28 @@ pretty_env_logger = "0.5.0"
 utoipa-swagger-ui = "5.0.0"
 clap-verbosity-flag = "2.1.2"
 global_placeholders = "0.1.0"
+
 tokio = { version = "1.35.1", features = ["full"] }
 rocket = { version = "0.5.0", features = ["json"] }
 psutil = { version = "3.2.2", features = ["serde"] }
 tabled = { version = "0.15.0", features = ["ansi"] }
 chrono = { version = "0.4.31", features = ["serde"] }
 serde = { version = "1.0.193", features = ["derive"] }
-reqwest = { version = "0.11.23", features = ["blocking", "json"] }
 utoipa = { version = "4.1.0", features = ["serde_yaml", "non_strict_integers"] }
 
-[build-dependencies]
-tar = "0.4.40"
-chrono = "0.4.31"
-flate2 = "1.0.28"
-cxx-build = "1.0.112"
-reqwest = { version = "0.11.23", features = ["blocking"] }
+[dependencies.reqwest]
+version = "0.11.23"
+default-features = false
+features = [
+   "blocking", 
+   "json", 
+   "rustls-tls", 
+]
+
+[build-dependencies.reqwest]
+version = "0.11.23"
+default-features = false
+features = [
+   "blocking", 
+   "rustls-tls", 
+]
