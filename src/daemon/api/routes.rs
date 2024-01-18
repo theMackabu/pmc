@@ -5,6 +5,7 @@ use global_placeholders::global;
 use macros_rs::{fmtstr, string, ternary, then};
 use prometheus::{Encoder, TextEncoder};
 use psutil::process::{MemoryInfo, Process};
+use reqwest::header::HeaderValue;
 use serde::Deserialize;
 use tera::{Context, Tera};
 use utoipa::ToSchema;
@@ -62,7 +63,7 @@ pub(crate) struct DocMemoryInfo {
     pageins: u64,
 }
 
-#[derive(Deserialize, ToSchema)]
+#[derive(Serialize, Deserialize, ToSchema)]
 pub(crate) struct ActionBody {
     #[schema(example = "restart")]
     method: String,
@@ -78,7 +79,7 @@ pub(crate) struct ConfigBody {
     log_path: String,
 }
 
-#[derive(Deserialize, ToSchema)]
+#[derive(Serialize, Deserialize, ToSchema)]
 pub(crate) struct CreateBody {
     #[schema(example = "app")]
     name: Option<String>,
@@ -90,15 +91,15 @@ pub(crate) struct CreateBody {
     watch: Option<String>,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, Deserialize, ToSchema)]
 pub(crate) struct ActionResponse {
     #[schema(example = true)]
     done: bool,
     #[schema(example = "name")]
-    action: &'static str,
+    action: String,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, Deserialize, ToSchema)]
 pub(crate) struct LogResponse {
     logs: Vec<String>,
 }
@@ -141,7 +142,7 @@ pub struct Stats {
 fn attempt(done: bool, method: &str) -> ActionResponse {
     ActionResponse {
         done,
-        action: ternary!(done, Box::leak(Box::from(method)), "DOES_NOT_EXIST"),
+        action: ternary!(done, Box::leak(Box::from(method)), "DOES_NOT_EXIST").to_string(),
     }
 }
 
@@ -208,7 +209,7 @@ pub async fn prometheus_handler(_t: Token) -> String {
         )
     )
 )]
-pub async fn servers_list(_t: Token) -> Result<Json<Vec<String>>, GenericError> {
+pub async fn servers_handler(_t: Token) -> Result<Json<Vec<String>>, GenericError> {
     let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["servers"]).start_timer();
 
     if let Some(servers) = config::servers().servers {
@@ -221,8 +222,8 @@ pub async fn servers_list(_t: Token) -> Result<Json<Vec<String>>, GenericError> 
     }
 }
 
-#[get("/daemon/server/<name>/list")]
-#[utoipa::path(get, tag = "Daemon", path = "/daemon/server/{name}/list", security((), ("api_key" = [])),
+#[get("/remote/<name>/list")]
+#[utoipa::path(get, tag = "Remote", path = "/remote/{name}/list", security((), ("api_key" = [])),
     params(("name" = String, Path, description = "Name of remote daemon", example = "example"),),
     responses(
         (status = 200, description = "Get list from remote daemon successfully", body = [ProcessItem]),
@@ -233,25 +234,205 @@ pub async fn servers_list(_t: Token) -> Result<Json<Vec<String>>, GenericError> 
         )
     )
 )]
-pub async fn servers_handler(name: String, _t: Token) -> Result<Json<Vec<ProcessItem>>, GenericError> {
-    let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["servers"]).start_timer();
+pub async fn remote_list(name: String, _t: Token) -> Result<Json<Vec<ProcessItem>>, GenericError> {
+    let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["list"]).start_timer();
 
     if let Some(servers) = config::servers().servers {
         let (address, (client, headers)) = match servers.get(&name) {
-            Some(server) => (&server.address, client(&server.token)),
+            Some(server) => (&server.address, client(&server.token).await),
             None => return Err(generic_error(Status::NotFound, string!("Server was not found"))),
         };
 
         HTTP_COUNTER.inc();
         timer.observe_duration();
 
-        match client.get(fmtstr!("{address}/list")).headers(headers).send() {
+        match client.get(fmtstr!("{address}/list")).headers(headers).send().await {
             Ok(data) => {
                 if data.status() != 200 {
-                    let err = data.json::<ErrorMessage>().unwrap();
+                    let err = data.json::<ErrorMessage>().await.unwrap();
                     Err(generic_error(err.code, err.message))
                 } else {
-                    Ok(Json(data.json::<Vec<ProcessItem>>().unwrap()))
+                    Ok(Json(data.json::<Vec<ProcessItem>>().await.unwrap()))
+                }
+            }
+            Err(err) => Err(generic_error(Status::InternalServerError, err.to_string())),
+        }
+    } else {
+        Err(generic_error(Status::BadRequest, string!("No servers have been added")))
+    }
+}
+
+#[get("/remote/<name>/info/<id>")]
+#[utoipa::path(get, tag = "Remote", path = "/remote/{name}/info/{id}", security((), ("api_key" = [])),
+    params(
+        ("name" = String, Path, description = "Name of remote daemon", example = "example"),
+        ("id" = usize, Path, description = "Process id to get information for", example = 0)
+    ),
+    responses(
+        (status = 200, description = "Get process info from remote daemon successfully", body = [ProcessItem]),
+        (status = NOT_FOUND, description = "Remote daemon does not exist", body = ErrorMessage),
+        (
+            status = UNAUTHORIZED, description = "Authentication failed or not provided", body = ErrorMessage, 
+            example = json!({"code": 401, "message": "Unauthorized"})
+        )
+    )
+)]
+pub async fn remote_info(name: String, id: usize, _t: Token) -> Result<Json<ItemSingle>, GenericError> {
+    let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["info"]).start_timer();
+
+    if let Some(servers) = config::servers().servers {
+        let (address, (client, headers)) = match servers.get(&name) {
+            Some(server) => (&server.address, client(&server.token).await),
+            None => return Err(generic_error(Status::NotFound, string!("Server was not found"))),
+        };
+
+        HTTP_COUNTER.inc();
+        timer.observe_duration();
+
+        match client.get(fmtstr!("{address}/process/{id}/info")).headers(headers).send().await {
+            Ok(data) => {
+                if data.status() != 200 {
+                    let err = data.json::<ErrorMessage>().await.unwrap();
+                    Err(generic_error(err.code, err.message))
+                } else {
+                    Ok(Json(data.json::<ItemSingle>().await.unwrap()))
+                }
+            }
+            Err(err) => Err(generic_error(Status::InternalServerError, err.to_string())),
+        }
+    } else {
+        Err(generic_error(Status::BadRequest, string!("No servers have been added")))
+    }
+}
+
+#[get("/remote/<name>/logs/<id>/<kind>")]
+#[utoipa::path(get, tag = "Remote", path = "/remote/{name}/logs/{id}/{kind}", security((), ("api_key" = [])),
+    params(
+        ("name" = String, Path, description = "Name of remote daemon", example = "example"),
+        ("id" = usize, Path, description = "Process id to get information for", example = 0),
+        ("kind" = String, Path, description = "Log output type", example = "out")
+    ),
+    responses(
+        (status = 200, description = "Remote process logs of {type} fetched", body = LogResponse),
+        (status = NOT_FOUND, description = "Remote daemon does not exist", body = ErrorMessage),
+        (
+            status = UNAUTHORIZED, description = "Authentication failed or not provided", body = ErrorMessage, 
+            example = json!({"code": 401, "message": "Unauthorized"})
+        )
+    )
+)]
+pub async fn remote_logs(name: String, id: usize, kind: String, _t: Token) -> Result<Json<LogResponse>, GenericError> {
+    let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["info"]).start_timer();
+
+    if let Some(servers) = config::servers().servers {
+        let (address, (client, headers)) = match servers.get(&name) {
+            Some(server) => (&server.address, client(&server.token).await),
+            None => return Err(generic_error(Status::NotFound, string!("Server was not found"))),
+        };
+
+        HTTP_COUNTER.inc();
+        timer.observe_duration();
+
+        match client.get(fmtstr!("{address}/process/{id}/logs/{kind}")).headers(headers).send().await {
+            Ok(data) => {
+                if data.status() != 200 {
+                    let err = data.json::<ErrorMessage>().await.unwrap();
+                    Err(generic_error(err.code, err.message))
+                } else {
+                    Ok(Json(data.json::<LogResponse>().await.unwrap()))
+                }
+            }
+            Err(err) => Err(generic_error(Status::InternalServerError, err.to_string())),
+        }
+    } else {
+        Err(generic_error(Status::BadRequest, string!("No servers have been added")))
+    }
+}
+
+#[post("/remote/<name>/rename/<id>", format = "text", data = "<body>")]
+#[utoipa::path(post, tag = "Remote", path = "/remote/{name}/rename/{id}", 
+    security((), ("api_key" = [])),
+    request_body(content = String, example = json!("example_name")), 
+    params(
+        ("id" = usize, Path, description = "Process id to rename", example = 0),
+        ("name" = String, Path, description = "Name of remote daemon", example = "example"),
+    ),
+    responses(
+        (
+            description = "Remote rename process successful", body = ActionResponse,
+            example = json!({"action": "rename", "done": true }), status = 200,
+        ),
+        (status = NOT_FOUND, description = "Process was not found", body = ErrorMessage),
+        (
+            status = UNAUTHORIZED, description = "Authentication failed or not provided", body = ErrorMessage, 
+            example = json!({"code": 401, "message": "Unauthorized"})
+        )
+    )
+)]
+pub async fn remote_rename(name: String, id: usize, body: String, _t: Token) -> Result<Json<ActionResponse>, GenericError> {
+    let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["rename"]).start_timer();
+
+    if let Some(servers) = config::servers().servers {
+        let (address, (client, mut headers)) = match servers.get(&name) {
+            Some(server) => (&server.address, client(&server.token).await),
+            None => return Err(generic_error(Status::NotFound, string!("Server was not found"))),
+        };
+
+        HTTP_COUNTER.inc();
+        timer.observe_duration();
+        headers.insert("content-type", HeaderValue::from_static("text/plain"));
+
+        match client.post(fmtstr!("{address}/process/{id}/rename")).body(body).headers(headers).send().await {
+            Ok(data) => {
+                if data.status() != 200 {
+                    let err = data.json::<ErrorMessage>().await.unwrap();
+                    Err(generic_error(err.code, err.message))
+                } else {
+                    Ok(Json(data.json::<ActionResponse>().await.unwrap()))
+                }
+            }
+            Err(err) => Err(generic_error(Status::InternalServerError, err.to_string())),
+        }
+    } else {
+        Err(generic_error(Status::BadRequest, string!("No servers have been added")))
+    }
+}
+
+#[post("/remote/<name>/action/<id>", format = "json", data = "<body>")]
+#[utoipa::path(post, tag = "Remote", path = "/remote/{name}/action/{id}", request_body = ActionBody,
+    security((), ("api_key" = [])),
+    params(
+        ("id" = usize, Path, description = "Process id to run action on", example = 0),
+        ("name" = String, Path, description = "Name of remote daemon", example = "example")
+    ),
+    responses(
+        (status = 200, description = "Run action on remote process successful", body = ActionResponse),
+        (status = NOT_FOUND, description = "Process/action was not found", body = ErrorMessage),
+        (
+            status = UNAUTHORIZED, description = "Authentication failed or not provided", body = ErrorMessage, 
+            example = json!({"code": 401, "message": "Unauthorized"})
+        )
+    )
+)]
+pub async fn remote_action(name: String, id: usize, body: Json<ActionBody>, _t: Token) -> Result<Json<ActionResponse>, GenericError> {
+    let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["action"]).start_timer();
+
+    if let Some(servers) = config::servers().servers {
+        let (address, (client, headers)) = match servers.get(&name) {
+            Some(server) => (&server.address, client(&server.token).await),
+            None => return Err(generic_error(Status::NotFound, string!("Server was not found"))),
+        };
+
+        HTTP_COUNTER.inc();
+        timer.observe_duration();
+
+        match client.post(fmtstr!("{address}/process/{id}/action")).json(&body.0).headers(headers).send().await {
+            Ok(data) => {
+                if data.status() != 200 {
+                    let err = data.json::<ErrorMessage>().await.unwrap();
+                    Err(generic_error(err.code, err.message))
+                } else {
+                    Ok(Json(data.json::<ActionResponse>().await.unwrap()))
                 }
             }
             Err(err) => Err(generic_error(Status::InternalServerError, err.to_string())),

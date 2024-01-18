@@ -33,7 +33,7 @@ simple-logging = "2.0.2"
 utoipa-rapidoc = "2.0.0"
 pretty_env_logger = "0.5.0"
 utoipa-swagger-ui = "5.0.0"
-clap-verbosity-flag = "2.1.1"
+clap-verbosity-flag = "2.1.2"
 global_placeholders = "0.1.0"
 tokio = { version = "1.35.1", features = ["full"] }
 rocket = { version = "0.5.0", features = ["json"] }

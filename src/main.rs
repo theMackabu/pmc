@@ -25,6 +25,7 @@ impl LogLevel for NoneLevel {
 #[derive(Parser)]
 #[command(version = str!(cli::get_version(false)))]
 struct Cli {
+    /// test
     #[command(subcommand)]
     command: Commands,
     #[clap(flatten)]
