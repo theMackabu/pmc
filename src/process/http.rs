@@ -1,7 +1,7 @@
 use crate::process::Remote;
-use macros_rs::{fmtstr, str, string};
-use reqwest::blocking::{Client, Response};
+use macros_rs::{fmtstr, string};
 use reqwest::header::{HeaderMap, HeaderValue};
+use reqwest::Client;
 use serde::Serialize;
 use std::path::PathBuf;
 
@@ -23,24 +23,41 @@ struct CreateBody<'c> {
     pub watch: &'c Option<String>,
 }
 
-pub fn client(token: &Option<String>) -> (Client, HeaderMap) {
+pub mod sync {
+    use reqwest::blocking::Client;
+    use reqwest::header::{HeaderMap, HeaderValue};
+
+    pub use reqwest::blocking::Response;
+    pub fn client(token: &Option<String>) -> (Client, HeaderMap) {
+        let client = Client::new();
+        let mut headers = HeaderMap::new();
+
+        if let Some(token) = token {
+            headers.insert("token", HeaderValue::from_str(&token).unwrap());
+        }
+
+        return (client, headers);
+    }
+}
+
+pub async fn client(token: &Option<String>) -> (Client, HeaderMap) {
     let client = Client::new();
     let mut headers = HeaderMap::new();
 
     if let Some(token) = token {
-        headers.insert("token", HeaderValue::from_static(str!(token.to_owned())));
+        headers.insert("token", HeaderValue::from_str(&token).unwrap());
     }
 
     return (client, headers);
 }
 
-pub fn info(Remote { address, token, .. }: &Remote, id: usize) -> Result<Response, anyhow::Error> {
-    let (client, headers) = client(token);
+pub fn info(Remote { address, token, .. }: &Remote, id: usize) -> Result<sync::Response, anyhow::Error> {
+    let (client, headers) = sync::client(token);
     Ok(client.get(fmtstr!("{address}/process/{id}/info")).headers(headers).send()?)
 }
 
 pub fn logs(Remote { address, token, .. }: &Remote, id: usize, kind: &str) -> Result<LogResponse, anyhow::Error> {
-    let (client, headers) = client(token);
+    let (client, headers) = sync::client(token);
     let response = client.get(fmtstr!("{address}/process/{id}/logs/{kind}/raw")).headers(headers).send()?;
     let log = response.text()?;
 
@@ -50,34 +67,34 @@ pub fn logs(Remote { address, token, .. }: &Remote, id: usize, kind: &str) -> Re
     })
 }
 
-pub fn create(Remote { address, token, .. }: &Remote, name: &String, script: &String, path: PathBuf, watch: &Option<String>) -> Result<Response, anyhow::Error> {
-    let (client, headers) = client(token);
+pub fn create(Remote { address, token, .. }: &Remote, name: &String, script: &String, path: PathBuf, watch: &Option<String>) -> Result<sync::Response, anyhow::Error> {
+    let (client, headers) = sync::client(token);
     let content = CreateBody { name, script, path, watch };
 
     Ok(client.post(fmtstr!("{address}/process/create")).json(&content).headers(headers).send()?)
 }
 
-pub fn restart(Remote { address, token, .. }: &Remote, id: usize) -> Result<Response, anyhow::Error> {
-    let (client, headers) = client(token);
+pub fn restart(Remote { address, token, .. }: &Remote, id: usize) -> Result<sync::Response, anyhow::Error> {
+    let (client, headers) = sync::client(token);
     let content = ActionBody { method: string!("restart") };
 
     Ok(client.post(fmtstr!("{address}/process/{id}/action")).json(&content).headers(headers).send()?)
 }
 
-pub fn rename(Remote { address, token, .. }: &Remote, id: usize, name: String) -> Result<Response, anyhow::Error> {
-    let (client, headers) = client(token);
+pub fn rename(Remote { address, token, .. }: &Remote, id: usize, name: String) -> Result<sync::Response, anyhow::Error> {
+    let (client, headers) = sync::client(token);
     Ok(client.post(fmtstr!("{address}/process/{id}/rename")).body(name).headers(headers).send()?)
 }
 
-pub fn stop(Remote { address, token, .. }: &Remote, id: usize) -> Result<Response, anyhow::Error> {
-    let (client, headers) = client(token);
+pub fn stop(Remote { address, token, .. }: &Remote, id: usize) -> Result<sync::Response, anyhow::Error> {
+    let (client, headers) = sync::client(token);
     let content = ActionBody { method: string!("stop") };
 
     Ok(client.post(fmtstr!("{address}/process/{id}/action")).json(&content).headers(headers).send()?)
 }
 
-pub fn remove(Remote { address, token, .. }: &Remote, id: usize) -> Result<Response, anyhow::Error> {
-    let (client, headers) = client(token);
+pub fn remove(Remote { address, token, .. }: &Remote, id: usize) -> Result<sync::Response, anyhow::Error> {
+    let (client, headers) = sync::client(token);
     let content = ActionBody { method: string!("remove") };
 
     Ok(client.post(fmtstr!("{address}/process/{id}/action")).json(&content).headers(headers).send()?)
