@@ -7,7 +7,6 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <vector>
-
 #ifdef __linux__
 #include <cstring>
 #include <string>
@@ -90,6 +89,18 @@ int64_t get_child_pid(int64_t parentPID) {
 #else
   return -1;
 #endif
+}
+
+rust::Vec<rust::i64> find_chidren(int64_t pid) {
+  rust::Vec<rust::i64> children;
+  int64_t child;
+
+  while ((child = get_child_pid(pid)) != -1) {
+    children.push_back(child);
+    pid = child;
+  }
+
+  return children;
 }
 
 int64_t stop(int64_t pid) {

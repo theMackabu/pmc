@@ -22,7 +22,7 @@ pub fn from(address: &str, token: Option<&str>) -> Result<Runner, anyhow::Error>
     let response = client.get(fmtstr!("{address}/daemon/dump")).headers(headers).send()?;
     let bytes = response.bytes()?;
 
-    Ok(file::from_rmp(&bytes))
+    Ok(file::from_object(&bytes))
 }
 
 pub fn read() -> Runner {
@@ -37,7 +37,7 @@ pub fn read() -> Runner {
         log!("created dump file");
     }
 
-    file::read_rmp(global!("pmc.dump"))
+    file::read_object(global!("pmc.dump"))
 }
 
 pub fn raw() -> Vec<u8> {
@@ -56,7 +56,7 @@ pub fn raw() -> Vec<u8> {
 }
 
 pub fn write(dump: &Runner) {
-    let encoded: Vec<u8> = match rmp_serde::to_vec(&dump) {
+    let encoded = match ron::ser::to_string(&dump) {
         Ok(contents) => contents,
         Err(err) => crashln!("{} Cannot encode dump.\n{}", *helpers::FAIL, string!(err).white()),
     };

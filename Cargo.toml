@@ -13,6 +13,7 @@ flate2 = "1.0.28"
 cxx-build = "1.0.112"
 
 [dependencies]
+ron = "0.8.1"
 log = "0.4.20"
 toml = "0.8.8"
 home = "0.5.9"
@@ -27,7 +28,6 @@ anyhow = "1.0.78"
 colored = "2.1.0"
 macros-rs = "0.5.0"
 termcolor = "1.4.0"
-rmp-serde = "1.1.2"
 once_cell = "1.19.0"
 env_logger = "0.10.1"
 merkle_hash = "3.5.0"
@@ -48,7 +48,9 @@ psutil = { version = "3.2.2", features = ["serde"] }
 tabled = { version = "0.15.0", features = ["ansi"] }
 chrono = { version = "0.4.31", features = ["serde"] }
 serde = { version = "1.0.193", features = ["derive"] }
+nix = { version = "0.27.1", features = ["process", "signal"] }
 utoipa = { version = "4.1.0", features = ["serde_yaml", "non_strict_integers"] }
+
 
 [dependencies.reqwest]
 version = "0.11.23"

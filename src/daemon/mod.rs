@@ -43,6 +43,12 @@ extern "C" fn handle_termination_signal(_: libc::c_int) {
 fn restart_process() {
     for (id, item) in Runner::new().items_mut() {
         let mut runner = Runner::new();
+        let children = pmc::service::find_chidren(item.pid);
+
+        if !children.is_empty() && children != item.children {
+            log!("[daemon] added", "children" => format!("{children:?}"));
+            runner.set_children(*id, children).save();
+        }
 
         if item.running && item.watch.enabled {
             let path = item.path.join(item.watch.path.clone());
@@ -80,7 +86,7 @@ pub fn health(format: &String) {
     let mut cpu_percent: Option<f32> = None;
     let mut uptime: Option<DateTime<Utc>> = None;
     let mut memory_usage: Option<MemoryInfo> = None;
-    let mut runner: Runner = file::read_rmp(global!("pmc.dump"));
+    let mut runner: Runner = file::read_object(global!("pmc.dump"));
 
     #[derive(Clone, Debug, Tabled)]
     struct Info {

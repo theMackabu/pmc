@@ -193,6 +193,7 @@ pub fn info(id: &usize, format: &String, server_name: &String) {
         hash: String,
         #[tabled(rename = "watching")]
         watch: String,
+        children: String,
         #[tabled(rename = "exec cwd")]
         path: String,
         #[tabled(rename = "script command ")]
@@ -214,8 +215,9 @@ pub fn info(id: &usize, format: &String, server_name: &String) {
                 "name": &self.name.trim(),
                 "path": &self.path.trim(),
                 "restarts": &self.restarts,
+                "hash": &self.hash.trim(),
                 "watch": &self.watch.trim(),
-                "watch": &self.hash.trim(),
+                "children": &self.children,
                 "uptime": &self.uptime.trim(),
                 "status": &self.status.0.trim(),
                 "log_out": &self.log_out.trim(),
@@ -260,6 +262,7 @@ pub fn info(id: &usize, format: &String, server_name: &String) {
             let mut cpu_percent: Option<f32> = None;
 
             let path = file::make_relative(&item.path, &home).to_string_lossy().into_owned();
+            let children = if item.children.is_empty() { "none".to_string() } else { format!("{:?}", item.children) };
 
             if let Ok(mut process) = Process::new(item.pid as u32) {
                 memory_usage = process.memory_info().ok();
@@ -288,6 +291,7 @@ pub fn info(id: &usize, format: &String, server_name: &String) {
             };
 
             let data = vec![Info {
+                children,
                 cpu_percent,
                 memory_usage,
                 id: string!(id),
@@ -360,6 +364,7 @@ pub fn info(id: &usize, format: &String, server_name: &String) {
                 status: status.into(),
                 restarts: item.restarts,
                 name: item.name.clone(),
+                children: format!("{:?}", vec![0]),
                 pid: ternary!(item.running, format!("{pid}", pid = item.pid), string!("n/a")),
                 log_out: format!("{}/{}-out.log", remote.config.log_path, item.name),
                 log_error: format!("{}/{}-error.log", remote.config.log_path, item.name),
