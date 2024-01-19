@@ -214,14 +214,16 @@ const View = (props: { id: string; base: string }) => {
 					<div>
 						<div className="flex items-center gap-x-3">
 							<h1 className="flex gap-x-1 text-base leading-7">
-								<span className="font-semibold text-white cursor-default">{item.info.name}</span>
+								<span className="font-semibold text-white cursor-default">{server != null ? `${server}/${item.info.name}` : item.info.name}</span>
 							</h1>
 							<div className={`flex-none rounded-full p-1 ${badge[item.info.status]}`}>
 								<div className="h-2 w-2 rounded-full bg-current" />
 							</div>
-							<div className="order-first flex-none rounded-full bg-sky-400/10 px-2 py-1 text-xs font-medium text-sky-400 ring-1 ring-inset ring-sky-400/30 sm:order-none">
-								{online ? item.info.pid : 'none'}
-							</div>
+							{online && (
+								<div className="order-first flex-none rounded-full bg-sky-400/10 px-2 py-0.5 text-xs font-medium text-sky-400 ring-1 ring-inset ring-sky-400/30 sm:order-none">
+									{item.info.pid}
+								</div>
+							)}
 						</div>
 						<p className="text-xs leading-6 text-zinc-400">{item.info.command}</p>
 					</div>

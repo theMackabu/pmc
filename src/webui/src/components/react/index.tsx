@@ -109,20 +109,20 @@ const Index = (props: { base: string }) => {
 					<a href={isRemote(item) ? `./view/${item.id}?server=${item.server}` : `./view/${item.id}`}>
 						<dl className="-my-3 divide-y divide-zinc-800/30 px-6 py-4 text-sm leading-6">
 							<div className="flex justify-between gap-x-1 py-1">
-								<dt className="text-zinc-700">pid</dt>
-								<dd className="text-zinc-500">{isRunning(item.status) ? item.pid : 'stopped'}</dd>
-							</div>
-							<div className="flex justify-between gap-x-1 py-1">
 								<dt className="text-zinc-700">cpu usage</dt>
-								<dd className="text-zinc-500">{isRunning(item.status) ? item.cpu : 'stopped'}</dd>
+								<dd className="text-zinc-500">{isRunning(item.status) ? item.cpu : 'offline'}</dd>
 							</div>
 							<div className="flex justify-between gap-x-1 py-1">
 								<dt className="text-zinc-700">memory</dt>
-								<dd className="text-zinc-500">{isRunning(item.status) ? item.mem : 'stopped'}</dd>
+								<dd className="text-zinc-500">{isRunning(item.status) ? item.mem : 'offline'}</dd>
+							</div>
+							<div className="flex justify-between gap-x-1 py-1">
+								<dt className="text-zinc-700">pid</dt>
+								<dd className="text-zinc-500">{isRunning(item.status) ? item.pid : 'none'}</dd>
 							</div>
 							<div className="flex justify-between gap-x-1 py-1">
 								<dt className="text-zinc-700">uptime</dt>
-								<dd className="text-zinc-500">{isRunning(item.status) ? item.uptime : 'stopped'}</dd>
+								<dd className="text-zinc-500">{isRunning(item.status) ? item.uptime : 'none'}</dd>
 							</div>
 							<div className="flex justify-between gap-x-1 py-1">
 								<dt className="text-zinc-700">restarts</dt>
