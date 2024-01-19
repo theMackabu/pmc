@@ -745,7 +745,7 @@ pub async fn action_handler(id: usize, body: Json<ActionBody>, _t: Token) -> Res
         HTTP_COUNTER.inc();
         match method {
             "start" | "restart" => {
-                runner.get(id).restart();
+                runner.restart(id, false);
                 timer.observe_duration();
                 Ok(Json(attempt(true, method)))
             }
@@ -785,7 +785,7 @@ pub async fn metrics_handler(_t: Token) -> Json<MetricsRoot> {
     let mut cpu_percent: Option<f32> = None;
     let mut uptime: Option<DateTime<Utc>> = None;
     let mut memory_usage: Option<MemoryInfo> = None;
-    let mut runner: Runner = file::read_rmp(global!("pmc.dump"));
+    let mut runner: Runner = file::read_object(global!("pmc.dump"));
 
     HTTP_COUNTER.inc();
     if pid::exists() {

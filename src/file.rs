@@ -84,14 +84,14 @@ pub fn read<T: serde::de::DeserializeOwned>(path: String) -> T {
     }
 }
 
-pub fn from_rmp<T: serde::de::DeserializeOwned>(bytes: &[u8]) -> T {
-    match rmp_serde::from_slice(&bytes) {
+pub fn from_object<T: serde::de::DeserializeOwned>(bytes: &[u8]) -> T {
+    match ron::de::from_bytes(&bytes) {
         Ok(parsed) => parsed,
         Err(err) => crashln!("{} Cannot parse file.\n{}", *helpers::FAIL, string!(err).white()),
     }
 }
 
-pub fn read_rmp<T: serde::de::DeserializeOwned>(path: String) -> T {
+pub fn read_object<T: serde::de::DeserializeOwned>(path: String) -> T {
     let mut retry_count = 0;
     let max_retries = 5;
 
@@ -101,9 +101,11 @@ pub fn read_rmp<T: serde::de::DeserializeOwned>(path: String) -> T {
             Err(err) => {
                 retry_count += 1;
                 if retry_count >= max_retries {
-                    log!("{} Cannot find file.\n{}", *helpers::FAIL, string!(err).white());
+                    log!("file::read] Cannot find file: {err}");
+                    println!("{} Cannot find file.\n{}", *helpers::FAIL, string!(err).white());
                 } else {
-                    log!("{} Error reading file. Retrying... (Attempt {}/{})", *helpers::FAIL, retry_count, max_retries);
+                    log!("file::read] Error reading file. Retrying... (Attempt {retry_count}/{max_retries})");
+                    println!("{} Error reading file. Retrying... (Attempt {retry_count}/{max_retries})", *helpers::FAIL);
                 }
             }
         }
@@ -113,14 +115,16 @@ pub fn read_rmp<T: serde::de::DeserializeOwned>(path: String) -> T {
     retry_count = 0;
 
     loop {
-        match rmp_serde::from_slice(&bytes) {
+        match ron::de::from_bytes(&bytes) {
             Ok(parsed) => break parsed,
             Err(err) => {
                 retry_count += 1;
                 if retry_count >= max_retries {
-                    log!("{} Cannot parse file.\n{}", *helpers::FAIL, string!(err).white());
+                    log!("[file::parse] Cannot parse file: {err}");
+                    println!("{} Cannot parse file.\n{}", *helpers::FAIL, string!(err).white());
                 } else {
-                    log!("{} Error parsing file. Retrying... (Attempt {}/{})", *helpers::FAIL, retry_count, max_retries);
+                    log!("[file::parse] Error parsing file. Retrying... (Attempt {retry_count}/{max_retries})");
+                    println!("{} Error parsing file. Retrying... (Attempt {retry_count}/{max_retries})", *helpers::FAIL);
                 }
             }
         }

@@ -11,6 +11,11 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use nix::{
+    sys::signal::{kill, Signal},
+    unistd::Pid,
+};
+
 use chrono::serde::ts_milliseconds;
 use chrono::{DateTime, Utc};
 use global_placeholders::global;
@@ -96,20 +101,23 @@ pub struct ProcessWrapper {
     pub runner: Arc<Mutex<Runner>>,
 }
 
+type Env = HashMap<String, String>;
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Process {
     pub id: usize,
     pub pid: i64,
+    pub env: Env,
     pub name: String,
     pub path: PathBuf,
     pub script: String,
-    pub env: HashMap<String, String>,
-    #[serde(with = "ts_milliseconds")]
-    pub started: DateTime<Utc>,
     pub restarts: u64,
     pub running: bool,
     pub crash: Crash,
     pub watch: Watch,
+    pub children: Vec<i64>,
+    #[serde(with = "ts_milliseconds")]
+    pub started: DateTime<Utc>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -169,6 +177,14 @@ macro_rules! lock {
             Err(err) => crashln!("Unable to lock mutex: {err}"),
         }
     }};
+}
+
+fn kill_children(children: Vec<i64>) {
+    for pid in children {
+        if let Err(err) = kill(Pid::from_raw(pid as i32), Signal::SIGTERM) {
+            log::error!("Failed to stop pid {pid}: {err:?}");
+        };
+    }
 }
 
 impl Runner {
@@ -239,6 +255,7 @@ impl Runner {
                     crash,
                     restarts: 0,
                     running: true,
+                    children: vec![],
                     name: name.clone(),
                     started: Utc::now(),
                     script: command.clone(),
@@ -260,13 +277,12 @@ impl Runner {
             let config = config::read().runner;
             let Process { path, script, name, .. } = process.clone();
 
-            if let Err(err) = std::env::set_current_dir(&process.path) {
+            kill_children(process.children.clone());
+            stop(process.pid);
+
+            if let Err(err) = std::env::set_current_dir(&path) {
                 crashln!("{} Failed to set working directory {:?}\nError: {:#?}", *helpers::FAIL, path, err);
             };
-
-            stop(process.pid);
-            process.running = false;
-            process.crash.crashed = false;
 
             process.pid = run(ProcessMetadata {
                 args: config.args,
@@ -277,10 +293,13 @@ impl Runner {
             });
 
             process.running = true;
+            process.children = vec![];
             process.started = Utc::now();
+            process.crash.crashed = false;
 
-            then!(!dead, process.crash.value = 0);
             then!(dead, process.restarts += 1);
+            then!(dead, process.crash.value += 1);
+            then!(!dead, process.crash.value = 0);
         }
 
         return self;
@@ -319,6 +338,7 @@ impl Runner {
     pub fn info(&self, id: usize) -> Option<&Process> { self.list.get(&id) }
     pub fn list<'l>(&'l mut self) -> impl Iterator<Item = (&'l usize, &'l mut Process)> { self.list.iter_mut().map(|(k, v)| (k, v)) }
     pub fn process(&mut self, id: usize) -> &mut Process { self.list.get_mut(&id).unwrap_or_else(|| crashln!("{} Process ({id}) not found", *helpers::FAIL)) }
+    pub fn pid(&self, id: usize) -> i64 { self.list.get(&id).unwrap_or_else(|| crashln!("{} Process ({id}) not found", *helpers::FAIL)).pid }
 
     pub fn get(self, id: usize) -> ProcessWrapper {
         ProcessWrapper {
@@ -329,6 +349,11 @@ impl Runner {
 
     pub fn set_crashed(&mut self, id: usize) -> &mut Self {
         self.process(id).crash.crashed = true;
+        return self;
+    }
+
+    pub fn set_children(&mut self, id: usize, children: Vec<i64>) -> &mut Self {
+        self.process(id).children = children;
         return self;
     }
 
@@ -344,10 +369,14 @@ impl Runner {
             };
         } else {
             let process = self.process(id);
+
+            kill_children(process.children.clone());
             stop(process.pid);
+
             process.running = false;
             process.crash.crashed = false;
             process.crash.value = 0;
+            process.children = vec![];
         }
 
         return self;
@@ -459,11 +488,7 @@ impl ProcessWrapper {
     pub fn disable_watch(&mut self) { lock!(self.runner).watch(self.id, "", false).save(); }
 
     /// Set the process item as crashed
-    pub fn crashed(&mut self) {
-        let mut runner = lock!(self.runner);
-        runner.new_crash(self.id).save();
-        runner.restart(self.id, true).save();
-    }
+    pub fn crashed(&mut self) { lock!(self.runner).restart(self.id, true).save(); }
 
     /// Get a json dump of the process item
     pub fn fetch(&self) -> ItemSingle {
