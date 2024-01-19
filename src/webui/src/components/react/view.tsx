@@ -54,7 +54,7 @@ const LogRow = ({ match, children }: any) => {
 	);
 };
 
-const LogViewer = (props: { base: string; id: number }) => {
+const LogViewer = (props: { server: string | null; base: string; id: number }) => {
 	const [logs, setLogs] = useState<string[]>([]);
 	const [loaded, setLoaded] = useState(false);
 	const lastRow = useRef<HTMLDivElement | null>(null);
@@ -121,7 +121,15 @@ const LogViewer = (props: { base: string; id: number }) => {
 			.finally(() => setLoaded(true));
 	};
 
-	useEffect(() => loadLogs(), []);
+	const loadLogsRemote = () => {
+		api
+			.get(`${props.base}/remote/${props.server}/logs/${props.id}/out`)
+			.json()
+			.then((data) => setLogs(data.logs))
+			.finally(() => setLoaded(true));
+	};
+
+	useEffect(() => (props.server != null ? loadLogsRemote() : loadLogs()), []);
 	useEffect(() => lastRow.current?.scrollIntoView(), [loaded]);
 
 	if (!loaded) {
@@ -157,6 +165,7 @@ const LogViewer = (props: { base: string; id: number }) => {
 const View = (props: { id: string; base: string }) => {
 	const [item, setItem] = useState<any>();
 	const [loaded, setLoaded] = useState(false);
+	const server = new URLSearchParams(window.location.search).get('server');
 
 	const badge = {
 		online: 'bg-emerald-400/10 text-emerald-400',
@@ -172,10 +181,18 @@ const View = (props: { id: string; base: string }) => {
 			.finally(() => setLoaded(true));
 	};
 
+	const fetchRemote = () => {
+		api
+			.get(`${props.base}/remote/${server}/info/${props.id}`)
+			.json()
+			.then((res) => setItem(res))
+			.finally(() => setLoaded(true));
+	};
+
 	const isRunning = (status: string): bool => (status == 'stopped' ? false : status == 'crashed' ? false : true);
 	const action = (id: number, name: string) => api.post(`${props.base}/process/${id}/action`, { json: { method: name } }).then(() => fetch());
 
-	useEffect(() => fetch(), []);
+	useEffect(() => (server != null ? fetchRemote() : fetch()), []);
 
 	if (!loaded) {
 		return <div className="text-lg text-white font-bold">loading...</div>;
@@ -289,7 +306,7 @@ const View = (props: { id: string; base: string }) => {
 					))}
 				</div>
 
-				<LogViewer id={parseInt(props.id)} base={props.base} />
+				<LogViewer server={server} id={parseInt(props.id)} base={props.base} />
 			</Fragment>
 		);
 	}

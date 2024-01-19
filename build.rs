@@ -11,7 +11,7 @@ use std::{
     process::Command,
 };
 
-const NODE_VERSION: &str = "20.10.0";
+const NODE_VERSION: &str = "20.11.0";
 
 fn extract_tar_gz(tar: &PathBuf, download_dir: &PathBuf) -> io::Result<()> {
     let file = File::open(tar)?;

@@ -1,12 +1,10 @@
 import { api } from '@/api';
-import { $settings } from '@/store';
 import Rename from '@/components/react/rename';
 import { useEffect, useState, Fragment } from 'react';
 import { Menu, Transition } from '@headlessui/react';
 import { EllipsisVerticalIcon } from '@heroicons/react/20/solid';
 
 const Index = (props: { base: string }) => {
-	const servers = JSON.parse($settings.get().servers);
 	const [items, setItems] = useState([]);
 
 	const badge = {
@@ -15,23 +13,20 @@ const Index = (props: { base: string }) => {
 		crashed: 'bg-amber-400',
 	};
 
-	const fetch = () => {
-		api
-			.get(props.base + '/list')
-			.json()
-			.then((res) => setItems(res));
+	async function fetch() {
+		const items = await api.get(props.base + '/list').json();
+		const servers = await api.get(props.base + '/daemon/servers').json();
 
-		api
-			.get(props.base + '/daemon/servers')
-			.json()
-			.then((res) => $settings.setKey('servers', JSON.stringify(res.servers)));
+		setItems(items.map((s) => ({ ...s, server: 'Internal' })));
 
-		servers.forEach((s) => {
-			api.get(s.address + '/list').json();
+		await servers.forEach(async (name) => {
+			const remote = await api.get(props.base + `/remote/${name}/list`).json();
+			setItems((s) => [...s, ...remote.map((i) => ({ ...i, server: name }))]);
 		});
-	};
+	}
 
 	const classNames = (...classes: Array<any>) => classes.filter(Boolean).join(' ');
+	const isRemote = (item: any): bool => (item.server == 'Internal' ? false : true);
 	const isRunning = (status: string): bool => (status == 'stopped' ? false : status == 'crashed' ? false : true);
 	const action = (id: number, name: string) => api.post(`${props.base}/process/${id}/action`, { json: { method: name } }).then(() => fetch());
 
@@ -40,11 +35,11 @@ const Index = (props: { base: string }) => {
 	return (
 		<ul role="list" className="grid grid-cols-1 gap-x-6 gap-y-8 lg:grid-cols-4 xl:gap-x-8">
 			{items.map((item) => (
-				<li key={item.id} className="rounded-lg border border-zinc-700/50 bg-zinc-900/10 hover:bg-zinc-900/40 hover:border-zinc-700">
+				<li key={item.id + item.name} className="rounded-lg border border-zinc-700/50 bg-zinc-900/10 hover:bg-zinc-900/40 hover:border-zinc-700">
 					<div className="flex items-center gap-x-4 border-b border-zinc-800/80 bg-zinc-900/20 px-4 py-3">
 						<span className="text-md font-bold text-zinc-200 truncate">
 							{item.name}
-							<div className="text-xs font-medium text-zinc-400">{isRunning(item.status) ? item.pid : 'none'}</div>
+							<div className="text-xs font-medium text-zinc-400">{item.server}</div>
 						</span>
 						<span className="relative flex h-2 w-2 -mt-3.5 -ml-2">
 							<span className={`${badge[item.status]} relative inline-flex rounded-full h-2 w-2`}></span>
@@ -111,23 +106,27 @@ const Index = (props: { base: string }) => {
 							</Transition>
 						</Menu>
 					</div>
-					<a href={`./view/${item.id}`}>
+					<a href={isRemote(item) ? `./view/${item.id}?server=${item.server}` : `./view/${item.id}`}>
 						<dl className="-my-3 divide-y divide-zinc-800/30 px-6 py-4 text-sm leading-6">
 							<div className="flex justify-between gap-x-1 py-1">
-								<dt className="text-zinc-700">restarts</dt>
-								<dd className="text-zinc-500">{item.restarts}</dd>
+								<dt className="text-zinc-700">pid</dt>
+								<dd className="text-zinc-500">{isRunning(item.status) ? item.pid : 'stopped'}</dd>
 							</div>
 							<div className="flex justify-between gap-x-1 py-1">
-								<dt className="text-zinc-700">cpu</dt>
-								<dd className="text-zinc-500">{isRunning(item.status) ? item.cpu : 'offline'}</dd>
+								<dt className="text-zinc-700">cpu usage</dt>
+								<dd className="text-zinc-500">{isRunning(item.status) ? item.cpu : 'stopped'}</dd>
 							</div>
 							<div className="flex justify-between gap-x-1 py-1">
 								<dt className="text-zinc-700">memory</dt>
-								<dd className="text-zinc-500">{isRunning(item.status) ? item.mem : 'offline'}</dd>
+								<dd className="text-zinc-500">{isRunning(item.status) ? item.mem : 'stopped'}</dd>
 							</div>
 							<div className="flex justify-between gap-x-1 py-1">
 								<dt className="text-zinc-700">uptime</dt>
-								<dd className="text-zinc-500">{isRunning(item.status) ? item.uptime : 'none'}</dd>
+								<dd className="text-zinc-500">{isRunning(item.status) ? item.uptime : 'stopped'}</dd>
+							</div>
+							<div className="flex justify-between gap-x-1 py-1">
+								<dt className="text-zinc-700">restarts</dt>
+								<dd className="text-zinc-500">{item.restarts == 0 ? 'none' : item.restarts}</dd>
 							</div>
 						</dl>
 					</a>
