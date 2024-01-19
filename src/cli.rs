@@ -345,6 +345,7 @@ pub fn info(id: &usize, format: &String, server_name: &String) {
 
         if let Ok(info) = info {
             let stats = info.json::<ItemSingle>().unwrap().stats;
+            let children = if item.children.is_empty() { "none".to_string() } else { format!("{:?}", item.children) };
 
             let cpu_percent = match stats.cpu_percent {
                 Some(percent) => format!("{percent:.2}%"),
@@ -357,6 +358,7 @@ pub fn info(id: &usize, format: &String, server_name: &String) {
             };
 
             let data = vec![Info {
+                children,
                 cpu_percent,
                 memory_usage,
                 id: string!(id),
@@ -364,7 +366,6 @@ pub fn info(id: &usize, format: &String, server_name: &String) {
                 status: status.into(),
                 restarts: item.restarts,
                 name: item.name.clone(),
-                children: format!("{:?}", vec![0]),
                 pid: ternary!(item.running, format!("{pid}", pid = item.pid), string!("n/a")),
                 log_out: format!("{}/{}-out.log", remote.config.log_path, item.name),
                 log_error: format!("{}/{}-error.log", remote.config.log_path, item.name),
