@@ -44,6 +44,7 @@ pub struct Info {
     pub path: PathBuf,
     pub uptime: String,
     pub command: String,
+    pub children: Vec<i64>,
 }
 
 #[derive(Serialize, Deserialize, ToSchema)]
@@ -526,6 +527,7 @@ impl ProcessWrapper {
                 pid: item.pid,
                 name: item.name.clone(),
                 path: item.path.clone(),
+                children: item.children.clone(),
                 uptime: helpers::format_duration(item.started),
                 command: format!("{} {} '{}'", config.shell, config.args.join(" "), item.script.clone()),
             },
