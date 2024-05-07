@@ -14,7 +14,6 @@ unsafe impl cxx::ExternType for Callback {
 
 #[cxx::bridge]
 pub mod service {
-
     #[repr(u8)]
     enum Fork {
         Parent,
@@ -27,6 +26,7 @@ pub mod service {
         pub command: String,
         pub log_path: String,
         pub args: Vec<String>,
+        pub env: Vec<String>,
     }
 
     unsafe extern "C++" {

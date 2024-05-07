@@ -11,6 +11,7 @@ const formatMemory = (bytes: number): [number, string] => {
 	const units = ['b', 'kb', 'mb', 'gb'];
 	let size = bytes;
 	let unitIndex = 0;
+	
 
 	while (size > 1024 && unitIndex < units.length - 1) {
 		size /= 1024;

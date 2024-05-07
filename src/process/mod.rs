@@ -1,3 +1,5 @@
+mod unix;
+
 use crate::{
     config,
     config::structs::Server,
@@ -22,7 +24,7 @@ use global_placeholders::global;
 use macros_rs::{crashln, string, ternary, then};
 use psutil::process;
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use utoipa::ToSchema;
 
 #[derive(Serialize, Deserialize, ToSchema)]
@@ -102,7 +104,7 @@ pub struct ProcessWrapper {
     pub runner: Arc<Mutex<Runner>>,
 }
 
-type Env = HashMap<String, String>;
+type Env = BTreeMap<String, String>;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Process {
@@ -244,6 +246,7 @@ impl Runner {
                 shell: config.shell,
                 command: command.clone(),
                 log_path: config.log_path,
+                env: unix::env(),
             });
 
             self.list.insert(
@@ -291,12 +294,14 @@ impl Runner {
                 shell: config.shell,
                 log_path: config.log_path,
                 command: script.to_string(),
+                env: unix::env(),
             });
 
             process.running = true;
             process.children = vec![];
             process.started = Utc::now();
             process.crash.crashed = false;
+            process.env = env::vars().collect();
 
             then!(dead, process.restarts += 1);
             then!(dead, process.crash.value += 1);

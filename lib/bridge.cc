@@ -37,6 +37,7 @@ int64_t get_child_pid(int64_t parentPID) {
   DIR *dir = opendir("/proc");
   if (!dir) {
     std::cerr << "[PMC] (cc) Error opening /proc directory.\n";
+    perror("get_child_pid");
     return -1;
   }
 
@@ -73,6 +74,7 @@ int64_t get_child_pid(int64_t parentPID) {
 
   if (count <= 0) {
     std::cerr << "Error retrieving process list." << std::endl;
+    perror("get_child_pid");
     return -1;
   }
 
@@ -122,5 +124,5 @@ int64_t stop(int64_t pid) {
 int64_t run(ProcessMetadata metadata) {
   process::Runner runner;
   runner.New(std::string(metadata.name), std::string(metadata.log_path));
-  return runner.Run(std::string(metadata.command), std::string(metadata.shell), metadata.args);
+  return runner.Run(std::string(metadata.command), std::string(metadata.shell), metadata.args, metadata.env);
 }

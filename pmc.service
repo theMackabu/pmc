@@ -1,3 +1,5 @@
+# example systemd file. edit as needed
+
 [Unit]
 Description=PMC Daemon
 After=network.target
@@ -16,8 +18,8 @@ StartLimitInterval=180
 StartLimitBurst=30
 RestartSec=5s
 
-ExecStart=/root/.cargo/bin/pmc daemon start
-ExecStop=/root/.cargo/bin/pmc daemon stop
+ExecStart=/root/.cargo/bin/pmc daemon start -vvv
+ExecStop=/root/.cargo/bin/pmc daemon stop -vvv
 
 [Install]
 WantedBy=multi-user.target

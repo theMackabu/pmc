@@ -48,6 +48,7 @@ void Runner::New(const std::string &name, const std::string &logPath) {
   sa.sa_flags = SA_RESTART | SA_NOCLDSTOP;
   if (sigaction(SIGCHLD, &sa, NULL) == -1) {
     std::cerr << "[PMC] (cc) Error setting up SIGCHLD handler\n";
+    perror("Runner::New");
   }
 }
 
@@ -61,11 +62,12 @@ Runner::~Runner() {
   }
 }
 
-int64_t Runner::Run(const std::string &command, const std::string &shell, Vec<String> args) {
+int64_t Runner::Run(const std::string &command, const std::string &shell, Vec<String> args, Vec<String> env) {
   pid_t pid = fork();
 
   if (pid == -1) {
     std::cerr << "[PMC] (cc) Unable to fork\n";
+    perror("Runner::Run");
     return -1;
   } else if (pid == 0) {
     setsid();
@@ -78,16 +80,22 @@ int64_t Runner::Run(const std::string &command, const std::string &shell, Vec<St
     dup2(stderr_fd, STDERR_FILENO);
     
     std::vector<const char*> argsArray;
+    std::vector<const char*> envArray;
     argsArray.push_back(shell.c_str());
 
     transform(args.begin(), args.end(), std::back_inserter(argsArray),
       [](rust::String& arg) { return arg.c_str(); });
+      
+    transform(env.begin(), env.end(), std::back_inserter(envArray),
+      [](rust::String& env) { return env.c_str(); });
 
     argsArray.push_back(command.c_str());
-    argsArray.push_back((char *)nullptr); 
+    argsArray.push_back(nullptr); 
+    envArray.push_back(nullptr); 
 
-    if (execvp(shell.c_str(), const_cast<char* const*>(argsArray.data())) == -1) {
+    if (execve(shell.c_str(), const_cast<char* const*>(argsArray.data()), const_cast<char* const*>(envArray.data())) == -1) {
       std::cerr << "[PMC] (cc) Unable to execute the command\n";
+      perror("execvp");
       exit(EXIT_FAILURE);
     }
   } else {
