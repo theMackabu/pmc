@@ -35,13 +35,13 @@ struct Cli {
 #[derive(Subcommand)]
 enum Daemon {
     /// Reset process index
-    #[command(alias = "clean")]
+    #[command(visible_alias = "clean")]
     Reset,
     /// Stop daemon
-    #[command(alias = "kill")]
+    #[command(visible_alias = "kill")]
     Stop,
     /// Restart daemon
-    #[command(alias = "restart", alias = "start")]
+    #[command(visible_alias = "restart", visible_alias = "start")]
     Restore {
         /// Daemon api
         #[arg(long)]
@@ -51,7 +51,7 @@ enum Daemon {
         webui: bool,
     },
     /// Check daemon
-    #[command(alias = "info", alias = "status")]
+    #[command(visible_alias = "info", visible_alias = "status")]
     Health {
         /// Format output
         #[arg(long, default_value_t = string!("default"))]
@@ -63,7 +63,7 @@ enum Daemon {
 #[derive(Subcommand)]
 enum Commands {
     /// Start/Restart a process
-    #[command(alias = "restart")]
+    #[command(visible_alias = "restart")]
     Start {
         /// Process name
         #[arg(long)]
@@ -79,7 +79,7 @@ enum Commands {
     },
 
     /// Stop/Kill a process
-    #[command(alias = "kill")]
+    #[command(visible_alias = "kill")]
     Stop {
         id: usize,
         /// Server
@@ -88,7 +88,7 @@ enum Commands {
     },
 
     /// Stop then remove a process
-    #[command(alias = "rm")]
+    #[command(visible_alias = "rm")]
     Remove {
         id: usize,
         /// Server
@@ -97,7 +97,7 @@ enum Commands {
     },
 
     /// Get env of a process
-    #[command(alias = "cmdline")]
+    #[command(visible_alias = "cmdline")]
     Env {
         id: usize,
         /// Server
@@ -106,7 +106,7 @@ enum Commands {
     },
 
     /// Get information of a process
-    #[command(alias = "info")]
+    #[command(visible_alias = "info")]
     Details {
         id: usize,
         /// Format output
@@ -118,7 +118,7 @@ enum Commands {
     },
 
     /// List all processes
-    #[command(alias = "ls")]
+    #[command(visible_alias = "ls")]
     List {
         /// Format output
         #[arg(long, default_value_t = string!("default"))]
