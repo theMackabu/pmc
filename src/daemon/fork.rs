@@ -32,17 +32,16 @@ pub fn setsid() -> Result<libc::pid_t, i32> {
     }
 }
 
-pub fn close_fd() -> Result<(), i32> {
-    match unsafe { libc::close(0) } {
-        -1 => Err(-1),
-        _ => match unsafe { libc::close(1) } {
-            -1 => Err(-1),
-            _ => match unsafe { libc::close(2) } {
-                -1 => Err(-1),
-                _ => Ok(()),
-            },
-        },
+pub fn close_fd() -> Result<i32, i32> {
+    let mut res = false;
+    for i in 0..=2 {
+        res |= unsafe { libc::close(i) } == -1;
     }
+
+    return match res {
+        true => Err(-1),
+        false => Ok(1),
+    };
 }
 
 pub fn daemon(nochdir: bool, noclose: bool) -> Result<Fork, i32> {

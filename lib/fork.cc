@@ -36,6 +36,7 @@ std::string home() {
 Fork fork_process() {
     pid_t res = ::fork();
     if (res == -1) {
+        perror("fork_process");
         throw std::runtime_error("fork() failed");
     } else if (res == 0) {
         return Fork::Child;
@@ -47,14 +48,21 @@ Fork fork_process() {
 pid_t set_sid() {
     pid_t res = ::setsid();
     if (res == -1) {
+        perror("set_sid");
         throw std::runtime_error("setsid() failed");
     }
     return res;
 }
 
 void close_fd() {
-    if (::close(0) == -1 || ::close(1) == -1 || ::close(2) == -1) {
-        throw std::runtime_error("close() failed");
+    bool res = false;
+    for (int i = 0; i <= 2; ++i) {
+        res |= (::close(i) == -1);
+    }
+
+    if (res) {
+        perror("close_fd");
+        throw std::runtime_error("close_fd() failed");
     }
 }
 
@@ -77,6 +85,7 @@ int32_t try_fork(bool nochdir, bool noclose, Callback callback) {
         return static_cast<int32_t>(forkResult);
     } catch (const std::exception& e) {
         std::cerr << "[PMC] (cc) Error setting up daemon handler\n";
+        perror("try_fork");
     }
     
     callback();

@@ -12,6 +12,7 @@ struct ProcessMetadata final {
   String command;
   String log_path;
   Vec<String> args;
+  Vec<String> env;
   using IsRelocatable = std::true_type;
 };
 #endif

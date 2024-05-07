@@ -35,7 +35,7 @@ use crate::daemon::{
 };
 
 use std::{
-    collections::HashMap,
+    collections::BTreeMap,
     env,
     fs::{self, File},
     io::{self, BufRead, BufReader},
@@ -43,7 +43,7 @@ use std::{
 };
 
 pub(crate) struct Token;
-type EnvList = Json<HashMap<String, String>>;
+type EnvList = Json<BTreeMap<String, String>>;
 
 #[allow(dead_code)]
 #[derive(ToSchema)]

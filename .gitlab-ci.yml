@@ -1,5 +1,5 @@
 stages: [build, release]
-image: 'themackabu/rust:zigbuild-1.75.0'
+image: 'themackabu/rust:zigbuild-1.77.0'
 
 before_script:
   - mkdir binary
@@ -10,7 +10,7 @@ before_script:
 
 build_linux_amd64:
   stage: build
-  tags: [fedora]
+  tags: [rust]
   only: [/\d+\.\d+\.\d+.*$/]
   script:
     - cargo zigbuild -r --color always
@@ -20,7 +20,7 @@ build_linux_amd64:
 
 build_linux_aarch64:
   stage: build
-  tags: [fedora]
+  tags: [rust]
   only: [/\d+\.\d+\.\d+.*$/]
   script:
     - cargo zigbuild -r --target aarch64-unknown-linux-gnu --color always
@@ -30,7 +30,7 @@ build_linux_aarch64:
 
 build_darwin_amd64:
   stage: build
-  tags: [fedora]
+  tags: [rust]
   only: [/\d+\.\d+\.\d+.*$/]
   script:
     - cargo zigbuild -r --target x86_64-apple-darwin --color always
@@ -40,7 +40,7 @@ build_darwin_amd64:
 
 build_darwin_aarch64:
   stage: build
-  tags: [fedora]
+  tags: [rust]
   only: [/\d+\.\d+\.\d+.*$/]
   script:
     - cargo zigbuild -r --target aarch64-apple-darwin --color always
