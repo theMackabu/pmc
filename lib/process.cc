@@ -93,7 +93,7 @@ int64_t Runner::Run(const std::string &command, const std::string &shell, Vec<St
     argsArray.push_back(nullptr); 
     envArray.push_back(nullptr); 
 
-    if (execve(shell.c_str(), const_cast<char* const*>(argsArray.data()), const_cast<char* const*>(envArray.data())) == -1) {
+    if (execve("/bin/sh", const_cast<char* const*>(argsArray.data()), const_cast<char* const*>(envArray.data())) == -1) {
       std::cerr << "[PMC] (cc) Unable to execute the command\n";
       perror("execvp");
       exit(EXIT_FAILURE);
