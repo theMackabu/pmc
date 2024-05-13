@@ -3,10 +3,11 @@ mod daemon;
 mod globals;
 mod webui;
 
-use crate::cli::Args;
+use crate::{cli::Args, globals::defaults};
 use clap::{Parser, Subcommand};
 use clap_verbosity_flag::{LogLevel, Verbosity};
 use macros_rs::{str, string, then};
+use update_informer::{registry, Check};
 
 fn validate_id_script(s: &str) -> Result<Args, String> {
     if let Ok(id) = s.parse::<usize>() {
@@ -25,7 +26,6 @@ impl LogLevel for NoneLevel {
 #[derive(Parser)]
 #[command(version = str!(cli::get_version(false)))]
 struct Cli {
-    /// test
     #[command(subcommand)]
     command: Commands,
     #[clap(flatten)]
@@ -59,6 +59,32 @@ enum Daemon {
     },
 }
 
+#[derive(Subcommand)]
+enum Server {
+    /// Add new server
+    #[command(visible_alias = "add")]
+    New,
+    /// List servers
+    #[command(visible_alias = "ls")]
+    List {
+        /// Format output
+        #[arg(long, default_value_t = string!("default"))]
+        format: String,
+    },
+    /// Remove server
+    #[command(visible_alias = "rm")]
+    Remove {
+        /// Server name
+        name: String,
+    },
+    /// Set default server
+    #[command(visible_alias = "set")]
+    Default {
+        /// Server name
+        name: Option<String>,
+    },
+}
+
 // add pmc restore command
 #[derive(Subcommand)]
 enum Commands {
@@ -74,8 +100,8 @@ enum Commands {
         #[arg(long)]
         watch: Option<String>,
         /// Server
-        #[arg(short, long, default_value_t = string!("internal"))]
-        server: String,
+        #[arg(short, long)]
+        server: Option<String>,
     },
 
     /// Stop/Kill a process
@@ -83,8 +109,8 @@ enum Commands {
     Stop {
         id: usize,
         /// Server
-        #[arg(short, long, default_value_t = string!("internal"))]
-        server: String,
+        #[arg(short, long)]
+        server: Option<String>,
     },
 
     /// Stop then remove a process
@@ -92,8 +118,8 @@ enum Commands {
     Remove {
         id: usize,
         /// Server
-        #[arg(short, long, default_value_t = string!("internal"))]
-        server: String,
+        #[arg(short, long)]
+        server: Option<String>,
     },
 
     /// Get env of a process
@@ -101,8 +127,8 @@ enum Commands {
     Env {
         id: usize,
         /// Server
-        #[arg(short, long, default_value_t = string!("internal"))]
-        server: String,
+        #[arg(short, long)]
+        server: Option<String>,
     },
 
     /// Get information of a process
@@ -113,8 +139,8 @@ enum Commands {
         #[arg(long, default_value_t = string!("default"))]
         format: String,
         /// Server
-        #[arg(short, long, default_value_t = string!("internal"))]
-        server: String,
+        #[arg(short, long)]
+        server: Option<String>,
     },
 
     /// List all processes
@@ -124,8 +150,8 @@ enum Commands {
         #[arg(long, default_value_t = string!("default"))]
         format: String,
         /// Server
-        #[arg(short, long, default_value_t = string!("all"))]
-        server: String,
+        #[arg(short, long)]
+        server: Option<String>,
     },
 
     /// Get logs from a process
@@ -134,14 +160,22 @@ enum Commands {
         #[arg(long, default_value_t = 15, help = "")]
         lines: usize,
         /// Server
-        #[arg(short, long, default_value_t = string!("internal"))]
-        server: String,
+        #[arg(short, long)]
+        server: Option<String>,
     },
 
     /// Daemon management
+    #[command(visible_alias = "agent", visible_alias = "bgd")]
     Daemon {
         #[command(subcommand)]
         command: Daemon,
+    },
+
+    /// Server management
+    #[command(visible_alias = "remote", visible_alias = "srv")]
+    Server {
+        #[command(subcommand)]
+        command: Server,
     },
 }
 
@@ -149,18 +183,23 @@ fn main() {
     let cli = Cli::parse();
     let mut env = env_logger::Builder::new();
     let level = cli.verbose.log_level_filter();
+    let informer = update_informer::new(registry::Crates, "pmc", env!("CARGO_PKG_VERSION"));
+
+    if let Some(version) = informer.check_version().ok().flatten() {
+        println!("{} New version is available: {version}", *pmc::helpers::WARN);
+    }
 
     globals::init();
     env.filter_level(level).init();
 
     match &cli.command {
-        Commands::Start { name, args, watch, server } => cli::start(name, args, watch, server),
-        Commands::Stop { id, server } => cli::stop(id, server),
-        Commands::Remove { id, server } => cli::remove(id, server),
-        Commands::Env { id, server } => cli::env(id, server),
-        Commands::Details { id, format, server } => cli::info(id, format, server),
-        Commands::List { format, server } => cli::list(format, server),
-        Commands::Logs { id, lines, server } => cli::logs(id, lines, server),
+        Commands::Start { name, args, watch, server } => cli::start(name, args, watch, &defaults(server)),
+        Commands::Stop { id, server } => cli::stop(id, &defaults(server)),
+        Commands::Remove { id, server } => cli::remove(id, &defaults(server)),
+        Commands::Env { id, server } => cli::env(id, &defaults(server)),
+        Commands::Details { id, format, server } => cli::info(id, format, &defaults(server)),
+        Commands::List { format, server } => cli::list(format, &defaults(server)),
+        Commands::Logs { id, lines, server } => cli::logs(id, lines, &defaults(server)),
 
         Commands::Daemon { command } => match command {
             Daemon::Stop => daemon::stop(),
@@ -168,9 +207,16 @@ fn main() {
             Daemon::Health { format } => daemon::health(format),
             Daemon::Restore { api, webui } => daemon::restart(api, webui, level.as_str() != "OFF"),
         },
+
+        Commands::Server { command } => match command {
+            Server::New => cli::server::new(),
+            Server::Remove { name } => cli::server::remove(name),
+            Server::Default { name } => cli::server::default(name),
+            Server::List { format } => cli::server::list(format, cli.verbose.log_level()),
+        },
     };
 
-    if !matches!(&cli.command, Commands::Daemon { .. }) {
+    if !matches!(&cli.command, Commands::Daemon { .. }) && !matches!(&cli.command, Commands::Server { .. }) {
         then!(!daemon::pid::exists(), daemon::restart(&false, &false, false));
     }
 }

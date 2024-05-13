@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Config {
+    pub default: String,
     pub runner: Runner,
     pub daemon: Daemon,
 }

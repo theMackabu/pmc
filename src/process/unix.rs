@@ -4,6 +4,7 @@ use std::os::unix::prelude::OsStringExt;
 pub struct Vars {
     inner: std::vec::IntoIter<OsString>,
 }
+
 impl Iterator for Vars {
     type Item = String;
     fn next(&mut self) -> Option<String> { self.inner.next().map(|var| var.into_string().unwrap()) }
