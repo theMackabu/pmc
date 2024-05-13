@@ -3,7 +3,7 @@ use macros_rs::crashln;
 use pmc::{config, file::Exists, helpers};
 use std::fs;
 
-pub fn init() {
+pub(crate) fn init() {
     match home::home_dir() {
         Some(path) => {
             let path = path.display();
@@ -33,5 +33,12 @@ pub fn init() {
             init!("pmc.logs.error", error);
         }
         None => crashln!("{} Impossible to get your home directory", *helpers::FAIL),
+    }
+}
+
+pub(crate) fn defaults(name: &Option<String>) -> String {
+    match name {
+        Some(name) => name.clone(),
+        None => config::read().default,
     }
 }

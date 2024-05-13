@@ -50,6 +50,8 @@ chrono = { version = "0.4.31", features = ["serde"] }
 serde = { version = "1.0.193", features = ["derive"] }
 nix = { version = "0.27.1", features = ["process", "signal"] }
 utoipa = { version = "4.1.0", features = ["serde_yaml", "non_strict_integers"] }
+update-informer = "1.1.0"
+inquire = "0.7.5"
 
 
 [dependencies.reqwest]

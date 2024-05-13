@@ -114,7 +114,7 @@ pub struct MetricsRoot {
 pub struct Version {
     #[schema(example = "v1.0.0")]
     pub pkg: String,
-    pub hash: &'static str,
+    pub hash: Option<&'static str>,
     #[schema(example = "2000-01-01")]
     pub build_date: &'static str,
     #[schema(example = "release")]
@@ -817,10 +817,10 @@ pub async fn metrics_handler(_t: Token) -> Json<MetricsRoot> {
     timer.observe_duration();
     Json(MetricsRoot {
         version: Version {
-            pkg: format!("v{}", env!("CARGO_PKG_VERSION")),
-            hash: env!("GIT_HASH_FULL"),
-            build_date: env!("BUILD_DATE"),
             target: env!("PROFILE"),
+            build_date: env!("BUILD_DATE"),
+            pkg: format!("v{}", env!("CARGO_PKG_VERSION")),
+            hash: ternary!(env!("GIT_HASH_FULL") == "", None, Some(env!("GIT_HASH_FULL"))),
         },
         daemon: Daemon {
             pid,

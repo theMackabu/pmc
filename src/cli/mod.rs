@@ -1,3 +1,5 @@
+pub(crate) mod server;
+
 use colored::Colorize;
 use macros_rs::{crashln, string, ternary};
 use psutil::process::{MemoryInfo, Process};
@@ -37,7 +39,10 @@ fn format(server_name: &String) -> (String, String) {
 pub fn get_version(short: bool) -> String {
     return match short {
         true => format!("{} {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION")),
-        false => format!("{} ({} {}) [{}]", env!("CARGO_PKG_VERSION"), env!("GIT_HASH"), env!("BUILD_DATE"), env!("PROFILE")),
+        false => match env!("GIT_HASH") {
+            "" => format!("{} ({}) [{}]", env!("CARGO_PKG_VERSION"), env!("BUILD_DATE"), env!("PROFILE")),
+            hash => format!("{} ({} {hash}) [{}]", env!("CARGO_PKG_VERSION"), env!("BUILD_DATE"), env!("PROFILE")),
+        },
     };
 }
 
@@ -571,15 +576,17 @@ pub fn list(format: &String, server_name: &String) {
                 None => println!("{} Failed to fetch (name={server_name}, address={})", *helpers::FAIL, server.address),
             }
         } else {
-            if matches!(&**server_name, "internal" | "all" | "local") {
-                println!("{} Internal daemon", *helpers::SUCCESS);
+            if matches!(&**server_name, "internal" | "all" | "global" | "local") {
+                if *server_name == "all" || *server_name == "global" {
+                    println!("{} Internal daemon", *helpers::SUCCESS);
+                }
                 render_list(&mut Runner::new(), true);
             } else {
                 crashln!("{} Server '{server_name}' does not exist", *helpers::FAIL);
             }
         }
 
-        if *server_name == "all" {
+        if *server_name == "all" || *server_name == "global" {
             for (name, server) in servers {
                 match Runner::connect(name.clone(), server.get(), true) {
                     Some(mut remote) => render_list(&mut remote, false),

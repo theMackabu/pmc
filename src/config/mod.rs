@@ -37,6 +37,7 @@ pub fn read() -> Config {
 
             if !Exists::check(&config_path).file() {
                 let config = Config {
+                    default: string!("local"),
                     runner: Runner {
                         shell: string!("bash"),
                         args: vec![string!("-c")],
@@ -104,6 +105,30 @@ impl Config {
         let ip_address: IpAddr = IpAddr::from(ipv4_address);
 
         rocket::Config::figment().merge(("port", self.daemon.web.port)).merge(("address", ip_address))
+    }
+
+    pub fn save(&self) {
+        match home::home_dir() {
+            Some(path) => {
+                let path = path.display();
+                let config_path = format!("{path}/.pmc/config.toml");
+
+                let contents = match toml::to_string(&self) {
+                    Ok(contents) => contents,
+                    Err(err) => crashln!("{} Cannot parse config.\n{}", *helpers::FAIL, string!(err).white()),
+                };
+
+                if let Err(err) = write(&config_path, contents) {
+                    crashln!("{} Error writing config.\n{}", *helpers::FAIL, string!(err).white())
+                }
+            }
+            None => crashln!("{} Impossible to get your home directory", *helpers::FAIL),
+        }
+    }
+
+    pub fn set_default(mut self, name: String) -> Self {
+        self.default = string!(name);
+        self
     }
 
     pub fn fmt_address(&self) -> String { format!("{}:{}", self.daemon.web.address.clone(), self.daemon.web.port) }
