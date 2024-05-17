@@ -745,7 +745,7 @@ pub async fn action_handler(id: usize, body: Json<ActionBody>, _t: Token) -> Res
         HTTP_COUNTER.inc();
         match method {
             "start" | "restart" => {
-                runner.restart(id, false);
+                runner.get(id).restart();
                 timer.observe_duration();
                 Ok(Json(attempt(true, method)))
             }

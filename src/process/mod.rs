@@ -297,11 +297,15 @@ impl Runner {
                 env: unix::env(),
             });
 
+            println!("{:?}", process.pid);
+
             process.running = true;
             process.children = vec![];
             process.started = Utc::now();
             process.crash.crashed = false;
             process.env = env::vars().collect();
+
+            println!("{:?}", process);
 
             then!(dead, process.restarts += 1);
             then!(dead, process.crash.value += 1);
