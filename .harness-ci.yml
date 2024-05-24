@@ -2,32 +2,32 @@ version: 1
 kind: pipeline
 spec:
   stages:
-    - name: build
+    - name: binary_x64
       type: ci
       spec:
         steps:
-          - name: cargo
+          - name: build
             type: run
             spec:
               container: themackabu/rust:zigbuild-1.77.0
               script: |-
-                mkdir binary
                 apt-get update -yqq
                 apt-get install -yqq zip clang llvm
                 export CC="/usr/bin/clang"
                 export CXX="/usr/bin/clang++"
-                cargo zigbuild -r
-                zip binary/pmc.zip target/release/pmc -j
+                cargo zigbuild -r -j 4
+                zip pmc_${{ build.commit }}-B${{ build.number }}.zip target/release/pmc -j
           - spec:
               inputs:
-                access_key: jxviepgohcnzfm64cuh4e66w74vq
+                access_key: ${{ secrets.get("pmc_s3_key") }}
                 acl: read-write
                 bucket: themackabu-bun-cdn
-                endpoint: https://gateway.storjshare.io
-                path_style: false
                 region: us1
-                secret_key: jzqjpwewrhqtp76uwmthyuzsi2r3xf6pv4gucpwz7lmrbfua4je6s
-                target: binary/pmc.zip
+                path_style: false
+                endpoint: https://gateway.storjshare.io
+                secret_key: ${{ secrets.get("pmc_s3_secret") }}
+                target: gitness
+                source: pmc_${{ build.commit }}-B${{ build.number }}.zip
               name: s3
             type: plugin
             name: upload
