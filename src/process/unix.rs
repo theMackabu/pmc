@@ -19,7 +19,7 @@ unsafe fn environ() -> *mut *const *const libc::c_char {
     extern "C" {
         static mut environ: *const *const libc::c_char;
     }
-    ptr::addr_of_mut!(environ)
+    std::ptr::addr_of_mut!(environ)
 }
 
 pub fn env() -> Vec<String> {
