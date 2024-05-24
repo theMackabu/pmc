@@ -1,0 +1,33 @@
+version: 1
+kind: pipeline
+spec:
+  stages:
+    - name: build
+      type: ci
+      spec:
+        steps:
+          - name: cargo
+            type: run
+            spec:
+              container: themackabu/rust:zigbuild-1.77.0
+              script: |-
+                mkdir binary
+                apt-get update -yqq
+                apt-get install -yqq zip clang llvm
+                export CC="/usr/bin/clang"
+                export CXX="/usr/bin/clang++"
+                cargo zigbuild -r
+                zip binary/pmc.zip target/release/pmc -j
+          - spec:
+              inputs:
+                access_key: jxviepgohcnzfm64cuh4e66w74vq
+                acl: read-write
+                bucket: themackabu-bun-cdn
+                endpoint: https://gateway.storjshare.io
+                path_style: false
+                region: us1
+                secret_key: jzqjpwewrhqtp76uwmthyuzsi2r3xf6pv4gucpwz7lmrbfua4je6s
+                target: binary/pmc.zip
+              name: s3
+            type: plugin
+            name: upload
