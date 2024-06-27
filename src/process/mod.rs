@@ -297,15 +297,11 @@ impl Runner {
                 env: unix::env(),
             });
 
-            println!("{:?}", process.pid);
-
             process.running = true;
             process.children = vec![];
             process.started = Utc::now();
             process.crash.crashed = false;
             process.env = env::vars().collect();
-
-            println!("{:?}", process);
 
             then!(dead, process.restarts += 1);
             then!(dead, process.crash.value += 1);
@@ -339,16 +335,26 @@ impl Runner {
     }
 
     pub fn items(&self) -> BTreeMap<usize, Process> { self.list.clone() }
+
     pub fn items_mut(&mut self) -> &mut BTreeMap<usize, Process> { &mut self.list }
 
     pub fn save(&self) { then!(self.remote.is_none(), dump::write(&self)) }
+
     pub fn count(&mut self) -> usize { self.list().count() }
+
     pub fn is_empty(&self) -> bool { self.list.is_empty() }
+
     pub fn exists(&self, id: usize) -> bool { self.list.contains_key(&id) }
+
     pub fn info(&self, id: usize) -> Option<&Process> { self.list.get(&id) }
+
     pub fn list<'l>(&'l mut self) -> impl Iterator<Item = (&'l usize, &'l mut Process)> { self.list.iter_mut().map(|(k, v)| (k, v)) }
+
     pub fn process(&mut self, id: usize) -> &mut Process { self.list.get_mut(&id).unwrap_or_else(|| crashln!("{} Process ({id}) not found", *helpers::FAIL)) }
+
     pub fn pid(&self, id: usize) -> i64 { self.list.get(&id).unwrap_or_else(|| crashln!("{} Process ({id}) not found", *helpers::FAIL)).pid }
+
+    pub fn find(&self, name: &str) -> Option<usize> { self.list.iter().find(|(_, p)| p.name == name).map(|(id, _)| *id) }
 
     pub fn get(self, id: usize) -> ProcessWrapper {
         ProcessWrapper {

@@ -3,17 +3,31 @@ mod daemon;
 mod globals;
 mod webui;
 
-use crate::{cli::Args, globals::defaults};
 use clap::{Parser, Subcommand};
 use clap_verbosity_flag::{LogLevel, Verbosity};
 use macros_rs::{str, string, then};
 use update_informer::{registry, Check};
 
+use crate::{
+    cli::{Args, Item},
+    globals::defaults,
+};
+
+// migrate to helpers
 fn validate_id_script(s: &str) -> Result<Args, String> {
     if let Ok(id) = s.parse::<usize>() {
         Ok(Args::Id(id))
     } else {
         Ok(Args::Script(s.to_owned()))
+    }
+}
+
+// migrate to helpers
+fn validate_item(s: &str) -> Result<Item, String> {
+    if let Ok(id) = s.parse::<usize>() {
+        Ok(Item::Id(id))
+    } else {
+        Ok(Item::Name(s.to_owned()))
     }
 }
 
@@ -95,7 +109,7 @@ enum Commands {
         #[arg(long)]
         name: Option<String>,
         #[clap(value_parser = validate_id_script)]
-        args: Option<Args>,
+        args: Args,
         /// Watch to reload path
         #[arg(long)]
         watch: Option<String>,
@@ -107,7 +121,8 @@ enum Commands {
     /// Stop/Kill a process
     #[command(visible_alias = "kill")]
     Stop {
-        id: usize,
+        #[clap(value_parser = validate_item)]
+        item: Item,
         /// Server
         #[arg(short, long)]
         server: Option<String>,
@@ -116,7 +131,8 @@ enum Commands {
     /// Stop then remove a process
     #[command(visible_alias = "rm")]
     Remove {
-        id: usize,
+        #[clap(value_parser = validate_item)]
+        item: Item,
         /// Server
         #[arg(short, long)]
         server: Option<String>,
@@ -194,8 +210,8 @@ fn main() {
 
     match &cli.command {
         Commands::Start { name, args, watch, server } => cli::start(name, args, watch, &defaults(server)),
-        Commands::Stop { id, server } => cli::stop(id, &defaults(server)),
-        Commands::Remove { id, server } => cli::remove(id, &defaults(server)),
+        Commands::Stop { item, server } => cli::stop(item, &defaults(server)),
+        Commands::Remove { item, server } => cli::remove(item, &defaults(server)),
         Commands::Env { id, server } => cli::env(id, &defaults(server)),
         Commands::Details { id, format, server } => cli::info(id, format, &defaults(server)),
         Commands::List { format, server } => cli::list(format, &defaults(server)),
