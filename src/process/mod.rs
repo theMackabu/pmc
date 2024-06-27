@@ -354,8 +354,6 @@ impl Runner {
 
     pub fn pid(&self, id: usize) -> i64 { self.list.get(&id).unwrap_or_else(|| crashln!("{} Process ({id}) not found", *helpers::FAIL)).pid }
 
-    pub fn find(&self, name: &str) -> Option<usize> { self.list.iter().find(|(_, p)| p.name == name).map(|(id, _)| *id) }
-
     pub fn get(self, id: usize) -> ProcessWrapper {
         ProcessWrapper {
             id,
@@ -419,6 +417,27 @@ impl Runner {
         };
 
         return self;
+    }
+
+    pub fn find(&self, name: &str, server_name: &String) -> Option<usize> {
+        let mut runner = self.clone();
+
+        if !matches!(&**server_name, "internal" | "local") {
+            let Some(servers) = config::servers().servers else {
+                crashln!("{} Failed to read servers", *helpers::FAIL)
+            };
+
+            if let Some(server) = servers.get(server_name) {
+                runner = match Runner::connect(server_name.clone(), server.get(), false) {
+                    Some(remote) => remote,
+                    None => crashln!("{} Failed to connect (name={server_name}, address={})", *helpers::FAIL, server.address),
+                };
+            } else {
+                crashln!("{} Server '{server_name}' does not exist", *helpers::FAIL)
+            };
+        }
+
+        runner.list.iter().find(|(_, p)| p.name == name).map(|(id, _)| *id)
     }
 
     pub fn fetch(&self) -> Vec<ProcessItem> {

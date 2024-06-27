@@ -60,7 +60,7 @@ pub fn list(format: &String, log_level: Option<log::Level>) {
         .collect();
 
     match Select::new("Select a server:", options).prompt() {
-        Ok(server) => super::list(format, &server.name),
+        Ok(server) => super::internal::Internal::list(format, &server.name),
         Err(_) => crashln!("{}", "Canceled...".white()),
     }
 }

@@ -1,6 +1,7 @@
 use global_placeholders::global;
 use std::{ffi::CString, process::exit};
 
+#[allow(dead_code)]
 pub enum Fork {
     Parent(libc::pid_t),
     Child,
