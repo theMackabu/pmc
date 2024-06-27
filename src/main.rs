@@ -9,27 +9,9 @@ use macros_rs::{str, string, then};
 use update_informer::{registry, Check};
 
 use crate::{
-    cli::{Args, Item},
+    cli::{internal::Internal, Args, Item},
     globals::defaults,
 };
-
-// migrate to helpers
-fn validate_id_script(s: &str) -> Result<Args, String> {
-    if let Ok(id) = s.parse::<usize>() {
-        Ok(Args::Id(id))
-    } else {
-        Ok(Args::Script(s.to_owned()))
-    }
-}
-
-// migrate to helpers
-fn validate_item(s: &str) -> Result<Item, String> {
-    if let Ok(id) = s.parse::<usize>() {
-        Ok(Item::Id(id))
-    } else {
-        Ok(Item::Name(s.to_owned()))
-    }
-}
 
 #[derive(Copy, Clone, Debug, Default)]
 struct NoneLevel;
@@ -108,7 +90,7 @@ enum Commands {
         /// Process name
         #[arg(long)]
         name: Option<String>,
-        #[clap(value_parser = validate_id_script)]
+        #[clap(value_parser = cli::validate::<Args>)]
         args: Args,
         /// Watch to reload path
         #[arg(long)]
@@ -121,7 +103,7 @@ enum Commands {
     /// Stop/Kill a process
     #[command(visible_alias = "kill")]
     Stop {
-        #[clap(value_parser = validate_item)]
+        #[clap(value_parser = cli::validate::<Item>)]
         item: Item,
         /// Server
         #[arg(short, long)]
@@ -131,7 +113,7 @@ enum Commands {
     /// Stop then remove a process
     #[command(visible_alias = "rm")]
     Remove {
-        #[clap(value_parser = validate_item)]
+        #[clap(value_parser = cli::validate::<Item>)]
         item: Item,
         /// Server
         #[arg(short, long)]
@@ -141,7 +123,8 @@ enum Commands {
     /// Get env of a process
     #[command(visible_alias = "cmdline")]
     Env {
-        id: usize,
+        #[clap(value_parser = cli::validate::<Item>)]
+        item: Item,
         /// Server
         #[arg(short, long)]
         server: Option<String>,
@@ -150,7 +133,8 @@ enum Commands {
     /// Get information of a process
     #[command(visible_alias = "info")]
     Details {
-        id: usize,
+        #[clap(value_parser = cli::validate::<Item>)]
+        item: Item,
         /// Format output
         #[arg(long, default_value_t = string!("default"))]
         format: String,
@@ -172,7 +156,8 @@ enum Commands {
 
     /// Get logs from a process
     Logs {
-        id: usize,
+        #[clap(value_parser = cli::validate::<Item>)]
+        item: Item,
         #[arg(long, default_value_t = 15, help = "")]
         lines: usize,
         /// Server
@@ -212,10 +197,10 @@ fn main() {
         Commands::Start { name, args, watch, server } => cli::start(name, args, watch, &defaults(server)),
         Commands::Stop { item, server } => cli::stop(item, &defaults(server)),
         Commands::Remove { item, server } => cli::remove(item, &defaults(server)),
-        Commands::Env { id, server } => cli::env(id, &defaults(server)),
-        Commands::Details { id, format, server } => cli::info(id, format, &defaults(server)),
-        Commands::List { format, server } => cli::list(format, &defaults(server)),
-        Commands::Logs { id, lines, server } => cli::logs(id, lines, &defaults(server)),
+        Commands::Env { item, server } => cli::env(item, &defaults(server)),
+        Commands::Details { item, format, server } => cli::info(item, format, &defaults(server)),
+        Commands::List { format, server } => Internal::list(format, &defaults(server)),
+        Commands::Logs { item, lines, server } => cli::logs(item, lines, &defaults(server)),
 
         Commands::Daemon { command } => match command {
             Daemon::Stop => daemon::stop(),

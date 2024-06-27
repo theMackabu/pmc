@@ -1,5 +1,5 @@
 stages: [build, release]
-image: 'themackabu/rust:zigbuild-1.77.0'
+image: 'themackabu/rust:zigbuild-1.79.0'
 
 before_script:
   - mkdir binary

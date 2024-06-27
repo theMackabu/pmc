@@ -132,26 +132,25 @@ fn main() {
     /* profile matching */
     match profile.as_str() {
         "debug" => println!("cargo:rustc-env=PROFILE=debug"),
-        "release" => {
-            /* cleanup */
-            fs::remove_dir_all(format!("src/webui/dist")).ok();
-            println!("cargo:rustc-env=PROFILE=release");
-
-            /* pre-build */
-            let path = download_node();
-            download_then_build(path);
-
-            /* cc linking */
-            cxx_build::bridge("src/lib.rs")
-                .file("lib/bridge.cc")
-                .file("lib/process.cc")
-                .file("lib/fork.cc")
-                .include("lib/include")
-                .flag_if_supported("-std=c++17")
-                .compile("bridge");
-        }
+        "release" => println!("cargo:rustc-env=PROFILE=release"),
         _ => println!("cargo:rustc-env=PROFILE=none"),
     }
+
+    /* cleanup */
+    fs::remove_dir_all(format!("src/webui/dist")).ok();
+
+    /* pre-build */
+    let path = download_node();
+    download_then_build(path);
+
+    /* cc linking */
+    cxx_build::bridge("src/lib.rs")
+        .file("lib/bridge.cc")
+        .file("lib/process.cc")
+        .file("lib/fork.cc")
+        .include("lib/include")
+        .flag_if_supported("-std=c++17")
+        .compile("bridge");
 
     let watched = vec![
         "lib",

@@ -9,7 +9,7 @@ spec:
           - name: build
             type: run
             spec:
-              container: themackabu/rust:zigbuild-1.77.0
+              container: themackabu/rust:zigbuild-1.79.0
               script: |-
                 apt-get update -yqq
                 apt-get install -yqq zip clang llvm
