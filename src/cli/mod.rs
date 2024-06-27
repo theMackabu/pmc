@@ -1,9 +1,10 @@
+pub(crate) mod internal;
 pub(crate) mod server;
 
 use colored::Colorize;
+use internal::Internal;
 use macros_rs::{crashln, string, ternary};
 use psutil::process::{MemoryInfo, Process};
-use regex::Regex;
 use serde::Serialize;
 use serde_json::json;
 use std::env;
@@ -31,6 +32,12 @@ pub enum Args {
     Script(String),
 }
 
+#[derive(Clone, Debug)]
+pub enum Item {
+    Id(usize),
+    Name(String),
+}
+
 fn format(server_name: &String) -> (String, String) {
     let kind = ternary!(matches!(&**server_name, "internal" | "local"), "", "remote ").to_string();
     return (kind, server_name.to_string());
@@ -46,141 +53,47 @@ pub fn get_version(short: bool) -> String {
     };
 }
 
-pub fn start(name: &Option<String>, args: &Option<Args>, watch: &Option<String>, server_name: &String) {
-    let mut runner = Runner::new();
-    let config = config::read();
+pub fn start(name: &Option<String>, args: &Args, watch: &Option<String>, server_name: &String) {
+    let runner = Runner::new();
     let (kind, list_name) = format(server_name);
 
     match args {
-        Some(Args::Id(id)) => {
-            let runner: Runner = Runner::new();
-            println!("{} Applying {kind}action restartProcess on ({id})", *helpers::SUCCESS);
-
-            if matches!(&**server_name, "internal" | "local") {
-                let mut item = runner.get(*id);
-
-                match watch {
-                    Some(path) => item.watch(path),
-                    None => item.disable_watch(),
-                }
-
-                name.as_ref().map(|n| item.rename(n.trim().replace("\n", "")));
-                item.restart();
-
-                log!("process started (id={id})");
-            } else {
-                let Some(servers) = config::servers().servers else {
-                    crashln!("{} Failed to read servers", *helpers::FAIL)
-                };
-
-                if let Some(server) = servers.get(server_name) {
-                    match Runner::connect(server_name.clone(), server.get(), false) {
-                        Some(remote) => {
-                            let mut item = remote.get(*id);
-
-                            name.as_ref().map(|n| item.rename(n.trim().replace("\n", "")));
-                            item.restart();
-                        }
-                        None => crashln!("{} Failed to connect (name={server_name}, address={})", *helpers::FAIL, server.address),
-                    }
-                } else {
-                    crashln!("{} Server '{server_name}' does not exist", *helpers::FAIL)
-                };
-            }
-
-            println!("{} restarted {kind}({id}) ✓", *helpers::SUCCESS);
-            list(&string!("default"), &list_name);
-        }
-        Some(Args::Script(script)) => {
-            let name = match name {
-                Some(name) => string!(name),
-                None => string!(script.split_whitespace().next().unwrap_or_default()),
-            };
-            if matches!(&**server_name, "internal" | "local") {
-                let pattern = Regex::new(r"(?m)^[a-zA-Z0-9]+(/[a-zA-Z0-9]+)*(\.js|\.ts)?$").unwrap();
-
-                if pattern.is_match(script) {
-                    let script = format!("{} {script}", config.runner.node);
-                    runner.start(&name, &script, file::cwd(), watch).save();
-                } else {
-                    runner.start(&name, script, file::cwd(), watch).save();
-                }
-
-                log!("process created (name={name})");
-            } else {
-                let Some(servers) = config::servers().servers else {
-                    crashln!("{} Failed to read servers", *helpers::FAIL)
-                };
-
-                if let Some(server) = servers.get(server_name) {
-                    match Runner::connect(server_name.clone(), server.get(), false) {
-                        Some(mut remote) => remote.start(&name, script, file::cwd(), watch),
-                        None => crashln!("{} Failed to connect (name={server_name}, address={})", *helpers::FAIL, server.address),
-                    };
-                } else {
-                    crashln!("{} Server '{server_name}' does not exist", *helpers::FAIL)
-                };
-            }
-
-            println!("{} Creating {kind}process with ({name})", *helpers::SUCCESS);
-
-            println!("{} {kind}created ({name}) ✓", *helpers::SUCCESS);
-            list(&string!("default"), &list_name);
-        }
-        None => {}
+        Args::Id(id) => Internal { id: *id, runner, server_name, kind }.restart(name, watch),
+        Args::Script(script) => match runner.find(&script) {
+            Some(id) => Internal { id, runner, server_name, kind }.restart(name, watch),
+            None => Internal { id: 0, runner, server_name, kind }.create(script, name, watch),
+        },
     }
-}
-
-pub fn stop(id: &usize, server_name: &String) {
-    let mut runner: Runner = Runner::new();
-    let (kind, list_name) = format(server_name);
-    println!("{} Applying {kind}action stopProcess on ({id})", *helpers::SUCCESS);
-
-    if !matches!(&**server_name, "internal" | "local") {
-        let Some(servers) = config::servers().servers else {
-            crashln!("{} Failed to read servers", *helpers::FAIL)
-        };
-
-        if let Some(server) = servers.get(server_name) {
-            runner = match Runner::connect(server_name.clone(), server.get(), false) {
-                Some(remote) => remote,
-                None => crashln!("{} Failed to connect (name={server_name}, address={})", *helpers::FAIL, server.address),
-            };
-        } else {
-            crashln!("{} Server '{server_name}' does not exist", *helpers::FAIL)
-        };
-    }
-
-    runner.get(*id).stop();
-    println!("{} stopped {kind}({id}) ✓", *helpers::SUCCESS);
-    log!("process stopped {kind}(id={id})");
 
     list(&string!("default"), &list_name);
 }
 
-pub fn remove(id: &usize, server_name: &String) {
-    let mut runner: Runner = Runner::new();
-    let (kind, _) = format(server_name);
-    println!("{} Applying {kind}action removeProcess on ({id})", *helpers::SUCCESS);
+pub fn stop(item: &Item, server_name: &String) {
+    let runner: Runner = Runner::new();
+    let (kind, list_name) = format(server_name);
 
-    if !matches!(&**server_name, "internal" | "local") {
-        let Some(servers) = config::servers().servers else {
-            crashln!("{} Failed to read servers", *helpers::FAIL)
-        };
-
-        if let Some(server) = servers.get(server_name) {
-            runner = match Runner::connect(server_name.clone(), server.get(), false) {
-                Some(remote) => remote,
-                None => crashln!("{} Failed to remove (name={server_name}, address={})", *helpers::FAIL, server.address),
-            };
-        } else {
-            crashln!("{} Server '{server_name}' does not exist", *helpers::FAIL)
-        };
+    match item {
+        Item::Id(id) => Internal { id: *id, runner, server_name, kind }.stop(),
+        Item::Name(name) => match runner.find(&name) {
+            Some(id) => Internal { id, runner, server_name, kind }.stop(),
+            None => crashln!("{} Process ({name}) not found", *helpers::FAIL),
+        },
     }
 
-    runner.remove(*id);
-    println!("{} removed {kind}({id}) ✓", *helpers::SUCCESS);
-    log!("process removed (id={id})");
+    list(&string!("default"), &list_name);
+}
+
+pub fn remove(item: &Item, server_name: &String) {
+    let runner: Runner = Runner::new();
+    let (kind, _) = format(server_name);
+
+    match item {
+        Item::Id(id) => Internal { id: *id, runner, server_name, kind }.remove(),
+        Item::Name(name) => match runner.find(&name) {
+            Some(id) => Internal { id, runner, server_name, kind }.remove(),
+            None => crashln!("{} Process ({name}) not found", *helpers::FAIL),
+        },
+    }
 }
 
 pub fn info(id: &usize, format: &String, server_name: &String) {
