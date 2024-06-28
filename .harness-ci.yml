@@ -9,14 +9,19 @@ spec:
           - name: build
             type: run
             spec:
-              container: themackabu/rust:zigbuild-1.79.0
+              container: themackabu/rust:zigbuild-1.79.0-sccache
               script: |-
-                apt-get update -yqq
-                apt-get install -yqq zip clang llvm
                 export CC="/usr/bin/clang"
                 export CXX="/usr/bin/clang++"
+                export SCCACHE_S3_USE_SSL=true
+                export AWS_ACCESS_KEY_ID=${{ secrets.get("pmc_s3_key") }}
+                export AWS_SECRET_ACCESS_KEY=${{ secrets.get("pmc_s3_secret") }}
+                export SCCACHE_BUCKET=sccache
+                export SCCACHE_ENDPOINT=https://gateway.storjshare.io
+                export SCCACHE_REGION=auto
+                export RUSTC_WRAPPER=/usr/local/cargo/bin/sccache
                 cargo zigbuild -r -j 4
-                zip pmc_${{ build.commit }}-B${{ build.number }}.zip target/release/pmc -j
+                zip pmc_${{ build.commit }}-B${{ build.number }}.zip /usr/local/build/target/release/pmc -j
           - spec:
               inputs:
                 access_key: ${{ secrets.get("pmc_s3_key") }}

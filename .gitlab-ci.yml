@@ -3,8 +3,6 @@ image: 'themackabu/rust:zigbuild-1.79.0-sccache'
 
 before_script:
   - mkdir binary
-  - apt-get update -yqq
-  - apt-get install -yqq zip clang llvm
   - export CC="/usr/bin/clang"
   - export CXX="/usr/bin/clang++"
 
