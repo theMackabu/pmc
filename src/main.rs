@@ -46,7 +46,7 @@ enum Daemon {
         #[arg(long)]
         webui: bool,
     },
-    /// Check daemon
+    /// Check daemon health
     #[command(visible_alias = "info", visible_alias = "status")]
     Health {
         /// Format output

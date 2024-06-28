@@ -15,28 +15,58 @@ PMC (Process Management Controller) is a simple PM2 alternative written in Rust.
 
 ```bash
 # Start/Restart a process
-pmc start <id> or <script> [--name <name>]
+pmc start <id/name> or <script> [--name <name>]
 
 # Stop/Kill a process
-pmc stop <id>
+pmc stop <id/name>
 
 # Remove a process
-pmc remove <id>
+pmc remove <id/name>
 
 # Get process info
-pmc info <id>
+pmc info <id/name>
 
 # Get process env
-pmc env <id>
+pmc env <id/name>
+
+# Save all processes to dumpfile
+pmc save
+
+# Restore all processes
+pmc restore
 
 # List all processes
 pmc list [--format <raw|json|default>]
 
 # Get process logs
-pmc logs <id> [--lines <num_lines>]
+pmc logs <id/name> [--lines <num_lines>]
+
+# Reset process index
+pmc daemon reset
+
+# Stop daemon
+pmc daemon stop
+
+# Start/Restart daemon
+pmc daemon start
+
+# Check daemon health
+pmc daemon health
+
+# Add new Ssrver
+pmc server new
+
+# List servers
+pmc server list [--format <format>]
+
+# Remove server
+pmc server remove <name>
+
+# Set default server
+pmc server default [<name>]
 ```
 
-For more commands, check out `pmc --help`
+For more command information, check out `pmc --help`
 
 ### Installation
 
