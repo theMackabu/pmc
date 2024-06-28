@@ -10,19 +10,20 @@ const Index = (props: { base: string }) => {
 	const badge = {
 		online: 'bg-emerald-400',
 		stopped: 'bg-red-500',
-		crashed: 'bg-amber-400',
+		crashed: 'bg-amber-400'
 	};
 
 	async function fetch() {
 		const items = await api.get(props.base + '/list').json();
-		const servers = await api.get(props.base + '/daemon/servers').json();
-
 		setItems(items.map((s) => ({ ...s, server: 'Internal' })));
 
-		await servers.forEach(async (name) => {
-			const remote = await api.get(props.base + `/remote/${name}/list`).json();
-			setItems((s) => [...s, ...remote.map((i) => ({ ...i, server: name }))]);
-		});
+		try {
+			const servers = await api.get(props.base + '/daemon/servers').json();
+			await servers.forEach(async (name) => {
+				const remote = await api.get(props.base + `/remote/${name}/list`).json();
+				setItems((s) => [...s, ...remote.map((i) => ({ ...i, server: name }))]);
+			});
+		} catch {}
 	}
 
 	const classNames = (...classes: Array<any>) => classes.filter(Boolean).join(' ');
