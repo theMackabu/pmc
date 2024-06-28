@@ -1,5 +1,5 @@
 use colored::Colorize;
-use macros_rs::{crashln, string, ternary};
+use macros_rs::{crashln, string, ternary, then};
 use psutil::process::{MemoryInfo, Process};
 use regex::Regex;
 use serde::Serialize;
@@ -62,11 +62,11 @@ impl<'i> Internal<'i> {
         }
 
         println!("{} Creating {}process with ({name})", *helpers::SUCCESS, self.kind);
-        println!("{} {}created ({name}) ✓", *helpers::SUCCESS, self.kind);
+        println!("{} {}Created ({name}) ✓", *helpers::SUCCESS, self.kind);
     }
 
-    pub fn restart(self, name: &Option<String>, watch: &Option<String>) {
-        println!("{} Applying {}action restartProcess on ({})", *helpers::SUCCESS, self.kind, self.id);
+    pub fn restart(mut self, name: &Option<String>, watch: &Option<String>, silent: bool) -> Runner {
+        then!(!silent, println!("{} Applying {}action restartProcess on ({})", *helpers::SUCCESS, self.kind, self.id));
 
         if matches!(self.server_name, "internal" | "local") {
             let mut item = self.runner.get(self.id);
@@ -79,7 +79,7 @@ impl<'i> Internal<'i> {
             name.as_ref().map(|n| item.rename(n.trim().replace("\n", "")));
             item.restart();
 
-            log!("process started (id={})", self.id);
+            self.runner = item.get_runner().clone();
         } else {
             let Some(servers) = config::servers().servers else {
                 crashln!("{} Failed to read servers", *helpers::FAIL)
@@ -100,11 +100,16 @@ impl<'i> Internal<'i> {
             };
         }
 
-        println!("{} restarted {}({}) ✓", *helpers::SUCCESS, self.kind, self.id);
+        if !silent {
+            println!("{} Restarted {}({}) ✓", *helpers::SUCCESS, self.kind, self.id);
+            log!("process started (id={})", self.id);
+        }
+
+        return self.runner;
     }
 
-    pub fn stop(mut self) {
-        println!("{} Applying {}action stopProcess on ({})", *helpers::SUCCESS, self.kind, self.id);
+    pub fn stop(mut self, silent: bool) -> Runner {
+        then!(!silent, println!("{} Applying {}action stopProcess on ({})", *helpers::SUCCESS, self.kind, self.id));
 
         if !matches!(self.server_name, "internal" | "local") {
             let Some(servers) = config::servers().servers else {
@@ -121,9 +126,16 @@ impl<'i> Internal<'i> {
             };
         }
 
-        self.runner.get(self.id).stop();
-        println!("{} stopped {}({}) ✓", *helpers::SUCCESS, self.kind, self.id);
-        log!("process stopped {}(id={})", self.kind, self.id);
+        let mut item = self.runner.get(self.id);
+        item.stop();
+        self.runner = item.get_runner().clone();
+
+        if !silent {
+            println!("{} Stopped {}({}) ✓", *helpers::SUCCESS, self.kind, self.id);
+            log!("process stopped {}(id={})", self.kind, self.id);
+        }
+
+        return self.runner;
     }
 
     pub fn remove(mut self) {
@@ -145,7 +157,7 @@ impl<'i> Internal<'i> {
         }
 
         self.runner.remove(self.id);
-        println!("{} removed {}({}) ✓", *helpers::SUCCESS, self.kind, self.id);
+        println!("{} Removed {}({}) ✓", *helpers::SUCCESS, self.kind, self.id);
         log!("process removed (id={})", self.id);
     }
 
@@ -416,6 +428,39 @@ impl<'i> Internal<'i> {
 
         let item = self.runner.process(self.id);
         item.env.iter().for_each(|(key, value)| println!("{}: {}", key, value.green()));
+    }
+
+    pub fn save(server_name: &String) {
+        if !matches!(&**server_name, "internal" | "local") {
+            crashln!("{} Cannot force save on remote servers", *helpers::FAIL)
+        }
+
+        println!("{} Saved current processes to dumpfile", *helpers::SUCCESS);
+        Runner::new().save();
+    }
+
+    pub fn restore(server_name: &String) {
+        let mut runner = Runner::new();
+        let (kind, list_name) = super::format(server_name);
+
+        if !matches!(&**server_name, "internal" | "local") {
+            crashln!("{} Cannot restore on remote servers", *helpers::FAIL)
+        }
+
+        Runner::new().list().for_each(|(id, p)| {
+            if p.running == true {
+                runner = Internal {
+                    id: *id,
+                    server_name,
+                    kind: kind.clone(),
+                    runner: runner.clone(),
+                }
+                .restart(&None, &None, true);
+            }
+        });
+
+        println!("{} Restored process statuses from dumpfile", *helpers::SUCCESS);
+        Internal::list(&string!("default"), &list_name);
     }
 
     pub fn list(format: &String, server_name: &String) {

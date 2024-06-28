@@ -300,7 +300,7 @@ pub fn restart(api: &bool, webui: &bool, verbose: bool) {
 
 pub fn reset() {
     let mut runner = Runner::new();
-    let largest = runner.list().map(|(key, _)| *key).max();
+    let largest = runner.size();
 
     match largest {
         Some(id) => runner.set_id(Id::from(str!(id.to_string()))),
