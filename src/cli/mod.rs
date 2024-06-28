@@ -25,30 +25,84 @@ pub fn get_version(short: bool) -> String {
 }
 
 pub fn start(name: &Option<String>, args: &Args, watch: &Option<String>, server_name: &String) {
-    let runner = Runner::new();
+    let mut runner = Runner::new();
     let (kind, list_name) = format(server_name);
 
-    match args {
-        Args::Id(id) => Internal { id: *id, runner, server_name, kind }.restart(name, watch),
-        Args::Script(script) => match runner.find(&script, server_name) {
-            Some(id) => Internal { id, runner, server_name, kind }.restart(name, watch),
-            None => Internal { id: 0, runner, server_name, kind }.create(script, name, watch),
-        },
+    let arg = match args.get_string() {
+        Some(arg) => arg,
+        None => "",
+    };
+
+    if arg == "all" {
+        println!("{} Applying {kind}action startAllProcess", *helpers::SUCCESS);
+
+        let largest = runner.size();
+        match largest {
+            Some(largest) => (0..*largest + 1).for_each(|id| {
+                runner = Internal {
+                    id,
+                    server_name,
+                    kind: kind.clone(),
+                    runner: runner.clone(),
+                }
+                .restart(&None, &None, true);
+            }),
+            None => println!("{} Cannot start all, no processes found", *helpers::FAIL),
+        }
+    } else {
+        match args {
+            Args::Id(id) => {
+                Internal { id: *id, runner, server_name, kind }.restart(name, watch, false);
+            }
+            Args::Script(script) => match runner.find(&script, server_name) {
+                Some(id) => {
+                    Internal { id, runner, server_name, kind }.restart(name, watch, false);
+                }
+                None => Internal { id: 0, runner, server_name, kind }.create(script, name, watch),
+            },
+        }
     }
 
     Internal::list(&string!("default"), &list_name);
 }
 
 pub fn stop(item: &Item, server_name: &String) {
-    let runner: Runner = Runner::new();
+    let mut runner: Runner = Runner::new();
     let (kind, list_name) = format(server_name);
 
-    match item {
-        Item::Id(id) => Internal { id: *id, runner, server_name, kind }.stop(),
-        Item::Name(name) => match runner.find(&name, server_name) {
-            Some(id) => Internal { id, runner, server_name, kind }.stop(),
-            None => crashln!("{} Process ({name}) not found", *helpers::FAIL),
-        },
+    let arg = match item.get_string() {
+        Some(arg) => arg,
+        None => "",
+    };
+
+    if arg == "all" {
+        println!("{} Applying {kind}action stopAllProcess", *helpers::SUCCESS);
+
+        let largest = runner.size();
+        match largest {
+            Some(largest) => (0..*largest + 1).for_each(|id| {
+                runner = Internal {
+                    id,
+                    server_name,
+                    kind: kind.clone(),
+                    runner: runner.clone(),
+                }
+                .stop(true);
+            }),
+            None => println!("{} Cannot stop all, no processes found", *helpers::FAIL),
+        }
+    } else {
+        match item {
+            Item::Id(id) => {
+                Internal { id: *id, runner, server_name, kind }.stop(false);
+            }
+            Item::Name(name) => match runner.find(&name, server_name) {
+                Some(id) => {
+                    Internal { id, runner, server_name, kind }.stop(false);
+                }
+                None => crashln!("{} Process ({name}) not found", *helpers::FAIL),
+            },
+        }
     }
 
     Internal::list(&string!("default"), &list_name);

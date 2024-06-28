@@ -30,7 +30,7 @@ pub struct Web {
     pub api: bool,
     pub address: String,
     pub port: u64,
-    pub secure: Secure,
+    pub secure: Option<Secure>,
     pub path: Option<String>,
 }
 

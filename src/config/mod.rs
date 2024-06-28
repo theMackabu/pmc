@@ -54,7 +54,7 @@ pub fn read() -> Config {
                             address: string!("0.0.0.0"),
                             path: None,
                             port: 5630,
-                            secure: Secure { enabled: false, token: string!("") },
+                            secure: Some(Secure { enabled: false, token: string!("") }),
                         },
                     },
                 };

@@ -348,6 +348,8 @@ impl Runner {
 
     pub fn info(&self, id: usize) -> Option<&Process> { self.list.get(&id) }
 
+    pub fn size(&self) -> Option<&usize> { self.list.iter().map(|(k, _)| k).max() }
+
     pub fn list<'l>(&'l mut self) -> impl Iterator<Item = (&'l usize, &'l mut Process)> { self.list.iter_mut().map(|(k, v)| (k, v)) }
 
     pub fn process(&mut self, id: usize) -> &mut Process { self.list.get_mut(&id).unwrap_or_else(|| crashln!("{} Process ({id}) not found", *helpers::FAIL)) }
@@ -524,6 +526,9 @@ impl ProcessWrapper {
 
     /// Set the process item as crashed
     pub fn crashed(&mut self) { lock!(self.runner).restart(self.id, true).save(); }
+
+    /// Get the borrowed runner reference (lives till program end)
+    pub fn get_runner(&mut self) -> &Runner { Box::leak(Box::new(lock!(self.runner))) }
 
     /// Get a json dump of the process item
     pub fn fetch(&self) -> ItemSingle {

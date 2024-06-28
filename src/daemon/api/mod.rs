@@ -144,17 +144,22 @@ impl<'r> FromRequest<'r> for routes::Token {
     async fn from_request(request: &'r rocket::Request<'_>) -> rocket::request::Outcome<Self, Self::Error> {
         let config = config::read().daemon.web;
 
-        if !config.secure.enabled {
-            return Outcome::Success(routes::Token);
-        }
+        match config.secure {
+            Some(val) => {
+                if !val.enabled {
+                    return Outcome::Success(routes::Token);
+                }
 
-        if let Some(header_value) = request.headers().get_one("token") {
-            if header_value == config.secure.token {
-                return Outcome::Success(routes::Token);
+                if let Some(header_value) = request.headers().get_one("token") {
+                    if header_value == val.token {
+                        return Outcome::Success(routes::Token);
+                    }
+                }
+
+                Outcome::Error((rocket::http::Status::Unauthorized, ()))
             }
+            None => return Outcome::Success(routes::Token),
         }
-
-        Outcome::Error((rocket::http::Status::Unauthorized, ()))
     }
 }
 

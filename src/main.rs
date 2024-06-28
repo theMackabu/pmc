@@ -154,6 +154,22 @@ enum Commands {
         server: Option<String>,
     },
 
+    /// Restore all processes
+    #[command(visible_alias = "resurrect")]
+    Restore {
+        /// Server
+        #[arg(short, long)]
+        server: Option<String>,
+    },
+
+    /// Save all processes to dumpfile
+    #[command(visible_alias = "store")]
+    Save {
+        /// Server
+        #[arg(short, long)]
+        server: Option<String>,
+    },
+
     /// Get logs from a process
     Logs {
         #[clap(value_parser = cli::validate::<Item>)]
@@ -197,6 +213,8 @@ fn main() {
         Commands::Start { name, args, watch, server } => cli::start(name, args, watch, &defaults(server)),
         Commands::Stop { item, server } => cli::stop(item, &defaults(server)),
         Commands::Remove { item, server } => cli::remove(item, &defaults(server)),
+        Commands::Restore { server } => Internal::restore(&defaults(server)),
+        Commands::Save { server } => Internal::save(&defaults(server)),
         Commands::Env { item, server } => cli::env(item, &defaults(server)),
         Commands::Details { item, format, server } => cli::info(item, format, &defaults(server)),
         Commands::List { format, server } => Internal::list(format, &defaults(server)),
@@ -217,7 +235,11 @@ fn main() {
         },
     };
 
-    if !matches!(&cli.command, Commands::Daemon { .. }) && !matches!(&cli.command, Commands::Server { .. }) {
+    if !matches!(&cli.command, Commands::Daemon { .. })
+        && !matches!(&cli.command, Commands::Server { .. })
+        && !matches!(&cli.command, Commands::Save { .. })
+        && !matches!(&cli.command, Commands::Env { .. })
+    {
         then!(!daemon::pid::exists(), daemon::restart(&false, &false, false));
     }
 }
