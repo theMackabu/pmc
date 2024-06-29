@@ -68,7 +68,7 @@ enum Server {
         format: String,
     },
     /// Remove server
-    #[command(visible_alias = "rm")]
+    #[command(visible_alias = "rm", visible_alias = "delete")]
     Remove {
         /// Server name
         name: String,
