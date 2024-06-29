@@ -41,6 +41,9 @@ pmc list [--format <raw|json|default>]
 # Get process logs
 pmc logs <id/name> [--lines <num_lines>]
 
+# Flush process logs
+pmc flush <id/name>
+
 # Reset process index
 pmc daemon reset
 
@@ -69,9 +72,13 @@ pmc server default [<name>]
 For more command information, check out `pmc --help`
 
 ### Installation
+#### 1. Run bash script
+```
+curl -fsSL https://raw.githubusercontent.com/theMackabu/pmc/master/scripts/install.sh | sh
+```
 
+#### 2. Pre-built binary download
 Pre-built binaries for Linux, MacOS, and WSL can be found on the [releases](releases) page.
-
 There is no windows support yet. Install from crates.io using `cargo install pmc` (requires clang++)
 
 #### Building

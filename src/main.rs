@@ -84,16 +84,6 @@ enum Server {
 // add pmc restore command
 #[derive(Subcommand)]
 enum Commands {
-    /// Flush a process log
-    #[command(visible_alias = "flush")]
-    Flush {
-        #[clap(value_parser = cli::validate::<Item>)]
-        item: Item,
-        /// Server
-        #[arg(short, long)]
-        server: Option<String>,
-    },
-
     /// Start/Restart a process
     #[command(visible_alias = "restart")]
     Start {
@@ -191,6 +181,17 @@ enum Commands {
         server: Option<String>,
     },
 
+    /// Flush a process log
+    #[command(visible_alias = "flush")]
+    Flush {
+        #[clap(value_parser = cli::validate::<Item>)]
+        item: Item,
+        /// Server
+        #[arg(short, long)]
+        server: Option<String>,
+    },
+
+
     /// Daemon management
     #[command(visible_alias = "agent", visible_alias = "bgd")]
     Daemon {
@@ -220,7 +221,6 @@ fn main() {
     env.filter_level(level).init();
 
     match &cli.command {
-        Commands::Flush { item, server } => cli::flush(item, &defaults(server)),
         Commands::Start { name, args, watch, server } => cli::start(name, args, watch, &defaults(server)),
         Commands::Stop { item, server } => cli::stop(item, &defaults(server)),
         Commands::Remove { item, server } => cli::remove(item, &defaults(server)),
@@ -230,6 +230,7 @@ fn main() {
         Commands::Details { item, format, server } => cli::info(item, format, &defaults(server)),
         Commands::List { format, server } => Internal::list(format, &defaults(server)),
         Commands::Logs { item, lines, server } => cli::logs(item, lines, &defaults(server)),
+        Commands::Flush { item, server } => cli::flush(item, &defaults(server)),
 
         Commands::Daemon { command } => match command {
             Daemon::Stop => daemon::stop(),
