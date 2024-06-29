@@ -26,7 +26,7 @@ spec:
               inputs:
                 access_key: ${{ secrets.get("pmc_s3_key") }}
                 acl: read-write
-                bucket: themackabu-bun-cdn
+                bucket: artifacts
                 region: us1
                 path_style: false
                 endpoint: https://gateway.storjshare.io

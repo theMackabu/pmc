@@ -14,7 +14,7 @@
 		"@astrojs/check": "^0.3.1",
 		"@astrojs/react": "^3.0.6",
 		"@astrojs/tailwind": "^5.0.2",
-		"@headlessui/react": "^1.7.17",
+		"@headlessui/react": "^2.1.1",
 		"@heroicons/react": "^2.0.18",
 		"@nanostores/persistent": "^0.9.1",
 		"@tailwindcss/forms": "^0.5.7",
