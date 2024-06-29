@@ -71,7 +71,7 @@ pmc server default [<name>]
 
 For more command information, check out `pmc --help`
 
-### Installation
+### Installation way
 #### 1. Run bash script
 ```
 curl -fsSL https://raw.githubusercontent.com/theMackabu/pmc/master/scripts/install.sh | sh
