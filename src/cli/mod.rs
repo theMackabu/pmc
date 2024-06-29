@@ -159,3 +159,16 @@ pub fn env(item: &Item, server_name: &String) {
         },
     }
 }
+
+pub fn flush(item: &Item, server_name: &String) {
+    let runner: Runner = Runner::new();
+    let (kind, _) = format(server_name);
+
+    match item {
+        Item::Id(id) => Internal { id: *id, runner, server_name, kind }.flush(),
+        Item::Name(name) => match runner.find(&name, server_name) {
+            Some(id) => Internal { id, runner, server_name, kind }.flush(),
+            None => crashln!("{} Process ({name}) not found", *helpers::FAIL),
+        },
+    }
+}

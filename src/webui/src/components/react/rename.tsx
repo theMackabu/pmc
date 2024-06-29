@@ -16,7 +16,9 @@ const Rename = (props: { base: string; process: number; callback: any; old: stri
 		});
 	};
 
-	useEffect(() => setFormData(props.old), []);
+	useEffect(() => {
+		setFormData(props.old);
+	}, []);
 
 	return (
 		<Fragment>

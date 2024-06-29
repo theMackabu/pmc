@@ -1,12 +1,14 @@
 ---
-import Base from '@/components/base.astro';
+import Layout from '@/components/base.astro';
 import Navbar from '@/components/navbar.astro';
 import ViewPage from '@/components/react/view';
 import { SITE_TITLE, SITE_DESCRIPTION } from '@/consts';
 ---
 
-<!DOCTYPE html>
-<html lang="en">
-   <head><Base title={SITE_TITLE + " - View process"} description={SITE_DESCRIPTION} /></head>
-   <body><Navbar active={false} /><ViewPage id={"{{process_id | safe}}"} base={"{{base_path | safe}}"} client:only /></body>
-</html>
+
+<Layout title={SITE_TITLE + " - View process"} description={SITE_DESCRIPTION}>
+   <Navbar active={false} />
+   <main>
+      <ViewPage id={"{{process_id | safe}}"} base={"{{base_path | safe}}"} client:only />
+   </main>
+</Layout>

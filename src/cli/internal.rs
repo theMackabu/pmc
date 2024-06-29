@@ -161,6 +161,12 @@ impl<'i> Internal<'i> {
         log!("process removed (id={})", self.id);
     }
 
+    pub fn flush(&mut self) {
+        self.runner.flush(self.id);
+        println!("{} Log Flushed {}({}) ✓", *helpers::SUCCESS, self.kind, self.id);
+        log!("process log flushed (id={})", self.id);
+    }
+
     pub fn info(&self, format: &String) {
         #[derive(Clone, Debug, Tabled)]
         struct Info {

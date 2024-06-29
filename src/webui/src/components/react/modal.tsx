@@ -14,7 +14,7 @@ const Modal = (props: { show: boolean; callback: any; title: string; children: a
 						leave="ease-in duration-200"
 						leaveFrom="opacity-100"
 						leaveTo="opacity-0">
-						<Dialog.Overlay className="fixed inset-0 bg-black bg-opacity-60 transition-opacity" style={{ backdropFilter: 'blur(5px)' }} />
+<Dialog.Overlay className="fixed inset-0 bg-black bg-opacity-60 transition-opacity" style={{ backdropFilter: 'blur(5px)' }} />
 					</TransitionChild>
 					<span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">
 						&#8203;

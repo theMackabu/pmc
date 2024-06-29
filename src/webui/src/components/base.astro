@@ -1,7 +1,9 @@
 ---
 import '@/styles.css'
-import favicon from '@/public/favicon.svg?url'
 import banner from '@/public/banner.png?url'
+import favicon from '@/public/favicon.svg?url'
+import { ViewTransitions } from "astro:transitions";
+import ProgressBar from 'astro-vtbot/components/ProgressBar.astro';
 
 interface Props {
 	title: string;
@@ -12,49 +14,59 @@ interface Props {
 const { title, description } = Astro.props;
 ---
 
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<meta name="generator" content={Astro.generator} />
-
-<title>{title}</title>
-<link rel="icon" type="image/svg+xml" href={favicon} />
-<link rel="stylesheet" href="https://rsms.me/inter/inter.css">
-<app-redirect data-base={"{{base_path | safe}}"} />
-
-<meta name="title" content={title} />
-<meta name="description" content={description} />
-<meta property="og:type" content="website" />
-<meta property="og:title" content={title} />
-<meta property="og:description" content={description} />
-<meta property="og:image" content={banner} />
-<meta property="twitter:card" content="summary_large_image" />
-<meta property="twitter:title" content={title} />
-<meta property="twitter:description" content={description} />
-<meta property="twitter:image" content={banner} />
-
-<script>
-  import { $settings } from '@/store';
-
-  class AppRedirect extends HTMLElement {
-	 constructor() {
-		super();
-
-		const base = this.dataset.base;
-		fetch(base + '/daemon/metrics', {
-			headers: { "token": $settings.get().token || "" },
-		}).then(response => {
-			if (window.location.pathname.includes("login")) {
-				if (response.status === 200) {
-					window.location.href = base + "/";
-				}
-			} else {
-				if (response.status !== 200) {
-					window.location.href = base + '/login';
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width,initial-scale=1" />
+		<meta name="generator" content={Astro.generator} />
+	
+		<title>{title}</title>
+		<link rel="icon" type="image/svg+xml" href={favicon} />
+		<link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+		<app-redirect data-base={"{{base_path | safe}}"} />
+	
+		<meta name="title" content={title} />
+		<meta name="description" content={description} />
+		<meta property="og:type" content="website" />
+		<meta property="og:title" content={title} />
+		<meta property="og:description" content={description} />
+		<meta property="og:image" content={banner} />
+		<meta property="twitter:card" content="summary_large_image" />
+		<meta property="twitter:title" content={title} />
+		<meta property="twitter:description" content={description} />
+		<meta property="twitter:image" content={banner} />
+		
+		<ViewTransitions />
+	
+		<script>
+			import { $settings } from '@/store';
+			
+			class AppRedirect extends HTMLElement {
+				constructor() {
+					super();
+					const base = this.dataset.base;
+					fetch(base + '/daemon/metrics', {
+						headers: { token: $settings.get().token || '' }
+					}).then((response) => {
+						if (window.location.pathname.includes('login')) {
+							if (response.status === 200) {
+								window.location.href = base + '/';
+							}
+						} else {
+							if (response.status !== 200) {
+								window.location.href = base + '/login';
+							}
+						}
+					});
 				}
 			}
-		});
-	 }
-  }
-
-  customElements.define('app-redirect', AppRedirect);
-</script>
+			
+			customElements.define('app-redirect', AppRedirect);
+		</script>
+	<head>
+	
+	<body>
+		<slot />
+	</body>
+</html>

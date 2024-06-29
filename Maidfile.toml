@@ -2,7 +2,7 @@ import = [".maid/build.toml", ".maid/server.toml"]
 
 [project]
 name = "pmc"
-version = "1.8.1"
+version = "2.0.0"
 
 [tasks]
 clean = { script = ["rm -rf bin", "mkdir bin"] }
