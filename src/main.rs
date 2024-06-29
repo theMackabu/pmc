@@ -68,7 +68,7 @@ enum Server {
         format: String,
     },
     /// Remove server
-    #[command(visible_alias = "rm", visible_alias = "delete")]
+    #[command(visible_alias = "rm")]
     Remove {
         /// Server name
         name: String,
@@ -84,6 +84,16 @@ enum Server {
 // add pmc restore command
 #[derive(Subcommand)]
 enum Commands {
+    /// Flush a process log
+    #[command(visible_alias = "flush")]
+    Flush {
+        #[clap(value_parser = cli::validate::<Item>)]
+        item: Item,
+        /// Server
+        #[arg(short, long)]
+        server: Option<String>,
+    },
+
     /// Start/Restart a process
     #[command(visible_alias = "restart")]
     Start {
@@ -210,6 +220,7 @@ fn main() {
     env.filter_level(level).init();
 
     match &cli.command {
+        Commands::Flush { item, server } => cli::flush(item, &defaults(server)),
         Commands::Start { name, args, watch, server } => cli::start(name, args, watch, &defaults(server)),
         Commands::Stop { item, server } => cli::stop(item, &defaults(server)),
         Commands::Remove { item, server } => cli::remove(item, &defaults(server)),
