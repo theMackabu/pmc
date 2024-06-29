@@ -1,12 +1,12 @@
 {
 	"name": "pmc-webui",
-	"version": "1.9.0",
+	"version": "2.0.0",
 	"lockfileVersion": 3,
 	"requires": true,
 	"packages": {
 		"": {
 			"name": "pmc-webui",
-			"version": "1.9.0",
+			"version": "2.0.0",
 			"license": "MIT",
 			"dependencies": {
 				"@astrojs/react": "^3.6.0",
