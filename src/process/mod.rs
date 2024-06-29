@@ -175,13 +175,11 @@ impl Status {
 
 impl LogInfo {
     pub fn flush(&self) {
-        let out_remove = std::fs::remove_file(&self.out);
-        if let Err(err) = out_remove {
+        if let Err(err) = std::fs::remove_file(&self.out) {
             crashln!("Failed to remove log {0} file: {err}", self.out);
         }
 
-        let err_remove = std::fs::remove_file(&self.error);
-        if let Err(err) = err_remove {
+        if let Err(err) = std::fs::remove_file(&self.error) {
             crashln!("Failed to remove log {0} file: {err}", self.error);
         }
     }
