@@ -1,9 +1,9 @@
 import { api } from '@/api';
 import { matchSorter } from 'match-sorter';
 import Rename from '@/components/react/rename';
-import { Menu, Transition } from '@headlessui/react';
 import { useEffect, useState, useRef, Fragment } from 'react';
-import { EllipsisVerticalIcon } from '@heroicons/react/20/solid';
+import { EllipsisVerticalIcon, CheckIcon, ChevronUpDownIcon } from '@heroicons/react/20/solid';
+import { Menu, MenuItem, MenuItems, MenuButton, Transition, Listbox, ListboxButton, ListboxOption, ListboxOptions } from '@headlessui/react';
 
 const classNames = (...classes: Array<any>) => classes.filter(Boolean).join(' ');
 
@@ -11,7 +11,6 @@ const formatMemory = (bytes: number): [number, string] => {
 	const units = ['b', 'kb', 'mb', 'gb'];
 	let size = bytes;
 	let unitIndex = 0;
-	
 
 	while (size > 1024 && unitIndex < units.length - 1) {
 		size /= 1024;
@@ -56,8 +55,14 @@ const LogRow = ({ match, children }: any) => {
 };
 
 const LogViewer = (props: { server: string | null; base: string; id: number }) => {
+	const logTypes = [
+		{ id: 1, name: 'stdout' },
+		{ id: 2, name: 'stderr' }
+	];
+
 	const [logs, setLogs] = useState<string[]>([]);
 	const [loaded, setLoaded] = useState(false);
+	const [logType, setLogType] = useState(logTypes[0]);
 	const lastRow = useRef<HTMLDivElement | null>(null);
 	const [searchQuery, setSearchQuery] = useState('');
 	const [searchOpen, setSearchOpen] = useState(false);
@@ -80,7 +85,7 @@ const LogViewer = (props: { server: string | null; base: string; id: number }) =
 	}, []);
 
 	const componentStyle = {
-		height: componentHeight + 'px',
+		height: componentHeight + 'px'
 	};
 
 	useEffect(() => {
@@ -114,23 +119,23 @@ const LogViewer = (props: { server: string | null; base: string; id: number }) =
 		};
 	}, [searchOpen]);
 
-	const loadLogs = () => {
+	const loadLogs = (type: string) => {
 		api
-			.get(`${props.base}/process/${props.id}/logs/out`)
+			.get(`${props.base}/process/${props.id}/logs/${type}`)
 			.json()
 			.then((data) => setLogs(data.logs))
 			.finally(() => setLoaded(true));
 	};
 
-	const loadLogsRemote = () => {
+	const loadLogsRemote = (type: string) => {
 		api
-			.get(`${props.base}/remote/${props.server}/logs/${props.id}/out`)
+			.get(`${props.base}/remote/${props.server}/logs/${props.id}/${type}`)
 			.json()
 			.then((data) => setLogs(data.logs))
 			.finally(() => setLoaded(true));
 	};
 
-	useEffect(() => (props.server != null ? loadLogsRemote() : loadLogs()), []);
+	useEffect(() => (props.server != null ? loadLogsRemote(logType.name) : loadLogs(logType.name)), [logType]);
 	useEffect(() => lastRow.current?.scrollIntoView(), [loaded]);
 
 	if (!loaded) {
@@ -141,7 +146,7 @@ const LogViewer = (props: { server: string | null; base: string; id: number }) =
 				{searchOpen && (
 					<div className="z-50 fixed top-[16.5rem] right-5 w-96 flex bg-zinc-800/50 backdrop-blur-md px-3 py-1 rounded-lg border border-zinc-700 shadow">
 						<input
-							className="grow bg-transparent p-2 border-0 text-white focus:ring-0 sm:text-sm"
+							className="grow bg-transparent p-2 border-0 text-white focus:ring-0 sm:text-sm placeholder-zinc-400"
 							autoFocus
 							placeholder="Filter logs..."
 							value={searchQuery}
@@ -158,6 +163,46 @@ const LogViewer = (props: { server: string | null; base: string; id: number }) =
 					))}
 					<div ref={lastRow} />
 				</div>
+				<Listbox className="absolute bottom-3 right-3" value={logType} onChange={setLogType}>
+					{() => (
+						<div>
+							<ListboxButton className="relative w-full cursor-default rounded-lg py-1.5 pl-3 pr-10 text-left saturate-[110%] border border-zinc-700 hover:border-zinc-600 bg-zinc-800 text-zinc-50 hover:bg-zinc-700 shadow-sm focus:outline-none sm:text-sm sm:leading-6">
+								<span className="block truncate">{logType.name}</span>
+								<span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+									<ChevronUpDownIcon className="h-5 w-5 text-zinc-500" aria-hidden="true" />
+								</span>
+							</ListboxButton>
+							<ListboxOptions
+								transition
+								className="absolute z-10 -mt-2 max-h-60 w-full overflow-auto rounded-lg bg-zinc-900/80 backdrop-blur-md border border-zinc-800 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none text-base p-1 text-base shadow-lg focus:outline-none data-[closed]:data-[leave]:opacity-0 data-[leave]:transition data-[leave]:duration-100 data-[leave]:ease-in sm:text-sm -translate-y-full transform">
+								{logTypes.map((item) => (
+									<ListboxOption
+										key={item.id}
+										className={({ focus }) =>
+											classNames(
+												focus ? 'bg-zinc-800/80 text-zinc-50' : '',
+												!focus ? 'text-zinc-200' : '',
+												'relative rounded-md block p-2 w-full text-left cursor-pointer select-none'
+											)
+										}
+										value={item}>
+										{({ selected, focus }) => (
+											<>
+												<span className={classNames(selected ? 'font-semibold' : 'font-normal', 'block truncate')}>{item.name}</span>
+
+												{selected ? (
+													<span className="text-emerald-500 absolute inset-y-0 right-0 flex items-center pr-1.5">
+														<CheckIcon className="h-4 w-4" aria-hidden="true" />
+													</span>
+												) : null}
+											</>
+										)}
+									</ListboxOption>
+								))}
+							</ListboxOptions>
+						</div>
+					)}
+				</Listbox>
 			</div>
 		);
 	}
@@ -171,7 +216,7 @@ const View = (props: { id: string; base: string }) => {
 	const badge = {
 		online: 'bg-emerald-400/10 text-emerald-400',
 		stopped: 'bg-red-500/10 text-red-500',
-		crashed: 'bg-amber-400/10 text-amber-400',
+		crashed: 'bg-amber-400/10 text-amber-400'
 	};
 
 	const fetch = () => {
@@ -206,7 +251,7 @@ const View = (props: { id: string; base: string }) => {
 			{ name: 'Status', value: item.info.status },
 			{ name: 'Uptime', value: online ? uptime : 'none', unit: online ? upunit : '' },
 			{ name: 'Memory', value: online ? memory : 'offline', unit: online ? memunit : '' },
-			{ name: 'CPU', value: online ? item.stats.cpu_percent : 'offline', unit: online ? '%' : '' },
+			{ name: 'CPU', value: online ? item.stats.cpu_percent : 'offline', unit: online ? '%' : '' }
 		];
 
 		return (
@@ -240,9 +285,9 @@ const View = (props: { id: string; base: string }) => {
 						<span className="ml-3">
 							<Menu as="div" className="relative inline-block text-left">
 								<div>
-									<Menu.Button className="transition inline-flex items-center justify-center space-x-1.5 border focus:outline-none focus:ring-0 focus:ring-offset-0 focus:z-10 shrink-0 border-zinc-700 bg-transparent hover:bg-zinc-800 p-2 text-sm font-semibold rounded-lg">
+									<MenuButton className="transition inline-flex items-center justify-center space-x-1.5 border focus:outline-none focus:ring-0 focus:ring-offset-0 focus:z-10 shrink-0 border-zinc-700 bg-transparent hover:bg-zinc-800 p-2 text-sm font-semibold rounded-lg">
 										<EllipsisVerticalIcon className="h-5 w-5 text-zinc-50" aria-hidden="true" />
-									</Menu.Button>
+									</MenuButton>
 								</div>
 
 								<Transition
@@ -253,39 +298,39 @@ const View = (props: { id: string; base: string }) => {
 									leave="transition ease-in duration-75"
 									leaveFrom="transform opacity-100 scale-100"
 									leaveTo="transform opacity-0 scale-95">
-									<Menu.Items className="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-lg bg-zinc-900/80 backdrop-blur-md border border-zinc-800 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none text-base divide-y divide-zinc-800/50">
+									<MenuItems className="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-lg bg-zinc-900/80 backdrop-blur-md border border-zinc-800 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none text-base divide-y divide-zinc-800/50">
 										<div className="p-1.5">
-											<Menu.Item>
-												{({ active }) => (
+											<MenuItem>
+												{({ focus }) => (
 													<a
 														onClick={() => action(props.id, 'stop')}
 														className={classNames(
-															active ? 'bg-yellow-400/10 text-amber-500' : 'text-zinc-200',
+															focus ? 'bg-yellow-400/10 text-amber-500' : 'text-zinc-200',
 															'rounded-md block p-2 w-full text-left cursor-pointer'
 														)}>
 														Terminate
 													</a>
 												)}
-											</Menu.Item>
-											<Menu.Item>
-												{({ active }) => <Rename base={props.base} process={props.id} active={active} callback={fetch} old={item.info.name} />}
-											</Menu.Item>
+											</MenuItem>
+											<MenuItem>
+												{({ focus }) => <Rename base={props.base} process={props.id} active={focus} callback={fetch} old={item.info.name} />}
+											</MenuItem>
 										</div>
 										<div className="p-1.5">
-											<Menu.Item>
-												{({ active }) => (
+											<MenuItem>
+												{({ focus }) => (
 													<a
 														onClick={() => action(props.id, 'delete')}
 														className={classNames(
-															active ? 'bg-red-700/10 text-red-500' : 'text-red-400',
+															focus ? 'bg-red-700/10 text-red-500' : 'text-red-400',
 															'rounded-md block p-2 w-full text-left cursor-pointer'
 														)}>
 														Delete
 													</a>
 												)}
-											</Menu.Item>
+											</MenuItem>
 										</div>
-									</Menu.Items>
+									</MenuItems>
 								</Transition>
 							</Menu>
 						</span>

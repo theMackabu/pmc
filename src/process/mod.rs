@@ -319,19 +319,19 @@ impl Runner {
         } else {
             self.stop(id);
             self.list.remove(&id);
-            dump::write(&self);
+            self.save();
         }
     }
 
     pub fn set_id(&mut self, id: id::Id) {
         self.id = id;
         self.id.next();
-        dump::write(&self);
+        self.save();
     }
 
     pub fn set_status(&mut self, id: usize, status: Status) {
         self.process(id).running = status.to_bool();
-        dump::write(&self);
+        self.save();
     }
 
     pub fn items(&self) -> BTreeMap<usize, Process> { self.list.clone() }

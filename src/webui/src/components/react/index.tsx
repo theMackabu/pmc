@@ -1,7 +1,7 @@
 import { api } from '@/api';
 import Rename from '@/components/react/rename';
 import { useEffect, useState, Fragment } from 'react';
-import { Menu, Transition } from '@headlessui/react';
+import { Menu, MenuItem, MenuItems, MenuButton, Transition } from '@headlessui/react';
 import { EllipsisVerticalIcon } from '@heroicons/react/20/solid';
 
 const Index = (props: { base: string }) => {
@@ -46,9 +46,9 @@ const Index = (props: { base: string }) => {
 							<span className={`${badge[item.status]} relative inline-flex rounded-full h-2 w-2`}></span>
 						</span>
 						<Menu as="div" className="relative ml-auto">
-							<Menu.Button className="transition border focus:outline-none focus:ring-0 focus:ring-offset-0 z-50 shrink-0 border-zinc-700/50 bg-transparent hover:bg-zinc-800 p-2 text-sm font-semibold rounded-lg ml-3">
+							<MenuButton className="transition border focus:outline-none focus:ring-0 focus:ring-offset-0 z-50 shrink-0 border-zinc-700/50 bg-transparent hover:bg-zinc-800 p-2 text-sm font-semibold rounded-lg ml-3">
 								<EllipsisVerticalIcon className="h-5 w-5 text-zinc-50" aria-hidden="true" />
-							</Menu.Button>
+							</MenuButton>
 							<Transition
 								as={Fragment}
 								enter="transition ease-out duration-100"
@@ -57,53 +57,53 @@ const Index = (props: { base: string }) => {
 								leave="transition ease-in duration-75"
 								leaveFrom="transform opacity-100 scale-100"
 								leaveTo="transform opacity-0 scale-95">
-								<Menu.Items className="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-lg bg-zinc-900 border border-zinc-800 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none text-base divide-y divide-zinc-800/50">
+								<MenuItems className="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-lg bg-zinc-900 border border-zinc-800 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none text-base divide-y divide-zinc-800/50">
 									<div className="p-1.5">
-										<Menu.Item>
-											{({ active }) => (
+										<MenuItem>
+											{({ focus }) => (
 												<a
 													onClick={() => action(item.id, 'restart')}
 													className={classNames(
-														active ? 'bg-blue-700/10 text-blue-500' : 'text-zinc-200',
+														focus ? 'bg-blue-700/10 text-blue-500' : 'text-zinc-200',
 														'rounded-md block px-2 py-2 w-full text-left cursor-pointer'
 													)}>
 													Reload
 												</a>
 											)}
-										</Menu.Item>
-										<Menu.Item>
-											{({ active }) => (
+										</MenuItem>
+										<MenuItem>
+											{({ focus }) => (
 												<a
 													onClick={() => action(item.id, 'stop')}
 													className={classNames(
-														active ? 'bg-yellow-400/10 text-amber-500' : 'text-zinc-200',
+														focus ? 'bg-yellow-400/10 text-amber-500' : 'text-zinc-200',
 														'rounded-md block p-2 w-full text-left cursor-pointer'
 													)}>
 													Terminate
 												</a>
 											)}
-										</Menu.Item>
+										</MenuItem>
 									</div>
 									<div className="p-1.5">
-										<Menu.Item>
-											{({ active }) => <Rename base={props.base} process={item.id} callback={fetch} active={active} old={item.name} />}
-										</Menu.Item>
+										<MenuItem>
+											{({ focus }) => <Rename base={props.base} process={item.id} callback={fetch} active={focus} old={item.name} />}
+										</MenuItem>
 									</div>
 									<div className="p-1.5">
-										<Menu.Item>
-											{({ active }) => (
+										<MenuItem>
+											{({ focus }) => (
 												<a
 													onClick={() => action(item.id, 'delete')}
 													className={classNames(
-														active ? 'bg-red-700/10 text-red-500' : 'text-red-400',
+														focus ? 'bg-red-700/10 text-red-500' : 'text-red-400',
 														'rounded-md block p-2 w-full text-left cursor-pointer'
 													)}>
 													Delete
 												</a>
 											)}
-										</Menu.Item>
+										</MenuItem>
 									</div>
-								</Menu.Items>
+								</MenuItems>
 							</Transition>
 						</Menu>
 					</div>
