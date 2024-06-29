@@ -33,6 +33,21 @@ const startDuration = (input: string): [number, string] => {
 	return null;
 };
 
+const Loader = () => (
+	<div
+		style={{
+			position: 'fixed',
+			top: '60%',
+			left: '50%',
+			transform: 'translate(-50%, -60%)',
+			pointerEvents: 'auto'
+		}}>
+		<div className="h-1 w-96 bg-zinc-800 overflow-hidden rounded-full">
+			<div className="animate-progress w-full h-full bg-zinc-50 origin-left-right"></div>
+		</div>
+	</div>
+);
+
 const LogRow = ({ match, children }: any) => {
 	const _match = match.toLowerCase();
 	const chunks = match.length ? children.split(new RegExp('(' + match + ')', 'ig')) : [children];
@@ -120,6 +135,7 @@ const LogViewer = (props: { server: string | null; base: string; id: number }) =
 	}, [searchOpen]);
 
 	const loadLogs = (type: string) => {
+		setLoaded(false);
 		api
 			.get(`${props.base}/process/${props.id}/logs/${type}`)
 			.json()
@@ -128,6 +144,7 @@ const LogViewer = (props: { server: string | null; base: string; id: number }) =
 	};
 
 	const loadLogsRemote = (type: string) => {
+		setLoaded(false);
 		api
 			.get(`${props.base}/remote/${props.server}/logs/${props.id}/${type}`)
 			.json()
@@ -139,14 +156,14 @@ const LogViewer = (props: { server: string | null; base: string; id: number }) =
 	useEffect(() => lastRow.current?.scrollIntoView(), [loaded]);
 
 	if (!loaded) {
-		return <div className="text-lg text-white font-bold">loading...</div>;
+		return <Loader />;
 	} else {
 		return (
 			<div>
 				{searchOpen && (
 					<div className="z-50 fixed top-[16.5rem] right-5 w-96 flex bg-zinc-800/50 backdrop-blur-md px-3 py-1 rounded-lg border border-zinc-700 shadow">
 						<input
-							className="grow bg-transparent p-2 border-0 text-white focus:ring-0 sm:text-sm placeholder-zinc-400"
+							className="grow bg-transparent p-2 border-0 text-white focus:ring-0 sm:text-sm placeholder-zinc-accent-fuchsia-500"
 							autoFocus
 							placeholder="Filter logs..."
 							value={searchQuery}
@@ -166,7 +183,7 @@ const LogViewer = (props: { server: string | null; base: string; id: number }) =
 				<Listbox className="absolute bottom-3 right-3" value={logType} onChange={setLogType}>
 					{() => (
 						<div>
-							<ListboxButton className="relative w-full cursor-default rounded-lg py-1.5 pl-3 pr-10 text-left saturate-[110%] border border-zinc-700 hover:border-zinc-600 bg-zinc-800 text-zinc-50 hover:bg-zinc-700 shadow-sm focus:outline-none sm:text-sm sm:leading-6">
+							<ListboxButton className="relative w-full cursor-pointer rounded-lg py-1.5 pl-3 pr-10 text-left saturate-[50%] border border-zinc-700/50 hover:border-zinc-600/50 bg-zinc-800/50 text-zinc-50 hover:bg-zinc-700/50 shadow-sm focus:outline-none sm:text-sm sm:leading-6">
 								<span className="block truncate">{logType.name}</span>
 								<span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
 									<ChevronUpDownIcon className="h-5 w-5 text-zinc-500" aria-hidden="true" />
@@ -241,7 +258,7 @@ const View = (props: { id: string; base: string }) => {
 	useEffect(() => (server != null ? fetchRemote() : fetch()), []);
 
 	if (!loaded) {
-		return <div className="text-lg text-white font-bold">loading...</div>;
+		return <Loader />;
 	} else {
 		const online = isRunning(item.info.status);
 		const [uptime, upunit] = startDuration(item.info.uptime);
