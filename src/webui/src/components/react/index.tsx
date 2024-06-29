@@ -31,7 +31,9 @@ const Index = (props: { base: string }) => {
 	const isRunning = (status: string): bool => (status == 'stopped' ? false : status == 'crashed' ? false : true);
 	const action = (id: number, name: string) => api.post(`${props.base}/process/${id}/action`, { json: { method: name } }).then(() => fetch());
 
-	useEffect(() => fetch(), []);
+	useEffect(() => {
+		fetch();
+	}, []);
 
 	return (
 		<ul role="list" className="grid grid-cols-1 gap-x-6 gap-y-8 lg:grid-cols-4 xl:gap-x-8">

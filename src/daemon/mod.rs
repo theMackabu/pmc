@@ -304,7 +304,7 @@ pub fn reset() {
 
     match largest {
         Some(id) => runner.set_id(Id::from(str!(id.to_string()))),
-        None => println!("{} Cannot reset index, no ID found", *helpers::FAIL),
+        None => runner.set_id(Id::new(0)),
     }
 
     println!("{} PMC Successfully reset (index={})", *helpers::SUCCESS, runner.id);

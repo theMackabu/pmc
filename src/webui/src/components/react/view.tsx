@@ -152,8 +152,13 @@ const LogViewer = (props: { server: string | null; base: string; id: number }) =
 			.finally(() => setLoaded(true));
 	};
 
-	useEffect(() => (props.server != null ? loadLogsRemote(logType.name) : loadLogs(logType.name)), [logType]);
-	useEffect(() => lastRow.current?.scrollIntoView(), [loaded]);
+	useEffect(() => {
+		props.server != null ? loadLogsRemote(logType.name) : loadLogs(logType.name);
+	}, [logType]);
+
+	useEffect(() => {
+		lastRow.current?.scrollIntoView();
+	}, [loaded]);
 
 	if (!loaded) {
 		return <Loader />;
@@ -255,7 +260,9 @@ const View = (props: { id: string; base: string }) => {
 	const isRunning = (status: string): bool => (status == 'stopped' ? false : status == 'crashed' ? false : true);
 	const action = (id: number, name: string) => api.post(`${props.base}/process/${id}/action`, { json: { method: name } }).then(() => fetch());
 
-	useEffect(() => (server != null ? fetchRemote() : fetch()), []);
+	useEffect(() => {
+		server != null ? fetchRemote() : fetch();
+	}, []);
 
 	if (!loaded) {
 		return <Loader />;

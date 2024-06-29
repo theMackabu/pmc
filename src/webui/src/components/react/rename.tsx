@@ -16,7 +16,9 @@ const Rename = (props: { base: string; process: number; callback: any; old: stri
 		});
 	};
 
-	useEffect(() => setFormData(props.old), []);
+	useEffect(() => {
+		setFormData(props.old);
+	}, []);
 
 	return (
 		<Fragment>
@@ -27,7 +29,7 @@ const Rename = (props: { base: string; process: number; callback: any; old: stri
 			</a>
 			<Modal show={open} title="Rename this process" callback={(close: boolean) => setOpen(close)}>
 				<form onSubmit={handleSubmit}>
-					<div className="relative border border-zinc-300 rounded-lg px-3 py-3 focus-within:ring-1 focus-within:ring-zinc-300 focus-within:border-zinc-300 w-[29rem] focus-within:shadow-sm transition bg-zinc-900">
+					<div className="relative border border-zinc-700 rounded-lg px-3 py-3 focus-within:ring-1 focus-within:ring-zinc-300 focus-within:border-zinc-300 w-[29rem] focus-within:shadow-sm transition bg-zinc-900">
 						<input
 							type="text"
 							name="name"
