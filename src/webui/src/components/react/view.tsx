@@ -40,7 +40,7 @@ const Loader = () => (
 			top: '60%',
 			left: '50%',
 			transform: 'translate(-50%, -60%)',
-			pointerEvents: 'auto'
+			pointerEvents: 'none'
 		}}>
 		<div className="h-1 w-96 bg-zinc-800 overflow-hidden rounded-full">
 			<div className="animate-progress w-full h-full bg-zinc-50 origin-left-right"></div>
