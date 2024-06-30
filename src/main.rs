@@ -68,7 +68,7 @@ enum Server {
         format: String,
     },
     /// Remove server
-    #[command(visible_alias = "rm", visible_alias = "delete")]
+    #[command(visible_alias = "rm")]
     Remove {
         /// Server name
         name: String,
@@ -181,6 +181,17 @@ enum Commands {
         server: Option<String>,
     },
 
+    /// Flush a process log
+    #[command(visible_alias = "flush")]
+    Flush {
+        #[clap(value_parser = cli::validate::<Item>)]
+        item: Item,
+        /// Server
+        #[arg(short, long)]
+        server: Option<String>,
+    },
+
+
     /// Daemon management
     #[command(visible_alias = "agent", visible_alias = "bgd")]
     Daemon {
@@ -219,6 +230,7 @@ fn main() {
         Commands::Details { item, format, server } => cli::info(item, format, &defaults(server)),
         Commands::List { format, server } => Internal::list(format, &defaults(server)),
         Commands::Logs { item, lines, server } => cli::logs(item, lines, &defaults(server)),
+        Commands::Flush { item, server } => cli::flush(item, &defaults(server)),
 
         Commands::Daemon { command } => match command {
             Daemon::Stop => daemon::stop(),
