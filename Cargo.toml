@@ -8,7 +8,7 @@ description = "PMC is a simple and easy to use PM2 alternative"
 
 [profile.release]
 lto = true
-codegen-units = 1
+codegen-units = 16
 opt-level = "z"
 panic = "abort"
 
