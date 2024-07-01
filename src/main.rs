@@ -111,7 +111,7 @@ enum Commands {
     },
 
     /// Stop then remove a process
-    #[command(visible_alias = "rm")]
+    #[command(visible_alias = "rm", visible_alias = "delete")]
     Remove {
         #[clap(value_parser = cli::validate::<Item>)]
         item: Item,
@@ -182,7 +182,7 @@ enum Commands {
     },
 
     /// Flush a process log
-    #[command(visible_alias = "flush")]
+    #[command(visible_alias = "fl")]
     Flush {
         #[clap(value_parser = cli::validate::<Item>)]
         item: Item,

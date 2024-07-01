@@ -508,10 +508,16 @@ impl Runner {
     }
 
     pub fn flush(&mut self, id: usize) -> &mut Self {
-        match self.info(id) {
-            Some(item) => item.logs().flush(),
-            None => crashln!("{} Process ({id}) not found", *helpers::FAIL),
-        };
+        if let Some(remote) = &self.remote {
+            if let Err(err) = http::flush(remote, id) {
+                crashln!("{} Failed to flush process {id}\nError: {:#?}", *helpers::FAIL, err);
+            };
+        } else {
+            match self.info(id) {
+                Some(item) => item.logs().flush(),
+                None => crashln!("{} Process ({id}) not found", *helpers::FAIL),
+            };
+        }
 
         self
     }
