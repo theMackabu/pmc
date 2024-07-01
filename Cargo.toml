@@ -6,6 +6,12 @@ license = "MIT"
 repository = "https://lab.themackabu.dev/self/pmc"
 description = "PMC is a simple and easy to use PM2 alternative"
 
+[profile.release]
+lto = true
+codegen-units = 16
+opt-level = "z"
+panic = "abort"
+
 [build-dependencies]
 tar = "0.4.40"
 chrono = "0.4.31"
