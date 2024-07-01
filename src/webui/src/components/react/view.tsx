@@ -339,6 +339,15 @@ const View = (props: { id: string; base: string }) => {
 											<MenuItem>
 												{({ focus }) => <Rename base={props.base} process={props.id} active={focus} callback={fetch} old={item.info.name} />}
 											</MenuItem>
+											<MenuItem>
+												{({ _ }) => (
+													<a
+														onClick={() => action(props.id, 'flush')}
+														className="text-zinc-200 rounded-md block p-2 w-full text-left cursor-pointer hover:bg-zinc-800/80 hover:text-zinc-50">
+														Flush
+													</a>
+												)}
+											</MenuItem>
 										</div>
 										<div className="p-1.5">
 											<MenuItem>

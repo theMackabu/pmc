@@ -173,6 +173,18 @@ impl Status {
     }
 }
 
+impl LogInfo {
+    pub fn flush(&self) {
+        if let Err(err) = std::fs::remove_file(&self.out) {
+            crashln!("Failed to remove log {0} file: {err}", self.out);
+        }
+
+        if let Err(err) = std::fs::remove_file(&self.error) {
+            crashln!("Failed to remove log {0} file: {err}", self.error);
+        }
+    }
+}
+
 macro_rules! lock {
     ($runner:expr) => {{
         match $runner.lock() {
@@ -493,6 +505,21 @@ impl Runner {
         }
 
         return processes;
+    }
+
+    pub fn flush(&mut self, id: usize) -> &mut Self {
+        if let Some(remote) = &self.remote {
+            if let Err(err) = http::flush(remote, id) {
+                crashln!("{} Failed to flush process {id}\nError: {:#?}", *helpers::FAIL, err);
+            };
+        } else {
+            match self.info(id) {
+                Some(item) => item.logs().flush(),
+                None => crashln!("{} Process ({id}) not found", *helpers::FAIL),
+            };
+        }
+
+        self
     }
 }
 
