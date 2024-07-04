@@ -280,7 +280,7 @@ const View = (props: { id: string; base: string }) => {
 
 		return (
 			<Fragment>
-				<div className="flex flex-col items-start justify-between gap-x-8 gap-y-4 bg-zinc-700/10 px-4 py-4 sm:flex-row sm:items-center sm:px-6 lg:px-8">
+				<div className="flex items-start justify-between gap-x-8 gap-y-4 bg-zinc-700/10 px-4 py-4 flex-row items-center sm:px-6 lg:px-8">
 					<div>
 						<div className="flex items-center gap-x-3">
 							<h1 className="flex gap-x-1 text-base leading-7">
@@ -297,7 +297,7 @@ const View = (props: { id: string; base: string }) => {
 						</div>
 						<p className="text-xs leading-6 text-zinc-400">{item.info.command}</p>
 					</div>
-					<div className="mt-5 flex lg:ml-4 lg:mt-0">
+					<div className="flex lg:ml-4 mt-0">
 						<span>
 							<button
 								type="button"
@@ -322,7 +322,9 @@ const View = (props: { id: string; base: string }) => {
 									leave="transition ease-in duration-75"
 									leaveFrom="transform opacity-100 scale-100"
 									leaveTo="transform opacity-0 scale-95">
-									<MenuItems className="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-lg bg-zinc-900/80 backdrop-blur-md border border-zinc-800 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none text-base divide-y divide-zinc-800/50">
+									<MenuItems
+										anchor={{ to: 'bottom end', gap: '8px', padding: '16px' }}
+										className="z-10 w-48 origin-top-right rounded-lg bg-zinc-900/80 backdrop-blur-md border border-zinc-800 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none text-base divide-y divide-zinc-800/50">
 										<div className="p-1.5">
 											<MenuItem>
 												{({ focus }) => (
@@ -342,9 +344,12 @@ const View = (props: { id: string; base: string }) => {
 											<MenuItem>
 												{({ _ }) => (
 													<a
-														onClick={() => action(props.id, 'flush')}
+														onClick={() => {
+															action(props.id, 'flush');
+															window.location.reload();
+														}}
 														className="text-zinc-200 rounded-md block p-2 w-full text-left cursor-pointer hover:bg-zinc-800/80 hover:text-zinc-50">
-														Flush
+														Clean Logs
 													</a>
 												)}
 											</MenuItem>
@@ -370,17 +375,17 @@ const View = (props: { id: string; base: string }) => {
 					</div>
 				</div>
 
-				<div className="grid grid-cols-1 bg-zinc-700/10 sm:grid-cols-2 lg:grid-cols-4">
+				<div className="grid bg-zinc-700/10 grid-cols-4">
 					{stats.map((stat: any, index: number) => (
 						<div
 							key={stat.name}
 							className={classNames(
-								index % 2 === 1 ? 'sm:border-l' : index === 2 ? 'lg:border-l' : '',
+								index % 2 === 1 ? 'border-l' : index === 2 ? 'border-l' : '',
 								'border-t border-white/5 py-6 px-4 sm:px-6 lg:px-8'
 							)}>
 							<p className="text-sm font-medium leading-6 text-zinc-400">{stat.name}</p>
 							<p className="mt-2 flex items-baseline gap-x-2">
-								<span className="text-4xl font-semibold tracking-tight text-white">{stat.value}</span>
+								<span className="text-xl sm:text-3xl lg:text-4xl font-semibold tracking-tight text-white">{stat.value}</span>
 								{stat.unit ? <span className="text-sm text-zinc-400">{stat.unit}</span> : null}
 							</p>
 						</div>

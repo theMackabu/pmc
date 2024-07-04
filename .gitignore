@@ -30,6 +30,7 @@ pnpm-debug.log*
 
 # todo
 *.todo
+*.hcl
 
 # jetbrains
 .idea

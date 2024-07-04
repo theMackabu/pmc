@@ -759,13 +759,14 @@ pub async fn action_handler(id: usize, body: Json<ActionBody>, _t: Token) -> Res
                 timer.observe_duration();
                 Ok(Json(attempt(true, method)))
             }
-            "flush" => {
+            "flush" | "clean" => {
                 runner.flush(id);
+                timer.observe_duration();
                 Ok(Json(attempt(true, method)))
-            },
+            }
             _ => {
                 timer.observe_duration();
-                Err(not_found("Process was not found"))
+                Err(not_found("Invalid action attempt"))
             }
         }
     } else {

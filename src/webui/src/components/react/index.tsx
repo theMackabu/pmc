@@ -1,8 +1,8 @@
 import { api } from '@/api';
 import Rename from '@/components/react/rename';
 import { useEffect, useState, Fragment } from 'react';
-import { Menu, MenuItem, MenuItems, MenuButton, Transition } from '@headlessui/react';
 import { EllipsisVerticalIcon } from '@heroicons/react/20/solid';
+import { Menu, MenuItem, MenuItems, MenuButton, Transition } from '@headlessui/react';
 
 const Index = (props: { base: string }) => {
 	const [items, setItems] = useState([]);
@@ -59,7 +59,9 @@ const Index = (props: { base: string }) => {
 								leave="transition ease-in duration-75"
 								leaveFrom="transform opacity-100 scale-100"
 								leaveTo="transform opacity-0 scale-95">
-								<MenuItems className="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-lg bg-zinc-900 border border-zinc-800 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none text-base divide-y divide-zinc-800/50">
+								<MenuItems
+									anchor={{ to: 'bottom end', gap: '8px', padding: '16px' }}
+									className="z-10 w-48 origin-top-right rounded-lg bg-zinc-900 border border-zinc-800 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none text-base divide-y divide-zinc-800/50">
 									<div className="p-1.5">
 										<MenuItem>
 											{({ focus }) => (
@@ -87,8 +89,15 @@ const Index = (props: { base: string }) => {
 										</MenuItem>
 									</div>
 									<div className="p-1.5">
+										<MenuItem>{({ _ }) => <Rename base={props.base} process={item.id} callback={fetch} old={item.name} />}</MenuItem>
 										<MenuItem>
-											{({ focus }) => <Rename base={props.base} process={item.id} callback={fetch} active={focus} old={item.name} />}
+											{({ _ }) => (
+												<a
+													onClick={() => action(props.id, 'flush')}
+													className="text-zinc-200 rounded-md block p-2 w-full text-left cursor-pointer hover:bg-zinc-800/80 hover:text-zinc-50">
+													Clean Logs
+												</a>
+											)}
 										</MenuItem>
 									</div>
 									<div className="p-1.5">

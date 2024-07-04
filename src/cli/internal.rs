@@ -162,9 +162,26 @@ impl<'i> Internal<'i> {
     }
 
     pub fn flush(&mut self) {
+        println!("{} Applying {}action flushLogs on ({})", *helpers::SUCCESS, self.kind, self.id);
+
+        if !matches!(self.server_name, "internal" | "local") {
+            let Some(servers) = config::servers().servers else {
+                crashln!("{} Failed to read servers", *helpers::FAIL)
+            };
+
+            if let Some(server) = servers.get(self.server_name) {
+                self.runner = match Runner::connect(self.server_name.into(), server.get(), false) {
+                    Some(remote) => remote,
+                    None => crashln!("{} Failed to remove (name={}, address={})", *helpers::FAIL, self.server_name, server.address),
+                };
+            } else {
+                crashln!("{} Server '{}' does not exist", *helpers::FAIL, self.server_name)
+            };
+        }
+
         self.runner.flush(self.id);
-        println!("{} Log Flushed {}({}) ✓", *helpers::SUCCESS, self.kind, self.id);
-        log!("process log flushed (id={})", self.id);
+        println!("{} Flushed Logs {}({}) ✓", *helpers::SUCCESS, self.kind, self.id);
+        log!("process logs cleaned (id={})", self.id);
     }
 
     pub fn info(&self, format: &String) {

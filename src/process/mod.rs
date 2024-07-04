@@ -9,6 +9,7 @@ use crate::{
 
 use std::{
     env,
+    fs::File,
     path::PathBuf,
     sync::{Arc, Mutex},
 };
@@ -169,18 +170,6 @@ impl Status {
         match self {
             Status::Offline => false,
             Status::Running => true,
-        }
-    }
-}
-
-impl LogInfo {
-    pub fn flush(&self) {
-        if let Err(err) = std::fs::remove_file(&self.out) {
-            crashln!("Failed to remove log {0} file: {err}", self.out);
-        }
-
-        if let Err(err) = std::fs::remove_file(&self.error) {
-            crashln!("Failed to remove log {0} file: {err}", self.error);
         }
     }
 }
@@ -410,6 +399,18 @@ impl Runner {
         return self;
     }
 
+    pub fn flush(&mut self, id: usize) -> &mut Self {
+        if let Some(remote) = &self.remote {
+            if let Err(err) = http::flush(remote, id) {
+                crashln!("{} Failed to flush process {id}\nError: {:#?}", *helpers::FAIL, err);
+            };
+        } else {
+            self.process(id).logs().flush();
+        }
+
+        return self;
+    }
+
     pub fn rename(&mut self, id: usize, name: String) -> &mut Self {
         if let Some(remote) = &self.remote {
             if let Err(err) = http::rename(remote, id, name) {
@@ -506,20 +507,19 @@ impl Runner {
 
         return processes;
     }
+}
 
-    pub fn flush(&mut self, id: usize) -> &mut Self {
-        if let Some(remote) = &self.remote {
-            if let Err(err) = http::flush(remote, id) {
-                crashln!("{} Failed to flush process {id}\nError: {:#?}", *helpers::FAIL, err);
-            };
-        } else {
-            match self.info(id) {
-                Some(item) => item.logs().flush(),
-                None => crashln!("{} Process ({id}) not found", *helpers::FAIL),
-            };
+impl LogInfo {
+    pub fn flush(&self) {
+        if let Err(err) = File::create(&self.out) {
+            log::debug!("{err}");
+            crashln!("{} Failed to purge logs (path={})", *helpers::FAIL, self.error);
         }
 
-        self
+        if let Err(err) = File::create(&self.error) {
+            log::debug!("{err}");
+            crashln!("{} Failed to purge logs (path={})", *helpers::FAIL, self.error);
+        }
     }
 }
 
