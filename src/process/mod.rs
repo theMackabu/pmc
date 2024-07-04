@@ -105,7 +105,7 @@ pub struct ProcessWrapper {
     pub runner: Arc<Mutex<Runner>>,
 }
 
-type Env = BTreeMap<String, String>;
+pub type Env = BTreeMap<String, String>;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Process {
@@ -286,27 +286,33 @@ impl Runner {
             stop(process.pid);
 
             if let Err(err) = std::env::set_current_dir(&path) {
-                crashln!("{} Failed to set working directory {:?}\nError: {:#?}", *helpers::FAIL, path, err);
-            };
+                process.running = false;
+                process.children = vec![];
+                process.crash.crashed = true;
+                println!("{} Failed to set working directory {:?}\nError: {:#?}", *helpers::FAIL, path, err);
+            } else {
+                let mut temp_env = process.env.iter().map(|(key, value)| format!("{}={}", key, value)).collect::<Vec<String>>();
+                temp_env.extend(unix::env());
 
-            process.pid = run(ProcessMetadata {
-                args: config.args,
-                name: name.clone(),
-                shell: config.shell,
-                log_path: config.log_path,
-                command: script.to_string(),
-                env: unix::env(),
-            });
+                process.pid = run(ProcessMetadata {
+                    args: config.args,
+                    name: name.clone(),
+                    shell: config.shell,
+                    log_path: config.log_path,
+                    command: script.to_string(),
+                    env: temp_env,
+                });
 
-            process.running = true;
-            process.children = vec![];
-            process.started = Utc::now();
-            process.crash.crashed = false;
-            process.env = env::vars().collect();
+                process.running = true;
+                process.children = vec![];
+                process.started = Utc::now();
+                process.crash.crashed = false;
+                process.env.extend(env::vars().collect::<Env>());
 
-            then!(dead, process.restarts += 1);
-            then!(dead, process.crash.value += 1);
-            then!(!dead, process.crash.value = 0);
+                then!(dead, process.restarts += 1);
+                then!(dead, process.crash.value += 1);
+                then!(!dead, process.crash.value = 0);
+            }
         }
 
         return self;
@@ -366,6 +372,16 @@ impl Runner {
 
     pub fn set_crashed(&mut self, id: usize) -> &mut Self {
         self.process(id).crash.crashed = true;
+        return self;
+    }
+
+    pub fn set_env(&mut self, id: usize, env: Env) -> &mut Self {
+        self.process(id).env.extend(env);
+        return self;
+    }
+
+    pub fn clear_env(&mut self, id: usize) -> &mut Self {
+        self.process(id).env = BTreeMap::new();
         return self;
     }
 
@@ -556,6 +572,12 @@ impl ProcessWrapper {
 
     /// Get the borrowed runner reference (lives till program end)
     pub fn get_runner(&mut self) -> &Runner { Box::leak(Box::new(lock!(self.runner))) }
+
+    /// Append new environment values to the process item
+    pub fn set_env(&mut self, env: Env) { lock!(self.runner).set_env(self.id, env).save(); }
+
+    /// Clear environment values of the process item
+    pub fn clear_env(&mut self) { lock!(self.runner).clear_env(self.id).save(); }
 
     /// Get a json dump of the process item
     pub fn fetch(&self) -> ItemSingle {

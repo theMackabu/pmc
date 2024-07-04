@@ -84,6 +84,12 @@ enum Server {
 // add pmc restore command
 #[derive(Subcommand)]
 enum Commands {
+    /// Import process from environment file
+    #[command(visible_alias = "add")]
+    Import {
+        /// Path of file to import
+        path: String,
+    },
     /// Start/Restart a process
     #[command(visible_alias = "restart")]
     Start {
@@ -98,8 +104,10 @@ enum Commands {
         /// Server
         #[arg(short, long)]
         server: Option<String>,
+        /// Reset environment values
+        #[arg(short, long)]
+        reset_env: bool,
     },
-
     /// Stop/Kill a process
     #[command(visible_alias = "kill")]
     Stop {
@@ -109,7 +117,6 @@ enum Commands {
         #[arg(short, long)]
         server: Option<String>,
     },
-
     /// Stop then remove a process
     #[command(visible_alias = "rm", visible_alias = "delete")]
     Remove {
@@ -119,7 +126,6 @@ enum Commands {
         #[arg(short, long)]
         server: Option<String>,
     },
-
     /// Get env of a process
     #[command(visible_alias = "cmdline")]
     Env {
@@ -129,7 +135,6 @@ enum Commands {
         #[arg(short, long)]
         server: Option<String>,
     },
-
     /// Get information of a process
     #[command(visible_alias = "info")]
     Details {
@@ -142,7 +147,6 @@ enum Commands {
         #[arg(short, long)]
         server: Option<String>,
     },
-
     /// List all processes
     #[command(visible_alias = "ls")]
     List {
@@ -153,7 +157,6 @@ enum Commands {
         #[arg(short, long)]
         server: Option<String>,
     },
-
     /// Restore all processes
     #[command(visible_alias = "resurrect")]
     Restore {
@@ -161,7 +164,6 @@ enum Commands {
         #[arg(short, long)]
         server: Option<String>,
     },
-
     /// Save all processes to dumpfile
     #[command(visible_alias = "store")]
     Save {
@@ -169,7 +171,6 @@ enum Commands {
         #[arg(short, long)]
         server: Option<String>,
     },
-
     /// Get logs from a process
     Logs {
         #[clap(value_parser = cli::validate::<Item>)]
@@ -180,7 +181,6 @@ enum Commands {
         #[arg(short, long)]
         server: Option<String>,
     },
-
     /// Flush a process log
     #[command(visible_alias = "clean", visible_alias = "log_rotate")]
     Flush {
@@ -190,7 +190,6 @@ enum Commands {
         #[arg(short, long)]
         server: Option<String>,
     },
-
     /// Daemon management
     #[command(visible_alias = "agent", visible_alias = "bgd")]
     Daemon {
@@ -220,7 +219,8 @@ fn main() {
     env.filter_level(level).init();
 
     match &cli.command {
-        Commands::Start { name, args, watch, server } => cli::start(name, args, watch, &defaults(server)),
+        Commands::Import { path } => cli::import::read_hcl(path),
+        Commands::Start { name, args, watch, server, reset_env } => cli::start(name, args, watch, reset_env, &defaults(server)),
         Commands::Stop { item, server } => cli::stop(item, &defaults(server)),
         Commands::Remove { item, server } => cli::remove(item, &defaults(server)),
         Commands::Restore { server } => Internal::restore(&defaults(server)),

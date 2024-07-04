@@ -1,15 +1,16 @@
 mod args;
 pub use args::*;
 
+pub(crate) mod import;
 pub(crate) mod internal;
 pub(crate) mod server;
 
 use internal::Internal;
-use macros_rs::{crashln, string, ternary};
+use macros_rs::{crashln, string, ternary, then};
 use pmc::{helpers, process::Runner};
 use std::env;
 
-fn format(server_name: &String) -> (String, String) {
+pub(crate) fn format(server_name: &String) -> (String, String) {
     let kind = ternary!(matches!(&**server_name, "internal" | "local"), "", "remote ").to_string();
     return (kind, server_name.to_string());
 }
@@ -24,7 +25,7 @@ pub fn get_version(short: bool) -> String {
     };
 }
 
-pub fn start(name: &Option<String>, args: &Args, watch: &Option<String>, server_name: &String) {
+pub fn start(name: &Option<String>, args: &Args, watch: &Option<String>, reset_env: &bool, server_name: &String) {
     let mut runner = Runner::new();
     let (kind, list_name) = format(server_name);
 
@@ -52,13 +53,17 @@ pub fn start(name: &Option<String>, args: &Args, watch: &Option<String>, server_
     } else {
         match args {
             Args::Id(id) => {
+                then!(*reset_env, runner.clear_env(*id));
                 Internal { id: *id, runner, server_name, kind }.restart(name, watch, false);
             }
             Args::Script(script) => match runner.find(&script, server_name) {
                 Some(id) => {
+                    then!(*reset_env, runner.clear_env(id));
                     Internal { id, runner, server_name, kind }.restart(name, watch, false);
                 }
-                None => Internal { id: 0, runner, server_name, kind }.create(script, name, watch),
+                None => {
+                    Internal { id: 0, runner, server_name, kind }.create(script, name, watch, false);
+                }
             },
         }
     }
