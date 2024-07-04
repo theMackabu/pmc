@@ -4,3 +4,5 @@ CXX = "/usr/bin/clang++"
 
 [profile.release]
 strip = true
+codegen-units = 1
+opt-level = "z"

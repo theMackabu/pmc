@@ -147,6 +147,7 @@ pub fn logs(item: &Item, lines: &usize, server_name: &String) {
     }
 }
 
+// combine into a single function that handles multiple
 pub fn env(item: &Item, server_name: &String) {
     let runner: Runner = Runner::new();
     let (kind, _) = format(server_name);

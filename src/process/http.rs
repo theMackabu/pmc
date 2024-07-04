@@ -86,6 +86,7 @@ pub fn rename(Remote { address, token, .. }: &Remote, id: usize, name: String) -
     Ok(client.post(fmtstr!("{address}/process/{id}/rename")).body(name).headers(headers).send()?)
 }
 
+// merge into one function
 pub fn stop(Remote { address, token, .. }: &Remote, id: usize) -> Result<sync::Response, anyhow::Error> {
     let (client, headers) = sync::client(token);
     let content = ActionBody { method: string!("stop") };
@@ -100,7 +101,7 @@ pub fn remove(Remote { address, token, .. }: &Remote, id: usize) -> Result<sync:
     Ok(client.post(fmtstr!("{address}/process/{id}/action")).json(&content).headers(headers).send()?)
 }
 
-pub fn flush(Remote { address, token, ..}: &Remote, id: usize) -> Result<sync::Response, anyhow::Error> {
+pub fn flush(Remote { address, token, .. }: &Remote, id: usize) -> Result<sync::Response, anyhow::Error> {
     let (client, headers) = sync::client(token);
     let content = ActionBody { method: string!("flush") };
 

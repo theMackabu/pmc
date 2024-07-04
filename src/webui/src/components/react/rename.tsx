@@ -29,7 +29,7 @@ const Rename = (props: { base: string; process: number; callback: any; old: stri
 			</a>
 			<Modal show={open} title="Rename this process" callback={(close: boolean) => setOpen(close)}>
 				<form onSubmit={handleSubmit}>
-					<div className="relative border border-zinc-700 rounded-lg px-3 py-3 focus-within:ring-1 focus-within:ring-zinc-300 focus-within:border-zinc-300 w-[29rem] focus-within:shadow-sm transition bg-zinc-900">
+					<div className="relative border border-zinc-700 rounded-lg px-3 py-3 focus-within:ring-1 focus-within:ring-zinc-300 focus-within:border-zinc-300 sm:w-[29rem] focus-within:shadow-sm transition bg-zinc-900">
 						<input
 							type="text"
 							name="name"
@@ -40,15 +40,15 @@ const Rename = (props: { base: string; process: number; callback: any; old: stri
 							placeholder={props.old}
 						/>
 					</div>
-					<div className="bg-zinc-900 border-t border-zinc-800 px-3 py-2.5 sm:px-6 sm:flex sm:flex-row-reverse -mb-4 mt-4 -ml-6 -mr-6">
+					<div className="bg-zinc-950 border-t border-zinc-800 px-3 py-2.5 px-6 sm:flex sm:flex-row-reverse -mb-4 mt-4 -ml-6 -mr-6">
 						<button
 							type="submit"
-							className="w-full inline-flex justify-center rounded-lg border shadow-sm px-2.5 py-[0.18rem] bg-sky-600 text-base font-medium text-white hover:bg-sky-500 border-sky-500 hover:border-sky-400 sm:ml-3 sm:w-auto sm:text-sm focus:outline-none transition">
+							className="mt-1 sm:mt-0 w-full inline-flex justify-center rounded-lg border shadow-sm px-2.5 py-2 sm:py-1 bg-sky-600 text-base font-medium text-white hover:bg-sky-500 border-sky-500 hover:border-sky-400 sm:ml-3 sm:w-auto sm:text-sm focus:outline-none transition">
 							Rename
 						</button>
 						<button
 							type="button"
-							className="mt-3 w-full inline-flex justify-center rounded-lg border shadow-sm px-2.5 py-1 bg-zinc-950 text-base font-medium border-zinc-800 hover:border-zinc-700 text-zinc-50 hover:bg-zinc-800 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm focus:outline-none transition"
+							className="mt-3 w-full inline-flex justify-center rounded-lg sm:border shadow-sm px-2.5 py-1.5 sm:py-1 bg-zinc-950 text-base font-medium border-zinc-800 hover:border-zinc-700 text-zinc-50 hover:bg-zinc-800 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm focus:outline-none transition"
 							onClick={() => setOpen(false)}>
 							Cancel
 						</button>

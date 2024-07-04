@@ -31,7 +31,7 @@ struct Cli {
 #[derive(Subcommand)]
 enum Daemon {
     /// Reset process index
-    #[command(visible_alias = "clean")]
+    #[command(visible_alias = "reset_position")]
     Reset,
     /// Stop daemon
     #[command(visible_alias = "kill")]
@@ -182,7 +182,7 @@ enum Commands {
     },
 
     /// Flush a process log
-    #[command(visible_alias = "fl")]
+    #[command(visible_alias = "clean", visible_alias = "log_rotate")]
     Flush {
         #[clap(value_parser = cli::validate::<Item>)]
         item: Item,
@@ -190,7 +190,6 @@ enum Commands {
         #[arg(short, long)]
         server: Option<String>,
     },
-
 
     /// Daemon management
     #[command(visible_alias = "agent", visible_alias = "bgd")]
