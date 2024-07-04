@@ -381,7 +381,14 @@ impl Runner {
     }
 
     pub fn clear_env(&mut self, id: usize) -> &mut Self {
-        self.process(id).env = BTreeMap::new();
+        if let Some(remote) = &self.remote {
+            if let Err(err) = http::clear_env(remote, id) {
+                crashln!("{} Failed to clear environment on {id}\nError: {:#?}", *helpers::FAIL, err);
+            };
+        } else {
+            self.process(id).env = BTreeMap::new();
+        }
+
         return self;
     }
 

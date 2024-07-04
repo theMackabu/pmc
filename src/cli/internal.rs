@@ -67,7 +67,7 @@ impl<'i> Internal<'i> {
         return self.runner;
     }
 
-    pub fn restart(mut self, name: &Option<String>, watch: &Option<String>, silent: bool) -> Runner {
+    pub fn restart(mut self, name: &Option<String>, watch: &Option<String>, reset_env: bool, silent: bool) -> Runner {
         then!(!silent, println!("{} Applying {}action restartProcess on ({})", *helpers::SUCCESS, self.kind, self.id));
 
         if matches!(self.server_name, "internal" | "local") {
@@ -77,6 +77,8 @@ impl<'i> Internal<'i> {
                 Some(path) => item.watch(path),
                 None => item.disable_watch(),
             }
+
+            then!(reset_env, item.clear_env());
 
             name.as_ref().map(|n| item.rename(n.trim().replace("\n", "")));
             item.restart();
@@ -91,6 +93,8 @@ impl<'i> Internal<'i> {
                 match Runner::connect(self.server_name.into(), server.get(), false) {
                     Some(remote) => {
                         let mut item = remote.get(self.id);
+
+                        then!(reset_env, item.clear_env());
 
                         name.as_ref().map(|n| item.rename(n.trim().replace("\n", "")));
                         item.restart();
@@ -480,7 +484,7 @@ impl<'i> Internal<'i> {
                     kind: kind.clone(),
                     runner: runner.clone(),
                 }
-                .restart(&None, &None, true);
+                .restart(&None, &None, false, true);
             }
         });
 
