@@ -754,6 +754,11 @@ pub async fn action_handler(id: usize, body: Json<ActionBody>, _t: Token) -> Res
                 timer.observe_duration();
                 Ok(Json(attempt(true, method)))
             }
+            "reset_env" | "clear_env" => {
+                runner.get(id).clear_env();
+                timer.observe_duration();
+                Ok(Json(attempt(true, method)))
+            }
             "remove" | "delete" => {
                 runner.remove(id);
                 timer.observe_duration();

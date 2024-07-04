@@ -107,3 +107,10 @@ pub fn flush(Remote { address, token, .. }: &Remote, id: usize) -> Result<sync::
 
     Ok(client.post(fmtstr!("{address}/process/{id}/action")).json(&content).headers(headers).send()?)
 }
+
+pub fn clear_env(Remote { address, token, .. }: &Remote, id: usize) -> Result<sync::Response, anyhow::Error> {
+    let (client, headers) = sync::client(token);
+    let content = ActionBody { method: string!("clear_env") };
+
+    Ok(client.post(fmtstr!("{address}/process/{id}/action")).json(&content).headers(headers).send()?)
+}

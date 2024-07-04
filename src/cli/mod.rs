@@ -6,7 +6,7 @@ pub(crate) mod internal;
 pub(crate) mod server;
 
 use internal::Internal;
-use macros_rs::{crashln, string, ternary, then};
+use macros_rs::{crashln, string, ternary};
 use pmc::{helpers, process::Runner};
 use std::env;
 
@@ -46,20 +46,18 @@ pub fn start(name: &Option<String>, args: &Args, watch: &Option<String>, reset_e
                     kind: kind.clone(),
                     runner: runner.clone(),
                 }
-                .restart(&None, &None, true);
+                .restart(&None, &None, false, true);
             }),
             None => println!("{} Cannot start all, no processes found", *helpers::FAIL),
         }
     } else {
         match args {
             Args::Id(id) => {
-                then!(*reset_env, runner.clear_env(*id));
-                Internal { id: *id, runner, server_name, kind }.restart(name, watch, false);
+                Internal { id: *id, runner, server_name, kind }.restart(name, watch, *reset_env, false);
             }
             Args::Script(script) => match runner.find(&script, server_name) {
                 Some(id) => {
-                    then!(*reset_env, runner.clear_env(id));
-                    Internal { id, runner, server_name, kind }.restart(name, watch, false);
+                    Internal { id, runner, server_name, kind }.restart(name, watch, *reset_env, false);
                 }
                 None => {
                     Internal { id: 0, runner, server_name, kind }.create(script, name, watch, false);
