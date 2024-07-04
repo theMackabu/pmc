@@ -43,7 +43,7 @@ const Rename = (props: { base: string; process: number; callback: any; old: stri
 					<div className="bg-zinc-950 border-t border-zinc-800 px-3 py-2.5 px-6 sm:flex sm:flex-row-reverse -mb-4 mt-4 -ml-6 -mr-6">
 						<button
 							type="submit"
-							className="mt-1 sm:mt-0 w-full inline-flex justify-center rounded-lg border shadow-sm px-2.5 py-2 sm:py-1 bg-sky-600 text-base font-medium text-white hover:bg-sky-500 border-sky-500 hover:border-sky-400 sm:ml-3 sm:w-auto sm:text-sm focus:outline-none transition">
+							className="mt-1.5 sm:mt-0 w-full inline-flex justify-center rounded-lg border shadow-sm px-2.5 py-2 sm:py-1 bg-sky-600 text-base font-medium text-white hover:bg-sky-500 border-sky-500 hover:border-sky-400 sm:ml-3 sm:w-auto sm:text-sm focus:outline-none transition">
 							Rename
 						</button>
 						<button
