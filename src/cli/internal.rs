@@ -30,7 +30,7 @@ pub struct Internal<'i> {
 }
 
 impl<'i> Internal<'i> {
-    pub fn create(mut self, script: &String, name: &Option<String>, watch: &Option<String>) {
+    pub fn create(mut self, script: &String, name: &Option<String>, watch: &Option<String>, silent: bool) -> Runner {
         let config = config::read();
         let name = match name {
             Some(name) => string!(name),
@@ -61,8 +61,10 @@ impl<'i> Internal<'i> {
             };
         }
 
-        println!("{} Creating {}process with ({name})", *helpers::SUCCESS, self.kind);
-        println!("{} {}Created ({name}) ✓", *helpers::SUCCESS, self.kind);
+        then!(!silent, println!("{} Creating {}process with ({name})", *helpers::SUCCESS, self.kind));
+        then!(!silent, println!("{} {}Created ({name}) ✓", *helpers::SUCCESS, self.kind));
+
+        return self.runner;
     }
 
     pub fn restart(mut self, name: &Option<String>, watch: &Option<String>, silent: bool) -> Runner {
