@@ -6,6 +6,6 @@ import { SITE_TITLE, SITE_DESCRIPTION } from '@/consts';
 
 <Layout title={SITE_TITLE + " - Login"} description={SITE_DESCRIPTION} >
    <main>
-      <LoginPage base={"{{base_path | safe}}"} client:only />
+      <LoginPage base={"{{base_path | safe}}"} client:only="@astrojs/react" />
    </main>
 </Layout>

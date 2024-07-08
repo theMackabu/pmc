@@ -1,9 +1,28 @@
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
+use core::fmt;
 use global_placeholders::global;
 use macros_rs::crashln;
 use pmc::{file::Exists, helpers};
-use std::{fs, io};
+use serde::Serialize;
+use std::{convert::TryFrom, fs, io};
+
+#[derive(Copy, Clone, Serialize)]
+pub struct Pid(i32);
+
+impl Pid {
+    pub fn get<T>(&self) -> T
+    where
+        T: TryFrom<i32>,
+        T::Error: std::fmt::Debug,
+    {
+        T::try_from(self.0).unwrap()
+    }
+}
+
+impl fmt::Display for Pid {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "{}", self.0) }
+}
 
 pub fn exists() -> bool { fs::metadata(global!("pmc.pid")).is_ok() }
 pub fn running(pid: i32) -> bool { unsafe { libc::kill(pid, 0) == 0 } }
@@ -16,13 +35,13 @@ pub fn uptime() -> io::Result<DateTime<Utc>> {
     Ok(creation_time)
 }
 
-pub fn read() -> Result<i32> {
+pub fn read() -> Result<Pid> {
     let pid = fs::read_to_string(global!("pmc.pid")).map_err(|err| anyhow!(err))?;
 
     let trimmed_pid = pid.trim();
     let parsed_pid = trimmed_pid.parse::<i32>().map_err(|err| anyhow!(err))?;
 
-    Ok(parsed_pid)
+    Ok(Pid(parsed_pid))
 }
 
 pub fn write(pid: u32) {

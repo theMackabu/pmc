@@ -113,6 +113,9 @@ impl Modify for SecurityAddon {
 #[catch(500)]
 fn internal_error<'m>() -> Json<ErrorMessage> { create_status(Status::InternalServerError) }
 
+#[catch(400)]
+fn bad_request<'m>() -> Json<ErrorMessage> { create_status(Status::BadRequest) }
+
 #[catch(405)]
 fn not_allowed<'m>() -> Json<ErrorMessage> { create_status(Status::MethodNotAllowed) }
 
@@ -177,8 +180,10 @@ pub async fn start(webui: bool) {
         assets,
         docs_json,
         routes::login,
+        routes::servers,
         routes::dashboard,
         routes::view_process,
+        routes::server_status,
         routes::action_handler,
         routes::env_handler,
         routes::info_handler,
@@ -194,6 +199,7 @@ pub async fn start(webui: bool) {
         routes::logs_handler,
         routes::logs_raw_handler,
         routes::metrics_handler,
+        routes::stream_metrics,
         routes::prometheus_handler,
         routes::create_handler,
         routes::rename_handler,
@@ -204,7 +210,7 @@ pub async fn start(webui: bool) {
         .attach(AddCORS)
         .manage(TeraState { path: tera.1, tera: tera.0 })
         .mount(format!("{s_path}/"), routes)
-        .register("/", rocket::catchers![internal_error, not_allowed, not_found, unauthorized])
+        .register("/", rocket::catchers![internal_error, bad_request, not_allowed, not_found, unauthorized])
         .launch()
         .await;
 

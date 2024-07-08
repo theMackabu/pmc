@@ -274,8 +274,8 @@ const View = (props: { id: string; base: string }) => {
 		const stats = [
 			{ name: 'Status', value: item.info.status },
 			{ name: 'Uptime', value: online ? uptime : 'none', unit: online ? upunit : '' },
-			{ name: 'Memory', value: online ? memory : 'offline', unit: online ? memunit : '' },
-			{ name: 'CPU', value: online ? item.stats.cpu_percent : 'offline', unit: online ? '%' : '' }
+			{ name: 'Memory', value: online ? memory.toFixed(2) : 'offline', unit: online ? memunit : '' },
+			{ name: 'CPU', value: online ? item.stats.cpu_percent.toFixed(2) : 'offline', unit: online ? '%' : '' }
 		];
 
 		return (

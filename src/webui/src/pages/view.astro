@@ -6,8 +6,8 @@ import { SITE_TITLE, SITE_DESCRIPTION } from '@/consts';
 ---
 
 <Layout title={SITE_TITLE + " - View process"} description={SITE_DESCRIPTION}>
-   <Navbar active={false} />
+   <Navbar />
    <main>
-      <ViewPage id={"{{process_id | safe}}"} base={"{{base_path | safe}}"} client:only />
+      <ViewPage id={"{{process_id | safe}}"} base={"{{base_path | safe}}"} client:only="@astrojs/react" />
    </main>
 </Layout>

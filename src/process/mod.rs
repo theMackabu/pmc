@@ -54,7 +54,7 @@ pub struct Info {
 pub struct Stats {
     pub restarts: u64,
     pub start_time: i64,
-    pub cpu_percent: Option<f32>,
+    pub cpu_percent: Option<f64>,
     pub memory_usage: Option<MemoryInfo>,
 }
 
@@ -483,12 +483,12 @@ impl Runner {
 
         for (id, item) in self.items() {
             let mut memory_usage: Option<MemoryInfo> = None;
-            let mut cpu_percent: Option<f32> = None;
+            let mut cpu_percent: Option<f64> = None;
 
-            if let Ok(mut process) = process::Process::new(item.pid as u32) {
+            if let Ok(process) = process::Process::new(item.pid as u32) {
                 let mem_info_psutil = process.memory_info().ok();
 
-                cpu_percent = process.cpu_percent().ok();
+                cpu_percent = Some(super::service::get_process_cpu_usage_percentage(item.pid as i64));
                 memory_usage = Some(MemoryInfo {
                     rss: mem_info_psutil.as_ref().unwrap().rss(),
                     vms: mem_info_psutil.as_ref().unwrap().vms(),
@@ -594,12 +594,12 @@ impl ProcessWrapper {
         let config = config::read().runner;
 
         let mut memory_usage: Option<MemoryInfo> = None;
-        let mut cpu_percent: Option<f32> = None;
+        let mut cpu_percent: Option<f64> = None;
 
-        if let Ok(mut process) = process::Process::new(item.pid as u32) {
+        if let Ok(process) = process::Process::new(item.pid as u32) {
             let mem_info_psutil = process.memory_info().ok();
 
-            cpu_percent = process.cpu_percent().ok();
+            cpu_percent = Some(super::service::get_process_cpu_usage_percentage(item.pid as i64));
             memory_usage = Some(MemoryInfo {
                 rss: mem_info_psutil.as_ref().unwrap().rss(),
                 vms: mem_info_psutil.as_ref().unwrap().vms(),
