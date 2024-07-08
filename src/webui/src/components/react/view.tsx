@@ -1,11 +1,10 @@
 import { api } from '@/api';
 import { matchSorter } from 'match-sorter';
 import Rename from '@/components/react/rename';
+import { classNames } from '@/helpers';
 import { useEffect, useState, useRef, Fragment } from 'react';
 import { EllipsisVerticalIcon, CheckIcon, ChevronUpDownIcon } from '@heroicons/react/20/solid';
 import { Menu, MenuItem, MenuItems, MenuButton, Transition, Listbox, ListboxButton, ListboxOption, ListboxOptions } from '@headlessui/react';
-
-const classNames = (...classes: Array<any>) => classes.filter(Boolean).join(' ');
 
 const formatMemory = (bytes: number): [number, string] => {
 	const units = ['b', 'kb', 'mb', 'gb'];
@@ -233,7 +232,8 @@ const LogViewer = (props: { server: string | null; base: string; id: number }) =
 const View = (props: { id: string; base: string }) => {
 	const [item, setItem] = useState<any>();
 	const [loaded, setLoaded] = useState(false);
-	const server = new URLSearchParams(window.location.search).get('server');
+	const [live, setLive] = useState<EventSource | null>(null);
+	const server = new URLSearchParams(window.location.search).get('server') ?? 'local';
 
 	const badge = {
 		online: 'bg-emerald-400/10 text-emerald-400',
@@ -241,28 +241,37 @@ const View = (props: { id: string; base: string }) => {
 		crashed: 'bg-amber-400/10 text-amber-400'
 	};
 
-	const fetch = () => {
-		api
-			.get(`${props.base}/process/${props.id}/info`)
-			.json()
-			.then((res) => setItem(res))
-			.finally(() => setLoaded(true));
-	};
+	useEffect(() => {
+		let retryTimeout;
+		let hasRun = false;
 
-	const fetchRemote = () => {
-		api
-			.get(`${props.base}/remote/${server}/info/${props.id}`)
-			.json()
-			.then((res) => setItem(res))
-			.finally(() => setLoaded(true));
-	};
+		const openConnection = () => {
+			const source = new EventSource(`${props.base}/live/process/${server}/${props.id}`);
+			setLive(source);
+
+			source.onmessage = (event) => {
+				setItem(JSON.parse(event.data));
+				setLoaded(true);
+			};
+
+			source.onerror = (error) => {
+				source.close();
+				retryTimeout = setTimeout(() => {
+					openConnection();
+				}, 5000);
+			};
+		};
+
+		openConnection();
+
+		return () => {
+			live && live.close();
+			clearTimeout(retryTimeout);
+		};
+	}, [props.base, server, props.id]);
 
 	const isRunning = (status: string): bool => (status == 'stopped' ? false : status == 'crashed' ? false : true);
-	const action = (id: number, name: string) => api.post(`${props.base}/process/${id}/action`, { json: { method: name } }).then(() => fetch());
-
-	useEffect(() => {
-		server != null ? fetchRemote() : fetch();
-	}, []);
+	const action = (id: number, name: string) => api.post(`${props.base}/process/${id}/action`, { json: { method: name } });
 
 	if (!loaded) {
 		return <Loader />;
@@ -280,11 +289,17 @@ const View = (props: { id: string; base: string }) => {
 
 		return (
 			<Fragment>
+				<span className="absolute top-2 right-3 inline-flex items-center gap-x-1.5 rounded-md px-2 py-1 text-xs font-medium text-white ring-1 ring-inset ring-zinc-800">
+					<svg viewBox="0 0 6 6" aria-hidden="true" className="h-1.5 w-1.5 fill-green-400">
+						<circle r={3} cx={3} cy={3} />
+					</svg>
+					{server != 'local' ? server : 'Internal'}
+				</span>
 				<div className="flex items-start justify-between gap-x-8 gap-y-4 bg-zinc-700/10 px-4 py-4 flex-row items-center sm:px-6 lg:px-8">
 					<div>
 						<div className="flex items-center gap-x-3">
 							<h1 className="flex gap-x-1 text-base leading-7">
-								<span className="font-semibold text-white cursor-default">{server != null ? `${server}/${item.info.name}` : item.info.name}</span>
+								<span className="font-semibold text-white cursor-default">{item.info.name}</span>
 							</h1>
 							<div className={`flex-none rounded-full p-1 ${badge[item.info.status]}`}>
 								<div className="h-2 w-2 rounded-full bg-current" />
@@ -338,9 +353,7 @@ const View = (props: { id: string; base: string }) => {
 													</a>
 												)}
 											</MenuItem>
-											<MenuItem>
-												{({ focus }) => <Rename base={props.base} process={props.id} active={focus} callback={fetch} old={item.info.name} />}
-											</MenuItem>
+											<MenuItem>{({ focus }) => <Rename base={props.base} process={props.id} active={focus} old={item.info.name} />}</MenuItem>
 											<MenuItem>
 												{({ _ }) => (
 													<a
