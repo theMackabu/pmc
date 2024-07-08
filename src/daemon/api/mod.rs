@@ -199,6 +199,7 @@ pub async fn start(webui: bool) {
         routes::logs_handler,
         routes::logs_raw_handler,
         routes::metrics_handler,
+        routes::stream_info,
         routes::stream_metrics,
         routes::prometheus_handler,
         routes::create_handler,

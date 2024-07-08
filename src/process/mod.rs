@@ -194,6 +194,8 @@ fn kill_children(children: Vec<i64>) {
 impl Runner {
     pub fn new() -> Self { dump::read() }
 
+    pub fn refresh(&self) -> Self { Runner::new() }
+
     pub fn connect(name: String, Server { address, token }: Server, verbose: bool) -> Option<Self> {
         let remote_config = match config::from(&address, token.as_deref()) {
             Ok(config) => config,

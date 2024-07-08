@@ -6,16 +6,15 @@ use macros_rs::{fmtstr, string, ternary, then};
 use prometheus::{Encoder, TextEncoder};
 use psutil::process::{MemoryInfo, Process};
 use reqwest::header::HeaderValue;
-use rocket_ws::{Channel, Message, WebSocket};
 use serde::Deserialize;
 use tera::Context;
 use utoipa::ToSchema;
 
 use rocket::{
-    futures::{SinkExt, StreamExt},
     get,
     http::{ContentType, Status},
     post,
+    response::stream::{Event, EventStream},
     serde::{json::Json, Serialize},
     State,
 };
@@ -42,6 +41,8 @@ use std::{
     fs::{self, File},
     io::{self, BufRead, BufReader},
     path::PathBuf,
+    thread::sleep,
+    time::Duration,
 };
 
 pub(crate) struct Token;
@@ -846,18 +847,65 @@ pub async fn get_metrics() -> MetricsRoot {
 )]
 pub async fn metrics_handler(_t: Token) -> Json<MetricsRoot> { Json(get_metrics().await) }
 
-#[get("/daemon/stream_metrics")]
-pub async fn stream_metrics(ws: WebSocket, _t: Token) -> Channel<'static> {
-    ws.channel(move |mut stream| {
-        Box::pin(async move {
-            while let Some(message) = stream.next().await {
-                let response = get_metrics().await;
-                let json = serde_json::to_string(&response);
+#[get("/live/daemon/<server>/metrics")]
+pub async fn stream_metrics(server: String, _t: Token) -> EventStream![] {
+    EventStream! {
 
-                let _ = stream.send(Message::from(json.unwrap())).await;
+        if let Some(servers) = config::servers().servers {
+            let (address, (client, headers)) = match servers.get(&server) {
+                Some(server) => (&server.address, client(&server.token).await),
+                None => loop {
+                    let response = get_metrics().await;
+                    yield Event::data(serde_json::to_string(&response).unwrap());
+                    sleep(Duration::from_millis(1500))
+                },
+            };
+
+            loop {
+                match client.get(fmtstr!("{address}/daemon/metrics")).headers(headers.clone()).send().await {
+                    Ok(data) => {
+                        if data.status() != 200 {
+                            break yield Event::data(data.text().await.unwrap());
+                        } else {
+                            yield Event::data(data.text().await.unwrap());
+                            sleep(Duration::from_millis(1500));
+                        }
+                    }
+                    Err(err) => break yield Event::data(format!("{{\"error\": \"{err}\"}}")),
+                }
             }
+        };
+    }
+}
 
-            Ok(())
-        })
-    })
+#[get("/live/process/<server>/<id>")]
+pub async fn stream_info(server: String, id: usize, _t: Token) -> EventStream![] {
+    EventStream! {
+        let runner = Runner::new();
+
+        if let Some(servers) = config::servers().servers {
+            let (address, (client, headers)) = match servers.get(&server) {
+                Some(server) => (&server.address, client(&server.token).await),
+                None => loop {
+                    let item = runner.refresh().get(id);
+                    yield Event::data(serde_json::to_string(&item.fetch()).unwrap());
+                    sleep(Duration::from_millis(1500))
+                },
+            };
+
+            loop {
+                match client.get(fmtstr!("{address}/process/{id}/info")).headers(headers.clone()).send().await {
+                    Ok(data) => {
+                        if data.status() != 200 {
+                            break yield Event::data(data.text().await.unwrap());
+                        } else {
+                            yield Event::data(data.text().await.unwrap());
+                            sleep(Duration::from_millis(1500));
+                        }
+                    }
+                    Err(err) => break yield Event::data(format!("{{\"error\": \"{err}\"}}")),
+                }
+            }
+        };
+    }
 }

@@ -19,8 +19,7 @@ double get_process_cpu_usage_percentage(int64_t pid) {
 		  struct proc_taskinfo pti;
 		  int ret = proc_pidinfo(pid, PROC_PIDTASKINFO, 0, &pti, sizeof(pti));
 		  if (ret <= 0) {
-				std::cerr << "Error: Unable to get process info" << std::endl;
-				return -1.0;
+				return 0;
 		  }
 		  return (pti.pti_total_user + pti.pti_total_system) / 100000000.0; // Convert nanoseconds to seconds
 #else
