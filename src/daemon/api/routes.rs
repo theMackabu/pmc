@@ -6,11 +6,13 @@ use macros_rs::{fmtstr, string, ternary, then};
 use prometheus::{Encoder, TextEncoder};
 use psutil::process::{MemoryInfo, Process};
 use reqwest::header::HeaderValue;
+use rocket_ws::{Channel, Message, WebSocket};
 use serde::Deserialize;
-use tera::{Context, Tera};
+use tera::Context;
 use utoipa::ToSchema;
 
 use rocket::{
+    futures::{SinkExt, StreamExt},
     get,
     http::{ContentType, Status},
     post,
@@ -31,7 +33,7 @@ use pmc::{
 
 use crate::daemon::{
     api::{HTTP_COUNTER, HTTP_REQ_HISTOGRAM},
-    pid,
+    pid::{self, Pid},
 };
 
 use std::{
@@ -123,7 +125,7 @@ pub struct Version {
 
 #[derive(Serialize, ToSchema)]
 pub struct Daemon {
-    pub pid: Option<i32>,
+    pub pid: Option<Pid>,
     #[schema(example = true)]
     pub running: bool,
     pub uptime: String,
@@ -146,35 +148,34 @@ fn attempt(done: bool, method: &str) -> ActionResponse {
     }
 }
 
-fn render(name: &str, tmpl: &Tera, ctx: &Context) -> Result<String, NotFound> { tmpl.render(name, &ctx).or(Err(not_found("Page was not found"))) }
+fn render(name: &str, state: &State<TeraState>, ctx: &mut Context) -> Result<String, NotFound> {
+    ctx.insert("base_path", &state.path);
+    ctx.insert("build_version", env!("CARGO_PKG_VERSION"));
+
+    state.tera.render(name, &ctx).or(Err(not_found("Page was not found")))
+}
 
 #[get("/")]
-pub async fn dashboard(state: &State<TeraState>, _webui: EnableWebUI) -> Result<(ContentType, String), NotFound> {
-    let mut ctx = Context::new();
+pub async fn dashboard(state: &State<TeraState>, _webui: EnableWebUI) -> Result<(ContentType, String), NotFound> { Ok((ContentType::HTML, render("dashboard", &state, &mut Context::new())?)) }
 
-    ctx.insert("base_path", &state.path);
-    let payload = render("dashboard", &state.tera, &ctx)?;
-    Ok((ContentType::HTML, payload))
-}
+#[get("/servers")]
+pub async fn servers(state: &State<TeraState>, _webui: EnableWebUI) -> Result<(ContentType, String), NotFound> { Ok((ContentType::HTML, render("servers", &state, &mut Context::new())?)) }
 
 #[get("/login")]
-pub async fn login(state: &State<TeraState>, _webui: EnableWebUI) -> Result<(ContentType, String), NotFound> {
-    let mut ctx = Context::new();
-
-    ctx.insert("base_path", &state.path);
-    let payload = render("login", &state.tera, &ctx)?;
-    Ok((ContentType::HTML, payload))
-}
+pub async fn login(state: &State<TeraState>, _webui: EnableWebUI) -> Result<(ContentType, String), NotFound> { Ok((ContentType::HTML, render("login", &state, &mut Context::new())?)) }
 
 #[get("/view/<id>")]
 pub async fn view_process(id: usize, state: &State<TeraState>, _webui: EnableWebUI) -> Result<(ContentType, String), NotFound> {
     let mut ctx = Context::new();
-
-    ctx.insert("base_path", &state.path);
     ctx.insert("process_id", &id);
+    Ok((ContentType::HTML, render("view", &state, &mut ctx)?))
+}
 
-    let payload = render("view", &state.tera, &ctx)?;
-    Ok((ContentType::HTML, payload))
+#[get("/status/<id>")]
+pub async fn server_status(id: usize, state: &State<TeraState>, _webui: EnableWebUI) -> Result<(ContentType, String), NotFound> {
+    let mut ctx = Context::new();
+    ctx.insert("process_id", &id);
+    Ok((ContentType::HTML, render("status", &state, &mut ctx)?))
 }
 
 #[get("/daemon/prometheus")]
@@ -779,20 +780,10 @@ pub async fn action_handler(id: usize, body: Json<ActionBody>, _t: Token) -> Res
     }
 }
 
-#[get("/daemon/metrics")]
-#[utoipa::path(get, tag = "Daemon", path = "/daemon/metrics", security((), ("api_key" = [])),
-    responses(
-        (status = 200, description = "Get daemon metrics", body = MetricsRoot),
-        (
-            status = UNAUTHORIZED, description = "Authentication failed or not provided", body = ErrorMessage, 
-            example = json!({"code": 401, "message": "Unauthorized"})
-        )
-    )
-)]
-pub async fn metrics_handler(_t: Token) -> Json<MetricsRoot> {
+pub async fn get_metrics() -> MetricsRoot {
     let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["metrics"]).start_timer();
-    let mut pid: Option<i32> = None;
-    let mut cpu_percent: Option<f32> = None;
+    let mut pid: Option<Pid> = None;
+    let mut cpu_percent: Option<f64> = None;
     let mut uptime: Option<DateTime<Utc>> = None;
     let mut memory_usage: Option<MemoryInfo> = None;
     let mut runner: Runner = file::read_object(global!("pmc.dump"));
@@ -800,11 +791,11 @@ pub async fn metrics_handler(_t: Token) -> Json<MetricsRoot> {
     HTTP_COUNTER.inc();
     if pid::exists() {
         if let Ok(process_id) = pid::read() {
-            if let Ok(mut process) = Process::new(process_id as u32) {
+            if let Ok(process) = Process::new(process_id.get()) {
                 pid = Some(process_id);
                 uptime = Some(pid::uptime().unwrap());
                 memory_usage = process.memory_info().ok();
-                cpu_percent = process.cpu_percent().ok();
+                cpu_percent = Some(pmc::service::get_process_cpu_usage_percentage(process_id.get::<i64>()));
             }
         }
     }
@@ -825,7 +816,7 @@ pub async fn metrics_handler(_t: Token) -> Json<MetricsRoot> {
     };
 
     timer.observe_duration();
-    Json(MetricsRoot {
+    MetricsRoot {
         version: Version {
             target: env!("PROFILE"),
             build_date: env!("BUILD_DATE"),
@@ -840,5 +831,33 @@ pub async fn metrics_handler(_t: Token) -> Json<MetricsRoot> {
             daemon_type: global!("pmc.daemon.kind"),
             stats: Stats { memory_usage, cpu_percent },
         },
+    }
+}
+
+#[get("/daemon/metrics")]
+#[utoipa::path(get, tag = "Daemon", path = "/daemon/metrics", security((), ("api_key" = [])),
+    responses(
+        (status = 200, description = "Get daemon metrics", body = MetricsRoot),
+        (
+            status = UNAUTHORIZED, description = "Authentication failed or not provided", body = ErrorMessage, 
+            example = json!({"code": 401, "message": "Unauthorized"})
+        )
+    )
+)]
+pub async fn metrics_handler(_t: Token) -> Json<MetricsRoot> { Json(get_metrics().await) }
+
+#[get("/daemon/stream_metrics")]
+pub async fn stream_metrics(ws: WebSocket, _t: Token) -> Channel<'static> {
+    ws.channel(move |mut stream| {
+        Box::pin(async move {
+            while let Some(message) = stream.next().await {
+                let response = get_metrics().await;
+                let json = serde_json::to_string(&response);
+
+                let _ = stream.send(Message::from(json.unwrap())).await;
+            }
+
+            Ok(())
+        })
     })
 }

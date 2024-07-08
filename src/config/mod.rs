@@ -39,7 +39,7 @@ pub fn read() -> Config {
                 let config = Config {
                     default: string!("local"),
                     runner: Runner {
-                        shell: string!("bash"),
+                        shell: string!("/bin/sh"),
                         args: vec![string!("-c")],
                         node: string!("node"),
                         log_path: format!("{path}/.pmc/logs"),

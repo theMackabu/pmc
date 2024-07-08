@@ -9,6 +9,8 @@ pub fn create_templates() -> (Tera, String) {
         ("view", include_str!("dist/view.html")),
         ("login", include_str!("dist/login.html")),
         ("dashboard", include_str!("dist/index.html")),
+        ("status", include_str!("dist/status.html")),
+        ("servers", include_str!("dist/servers.html")),
     ])
     .unwrap();
 

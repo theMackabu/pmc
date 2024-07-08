@@ -271,14 +271,14 @@ impl<'i> Internal<'i> {
                 let item = runner.process(self.id);
 
                 let mut memory_usage: Option<MemoryInfo> = None;
-                let mut cpu_percent: Option<f32> = None;
+                let mut cpu_percent: Option<f64> = None;
 
                 let path = file::make_relative(&item.path, &home).to_string_lossy().into_owned();
                 let children = if item.children.is_empty() { "none".to_string() } else { format!("{:?}", item.children) };
 
-                if let Ok(mut process) = Process::new(item.pid as u32) {
+                if let Ok(process) = Process::new(item.pid as u32) {
                     memory_usage = process.memory_info().ok();
-                    cpu_percent = process.cpu_percent().ok();
+                    cpu_percent = Some(pmc::service::get_process_cpu_usage_percentage(item.pid as i64));
                 }
 
                 let cpu_percent = match cpu_percent {
@@ -536,14 +536,14 @@ impl<'i> Internal<'i> {
                     let mut memory_usage: String = string!("0b");
 
                     if internal {
-                        let mut usage_internals: (Option<f32>, Option<MemoryInfo>) = (None, None);
+                        let mut usage_internals: (Option<f64>, Option<MemoryInfo>) = (None, None);
 
-                        if let Ok(mut process) = Process::new(item.pid as u32) {
-                            usage_internals = (process.cpu_percent().ok(), process.memory_info().ok());
+                        if let Ok(process) = Process::new(item.pid as u32) {
+                            usage_internals = (Some(pmc::service::get_process_cpu_usage_percentage(item.pid as i64)), process.memory_info().ok());
                         }
 
                         cpu_percent = match usage_internals.0 {
-                            Some(percent) => format!("{:.0}%", percent),
+                            Some(percent) => format!("{:.2}%", percent),
                             None => string!("0%"),
                         };
 

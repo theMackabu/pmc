@@ -83,7 +83,7 @@ fn restart_process() {
 
 pub fn health(format: &String) {
     let mut pid: Option<i32> = None;
-    let mut cpu_percent: Option<f32> = None;
+    let mut cpu_percent: Option<f64> = None;
     let mut uptime: Option<DateTime<Utc>> = None;
     let mut memory_usage: Option<MemoryInfo> = None;
     let mut runner: Runner = file::read_object(global!("pmc.dump"));
@@ -126,11 +126,11 @@ pub fn health(format: &String) {
 
     if pid::exists() {
         if let Ok(process_id) = pid::read() {
-            if let Ok(mut process) = Process::new(process_id as u32) {
-                pid = Some(process_id);
+            if let Ok(process) = Process::new(process_id.get::<u32>()) {
+                pid = Some(process.pid() as i32);
                 uptime = Some(pid::uptime().unwrap());
                 memory_usage = process.memory_info().ok();
-                cpu_percent = process.cpu_percent().ok();
+                cpu_percent = Some(pmc::service::get_process_cpu_usage_percentage(process_id.get::<i64>()));
             }
         }
     }
@@ -194,7 +194,7 @@ pub fn stop() {
 
         match pid::read() {
             Ok(pid) => {
-                pmc::service::stop(pid as i64);
+                pmc::service::stop(pid.get());
                 pid::remove();
                 log!("[daemon] stopped", "pid" => pid);
                 println!("{} PMC daemon stopped", *helpers::SUCCESS);
@@ -228,7 +228,7 @@ pub fn start(verbose: bool) {
 
     if pid::exists() {
         match pid::read() {
-            Ok(pid) => then!(!pid::running(pid), pid::remove()),
+            Ok(pid) => then!(!pid::running(pid.get()), pid::remove()),
             Err(_) => crashln!("{} The daemon is already running", *helpers::FAIL),
         }
     }
@@ -255,8 +255,8 @@ pub fn start(verbose: bool) {
 
         loop {
             if api_enabled {
-                if let Ok(mut process) = Process::new(process::id()) {
-                    DAEMON_CPU_PERCENTAGE.observe(process.cpu_percent().ok().unwrap() as f64);
+                if let Ok(process) = Process::new(process::id()) {
+                    DAEMON_CPU_PERCENTAGE.observe(pmc::service::get_process_cpu_usage_percentage(process.pid() as i64));
                     DAEMON_MEM_USAGE.observe(process.memory_info().ok().unwrap().rss() as f64);
                 }
             }
