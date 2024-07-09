@@ -5,20 +5,61 @@ import Header from '@/components/react/header';
 import { version } from '../../../package.json';
 import { useArray, classNames, isVersionTooFar, startDuration } from '@/helpers';
 
-const getStatus = (remote: string, status: string) => {
+const getStatus = (remote: string, status: string): string => {
 	const badge = {
 		updated: 'bg-emerald-700/40 text-emerald-400',
 		behind: 'bg-gray-700/40 text-gray-400',
 		critical: 'bg-red-700/40 text-red-400'
 	};
 
-	if (isVersionTooFar(version, remote.slice(1))) {
+	if (remote == 'v0.0.0') {
+		return badge['behind'];
+	} else if (isVersionTooFar(version, remote.slice(1))) {
 		return badge['behind'];
 	} else if (remote == `v${version}`) {
 		return badge['updated'];
 	} else {
 		return badge[status ?? 'critical'];
 	}
+};
+
+const skeleton = {
+	os: { name: '' },
+	version: {
+		pkg: 'v0.0.0',
+		hash: 'none',
+		build_date: 'none',
+		target: ''
+	},
+	daemon: {
+		pid: 'none',
+		running: false,
+		uptime: 0,
+		process_count: 'none'
+	}
+};
+
+const getServerIcon = (base: string, distro: string): string => {
+	const distroList = [
+		'Alpine',
+		'Arch',
+		'Amazon',
+		'Macos',
+		'Linux',
+		'Fedora',
+		'Debian',
+		'CentOS',
+		'NixOS',
+		'FreeBSD',
+		'OracleLinux',
+		'Pop',
+		'Raspbian',
+		'Redhat',
+		'Ubuntu'
+	];
+
+	const isDistroKnown = distroList.includes(distro);
+	return `${base}/distro/${isDistroKnown ? distro : 'Unknown'}.svg`;
 };
 
 const Index = (props: { base: string }) => {
@@ -38,8 +79,11 @@ const Index = (props: { base: string }) => {
 		try {
 			const servers = await api.get(props.base + '/daemon/servers').json();
 			await servers.forEach(async (name) => {
-				const metrics = await api.get(props.base + `/remote/${name}/metrics`).json();
-				items.push({ ...metrics, name });
+				api
+					.get(props.base + `/remote/${name}/metrics`)
+					.json()
+					.then((metrics) => items.push({ ...metrics, name }))
+					.catch(() => items.push({ ...skeleton, name }));
 			});
 		} catch {}
 	}
@@ -108,10 +152,7 @@ const Index = (props: { base: string }) => {
 								onClick={() => (window.location.href = props.base + '/status/' + server.name)}>
 								<td className="py-4 pl-4 pr-8 sm:pl-6 lg:pl-8">
 									<div className="flex items-center gap-x-4">
-										<img
-											src="https://upload.wikimedia.org/wikipedia/commons/thumb/3/3f/Fedora_logo.svg/1024px-Fedora_logo.svg.png"
-											className="h-8 w-8 rounded-full bg-gray-800"
-										/>
+										<img src={getServerIcon(props.base, server.os.name)} className="h-8 w-8 rounded-full bg-zinc-900" />
 										<div className="truncate text-sm font-medium leading-6 text-white">{server.name == 'local' ? 'Internal' : server.name}</div>
 									</div>
 								</td>
@@ -128,7 +169,7 @@ const Index = (props: { base: string }) => {
 								</td>
 								<td className="hidden py-4 pl-0 pr-4 sm:table-cell sm:pr-8">
 									<div className="font-mono text-sm leading-6 text-gray-400">
-										{server.version.target}_{server.version.build_date}
+										{server.version.target} {server.version.build_date}
 									</div>
 								</td>
 								<td className="hidden py-4 pl-0 pr-4 sm:table-cell sm:pr-8">
@@ -139,7 +180,7 @@ const Index = (props: { base: string }) => {
 								<td className="hidden py-4 pl-0 pr-8 text-sm leading-6 text-gray-400 md:table-cell lg:pr-20">{server.daemon.process_count}</td>
 								<td className="py-4 pl-0 pr-4 text-sm leading-6 sm:pr-8 lg:pr-20">
 									<div className="flex items-center justify-end gap-x-2 sm:justify-start">
-										<span className="text-gray-400 sm:hidden">{startDuration(server.daemon.uptime, false)}</span>
+										<span className="text-gray-400 sm:hidden">{server.daemon.uptime == 0 ? 'none' : startDuration(server.daemon.uptime, false)}</span>
 										<div className={classNames(badge[server.daemon.running ? 'online' : 'offline'], 'flex-none rounded-full p-1')}>
 											<div className="h-1.5 w-1.5 rounded-full bg-current" />
 										</div>
@@ -147,7 +188,7 @@ const Index = (props: { base: string }) => {
 									</div>
 								</td>
 								<td className="hidden py-4 pl-0 pr-4 text-right text-sm leading-6 text-gray-400 sm:table-cell sm:pr-6 lg:pr-8">
-									{startDuration(server.daemon.uptime, false)}
+									{server.daemon.uptime == 0 ? 'none' : startDuration(server.daemon.uptime, false)}
 								</td>
 							</tr>
 						))}
