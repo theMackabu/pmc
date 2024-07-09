@@ -2,15 +2,20 @@ import { api } from '@/api';
 import Modal from '@/components/react/modal';
 import { useEffect, useState, Fragment } from 'react';
 
-const Rename = (props: { base: string; process: number; callback: any; old: string }) => {
+const Rename = (props: { base: string; server: string; process_id: number; callback: any; old: string }) => {
 	const [open, setOpen] = useState(false);
 	const [formData, setFormData] = useState('');
 
 	const handleChange = (event: any) => setFormData(event.target.value);
 
 	const handleSubmit = (event: any) => {
+		const url =
+			props.server != 'local'
+				? `${props.base}/remote/${props.server}/rename/${props.process_id}`
+				: `${props.base}/process/${props.process_id}/rename`;
+
 		event.preventDefault();
-		api.post(`${props.base}/process/${props.process}/rename`, { body: formData }).then(() => {
+		api.post(url, { body: formData }).then(() => {
 			setOpen(false);
 			props.callback();
 		});

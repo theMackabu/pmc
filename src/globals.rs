@@ -1,7 +1,32 @@
 use global_placeholders::init;
 use macros_rs::crashln;
+use once_cell::sync::OnceCell;
 use pmc::{config, file::Exists, helpers};
+use serde::{Deserialize, Serialize};
 use std::fs;
+use utoipa::ToSchema;
+
+#[derive(Clone, Serialize, Deserialize, ToSchema)]
+pub struct Os {
+    pub name: os_info::Type,
+    pub version: String,
+    pub arch: String,
+    pub bitness: os_info::Bitness,
+}
+
+pub static OS_INFO: OnceCell<Os> = OnceCell::new();
+
+pub fn get_os_info() -> &'static Os {
+    OS_INFO.get_or_init(|| {
+        let os = os_info::get();
+        Os {
+            name: os.os_type(),
+            version: os.version().to_string(),
+            arch: os.architecture().unwrap().into(),
+            bitness: os.bitness(),
+        }
+    })
+}
 
 pub(crate) fn init() {
     match home::home_dir() {

@@ -1,13 +1,13 @@
 ---
 import Layout from '@/components/base.astro';
 import Navbar from '@/components/navbar.astro';
-import ViewPage from '@/components/react/view';
+import StatusPage from '@/components/react/status';
 import { SITE_TITLE, SITE_DESCRIPTION } from '@/consts';
 ---
 
-<Layout title={SITE_TITLE + " - Server info"} description={SITE_DESCRIPTION}>
+<Layout title={SITE_TITLE + " - Viewing server {{server_name | safe}}"} description={SITE_DESCRIPTION}>
 	<Navbar />
-	<main>
-		<ViewPage id={"{{process_id | safe}}"} base={"{{base_path | safe}}"} client:only="@astrojs/react" />
+	<main class="pt-10">
+		<StatusPage name={"{{server_name | safe}}"} base={"{{base_path | safe}}"} client:only="@astrojs/react" />
 	</main>
 </Layout>

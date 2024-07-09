@@ -5,9 +5,9 @@ import ViewPage from '@/components/react/view';
 import { SITE_TITLE, SITE_DESCRIPTION } from '@/consts';
 ---
 
-<Layout title={SITE_TITLE + " - View process"} description={SITE_DESCRIPTION}>
+<Layout title={SITE_TITLE + " - Viewing process {{process_id | safe}}"} description={SITE_DESCRIPTION}>
    <Navbar />
-   <main>
+   <main class="pt-10">
       <ViewPage id={"{{process_id | safe}}"} base={"{{base_path | safe}}"} client:only="@astrojs/react" />
    </main>
 </Layout>
