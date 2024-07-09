@@ -122,6 +122,8 @@ pub fn remove(item: &Item, server_name: &String) {
             None => crashln!("{} Process ({name}) not found", *helpers::FAIL),
         },
     }
+
+    super::daemon::reset();
 }
 
 pub fn info(item: &Item, format: &String, server_name: &String) {

@@ -1,19 +1,18 @@
 ---
 const { active } = Astro.props;
-import favicon from '@/public/favicon.svg?url'
 ---
 
-<nav class="bg-zinc-900/50 border-b border-zinc-800 border-off">
+<nav class="fixed w-full backdrop-blur-md bg-zinc-900/50 border-b border-zinc-800 border-off z-[100]">
   <div class="mx-auto px-4">
     <div class="flex h-10 justify-between relative">
       <div class="flex">
         <div class="flex flex-shrink-0 items-center">
-          <img class="h-6 w-auto" src={favicon} alt="PMC">
+          <img class="h-6 w-auto" src="{{base_path | safe}}/assets/favicon.svg" alt="PMC">
         </div>
         <div class="ml-6 flex sm:space-x-8 absolute left-5 top-1">
           <a href="{{base_path | safe}}/" class={`${active == "list" ? 'border-b-2 border-sky-200 text-sky-200' : 'border-b-2 border-transparent hover:border-zinc-300 text-zinc-500 hover:text-zinc-200'} px-1 pt-1 text-base font-medium inline-flex items-center p-[7.5px]`}>Process List</a>
-          <a href="{{base_path | safe}}/servers" class={`${active == "servers" ? 'border-b-2 border-sky-200 text-sky-200' : 'border-b-2 border-transparent hover:border-zinc-300 text-zinc-500 hover:text-zinc-200'} px-1 pt-1 text-base font-medium inline-flex items-center p-[7.5px]`}>Servers</a>
-          <a href="{{base_path | safe}}/docs" class="inline-flex items-center border-b-2 border-transparent px-1 pt-1 text-base font-medium text-zinc-500 hover:border-zinc-300 hover:text-zinc-200 p-[7.5px] pl-10 sm:pl-0">API Docs</a>
+          <a href="{{base_path | safe}}/servers" class={`${active == "servers" ? 'border-b-2 border-sky-200 text-sky-200' : 'border-b-2 border-transparent hover:border-zinc-300 text-zinc-500 hover:text-zinc-200'} px-1 pt-1 text-base font-medium inline-flex items-center p-[7.5px] ml-10 sm:ml-0`}>Servers</a>
+          <a href="{{base_path | safe}}/docs" class="inline-flex items-center border-b-2 border-transparent px-1 pt-1 text-base font-medium text-zinc-500 hover:border-zinc-300 hover:text-zinc-200 p-[7.5px] ml-10 sm:ml-0">API Docs</a>
         </div>
       </div>
    </div>

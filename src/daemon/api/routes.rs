@@ -6,7 +6,6 @@ use macros_rs::{fmtstr, string, ternary, then};
 use prometheus::{Encoder, TextEncoder};
 use psutil::process::{MemoryInfo, Process};
 use reqwest::header::HeaderValue;
-use serde::Deserialize;
 use tera::Context;
 use utoipa::ToSchema;
 
@@ -15,7 +14,7 @@ use rocket::{
     http::{ContentType, Status},
     post,
     response::stream::{Event, EventStream},
-    serde::{json::Json, Serialize},
+    serde::{json::Json, Deserialize, Serialize},
     State,
 };
 
@@ -107,24 +106,32 @@ pub(crate) struct LogResponse {
     logs: Vec<String>,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, Deserialize, ToSchema)]
 pub struct MetricsRoot {
+    pub raw: Raw,
     pub version: Version,
+    pub os: crate::globals::Os,
     pub daemon: Daemon,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, Deserialize, ToSchema)]
+pub struct Raw {
+    pub memory_usage: Option<MemoryInfo>,
+    pub cpu_percent: Option<f64>,
+}
+
+#[derive(Serialize, Deserialize, ToSchema)]
 pub struct Version {
     #[schema(example = "v1.0.0")]
     pub pkg: String,
-    pub hash: Option<&'static str>,
+    pub hash: Option<String>,
     #[schema(example = "2000-01-01")]
-    pub build_date: &'static str,
+    pub build_date: String,
     #[schema(example = "release")]
-    pub target: &'static str,
+    pub target: String,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, Deserialize, ToSchema)]
 pub struct Daemon {
     pub pid: Option<Pid>,
     #[schema(example = true)]
@@ -136,7 +143,7 @@ pub struct Daemon {
     pub stats: Stats,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, Deserialize, ToSchema)]
 pub struct Stats {
     pub memory_usage: String,
     pub cpu_percent: String,
@@ -172,10 +179,10 @@ pub async fn view_process(id: usize, state: &State<TeraState>, _webui: EnableWeb
     Ok((ContentType::HTML, render("view", &state, &mut ctx)?))
 }
 
-#[get("/status/<id>")]
-pub async fn server_status(id: usize, state: &State<TeraState>, _webui: EnableWebUI) -> Result<(ContentType, String), NotFound> {
+#[get("/status/<name>")]
+pub async fn server_status(name: String, state: &State<TeraState>, _webui: EnableWebUI) -> Result<(ContentType, String), NotFound> {
     let mut ctx = Context::new();
-    ctx.insert("process_id", &id);
+    ctx.insert("server_name", &name);
     Ok((ContentType::HTML, render("status", &state, &mut ctx)?))
 }
 
@@ -783,6 +790,8 @@ pub async fn action_handler(id: usize, body: Json<ActionBody>, _t: Token) -> Res
 
 pub async fn get_metrics() -> MetricsRoot {
     let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["metrics"]).start_timer();
+    let os_info = crate::globals::get_os_info();
+
     let mut pid: Option<Pid> = None;
     let mut cpu_percent: Option<f64> = None;
     let mut uptime: Option<DateTime<Utc>> = None;
@@ -801,36 +810,41 @@ pub async fn get_metrics() -> MetricsRoot {
         }
     }
 
-    let memory_usage = match memory_usage {
+    let memory_usage_fmt = match &memory_usage {
         Some(usage) => helpers::format_memory(usage.rss()),
         None => string!("0b"),
     };
 
-    let cpu_percent = match cpu_percent {
+    let cpu_percent_fmt = match cpu_percent {
         Some(percent) => format!("{:.2}%", percent),
         None => string!("0%"),
     };
 
-    let uptime = match uptime {
+    let uptime_fmt = match uptime {
         Some(uptime) => helpers::format_duration(uptime),
         None => string!("none"),
     };
 
     timer.observe_duration();
     MetricsRoot {
+        os: os_info.clone(),
+        raw: Raw { memory_usage, cpu_percent },
         version: Version {
-            target: env!("PROFILE"),
-            build_date: env!("BUILD_DATE"),
+            target: env!("PROFILE").into(),
+            build_date: env!("BUILD_DATE").into(),
             pkg: format!("v{}", env!("CARGO_PKG_VERSION")),
-            hash: ternary!(env!("GIT_HASH_FULL") == "", None, Some(env!("GIT_HASH_FULL"))),
+            hash: ternary!(env!("GIT_HASH_FULL") == "", None, Some(env!("GIT_HASH_FULL").into())),
         },
         daemon: Daemon {
             pid,
-            uptime,
+            uptime: uptime_fmt,
             running: pid::exists(),
             process_count: runner.count(),
             daemon_type: global!("pmc.daemon.kind"),
-            stats: Stats { memory_usage, cpu_percent },
+            stats: Stats {
+                memory_usage: memory_usage_fmt,
+                cpu_percent: cpu_percent_fmt,
+            },
         },
     }
 }
@@ -847,6 +861,45 @@ pub async fn get_metrics() -> MetricsRoot {
 )]
 pub async fn metrics_handler(_t: Token) -> Json<MetricsRoot> { Json(get_metrics().await) }
 
+#[get("/remote/<name>/metrics")]
+#[utoipa::path(get, tag = "Remote", path = "/remote/{name}/metrics", security((), ("api_key" = [])),
+    params(("name" = String, Path, description = "Name of remote daemon", example = "example")),
+    responses(
+        (status = 200, description = "Get remote metrics", body = MetricsRoot),
+        (
+            status = UNAUTHORIZED, description = "Authentication failed or not provided", body = ErrorMessage, 
+            example = json!({"code": 401, "message": "Unauthorized"})
+        )
+    )
+)]
+pub async fn remote_metrics(name: String, _t: Token) -> Result<Json<MetricsRoot>, GenericError> {
+    let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["info"]).start_timer();
+
+    if let Some(servers) = config::servers().servers {
+        let (address, (client, headers)) = match servers.get(&name) {
+            Some(server) => (&server.address, client(&server.token).await),
+            None => return Err(generic_error(Status::NotFound, string!("Server was not found"))),
+        };
+
+        HTTP_COUNTER.inc();
+        timer.observe_duration();
+
+        match client.get(fmtstr!("{address}/daemon/metrics")).headers(headers).send().await {
+            Ok(data) => {
+                if data.status() != 200 {
+                    let err = data.json::<ErrorMessage>().await.unwrap();
+                    Err(generic_error(err.code, err.message))
+                } else {
+                    Ok(Json(data.json::<MetricsRoot>().await.unwrap()))
+                }
+            }
+            Err(err) => Err(generic_error(Status::InternalServerError, err.to_string())),
+        }
+    } else {
+        Err(generic_error(Status::BadRequest, string!("No servers have been added")))
+    }
+}
+
 #[get("/live/daemon/<server>/metrics")]
 pub async fn stream_metrics(server: String, _t: Token) -> EventStream![] {
     EventStream! {
@@ -857,7 +910,7 @@ pub async fn stream_metrics(server: String, _t: Token) -> EventStream![] {
                 None => loop {
                     let response = get_metrics().await;
                     yield Event::data(serde_json::to_string(&response).unwrap());
-                    sleep(Duration::from_millis(1500))
+                    sleep(Duration::from_millis(500))
                 },
             };
 
@@ -889,7 +942,7 @@ pub async fn stream_info(server: String, id: usize, _t: Token) -> EventStream![]
                 None => loop {
                     let item = runner.refresh().get(id);
                     yield Event::data(serde_json::to_string(&item.fetch()).unwrap());
-                    sleep(Duration::from_millis(1500))
+                    sleep(Duration::from_millis(1000))
                 },
             };
 

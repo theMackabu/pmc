@@ -1,6 +1,8 @@
 import ky from 'ky';
 import { $settings } from '@/store';
 
-export const api = ky.create({
-	headers: { token: $settings.get().token }
-});
+export { SSE } from 'sse.js';
+
+export const headers = { token: $settings.get().token };
+
+export const api = ky.create({ headers });

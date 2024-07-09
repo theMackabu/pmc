@@ -307,7 +307,7 @@ pub fn reset() {
         None => runner.set_id(Id::new(0)),
     }
 
-    println!("{} PMC Successfully reset (index={})", *helpers::SUCCESS, runner.id);
+    println!("{} Successfully reset (index={})", *helpers::SUCCESS, runner.id);
 }
 
 pub mod pid;

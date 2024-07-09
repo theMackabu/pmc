@@ -4,7 +4,7 @@ import { Dialog, DialogTitle, DialogBackdrop, Transition, TransitionChild } from
 const Modal = (props: { show: boolean; callback: any; title: string; children: any }) => {
 	return (
 		<Transition show={props.show} as={Fragment}>
-			<Dialog as="div" className="fixed z-10 inset-0 overflow-y-auto" onClose={() => props.callback(false)}>
+			<Dialog as="div" className="fixed z-[300] inset-0 overflow-y-auto" onClose={() => props.callback(false)}>
 				<div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
 					<TransitionChild
 						as={Fragment}

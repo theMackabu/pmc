@@ -4,10 +4,10 @@ use core::fmt;
 use global_placeholders::global;
 use macros_rs::crashln;
 use pmc::{file::Exists, helpers};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{convert::TryFrom, fs, io};
 
-#[derive(Copy, Clone, Serialize)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct Pid(i32);
 
 impl Pid {
