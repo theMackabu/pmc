@@ -51,6 +51,7 @@ const getServerIcon = (base: string, distro: string): string => {
 		'CentOS',
 		'NixOS',
 		'FreeBSD',
+		'OpenBSD',
 		'OracleLinux',
 		'Pop',
 		'Raspbian',
@@ -59,7 +60,7 @@ const getServerIcon = (base: string, distro: string): string => {
 	];
 
 	const isDistroKnown = distroList.includes(distro);
-	return `${base}/distro/${isDistroKnown ? distro : 'Unknown'}.svg`;
+	return `${base}/assets/${isDistroKnown ? distro.toLowerCase() : 'unknown'}.svg`;
 };
 
 const Index = (props: { base: string }) => {
@@ -152,7 +153,13 @@ const Index = (props: { base: string }) => {
 								onClick={() => (window.location.href = props.base + '/status/' + server.name)}>
 								<td className="py-4 pl-4 pr-8 sm:pl-6 lg:pl-8">
 									<div className="flex items-center gap-x-4">
-										<img src={getServerIcon(props.base, server.os.name)} className="h-8 w-8 rounded-full bg-zinc-900" />
+										<img
+											src={getServerIcon(props.base, server.os.name)}
+											className={classNames(
+												server.daemon.running ? 'ring-emerald-400 bg-white' : 'ring-red-400 bg-red-500',
+												'h-8 w-8 rounded-full ring-1'
+											)}
+										/>
 										<div className="truncate text-sm font-medium leading-6 text-white">{server.name == 'local' ? 'Internal' : server.name}</div>
 									</div>
 								</td>
