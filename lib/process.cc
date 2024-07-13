@@ -3,8 +3,17 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <signal.h>
+#include <chrono>
+#include <thread>
 #include <iostream>
 #include <algorithm>
+#include <fstream>
+#include <sstream>
+
+#ifdef __APPLE__
+#include <sys/types.h>
+#include <sys/sysctl.h>
+#endif
 
 using namespace std;
 
@@ -101,7 +110,22 @@ int64_t Runner::Run(const std::string &command, const std::string &shell, Vec<St
   } else {
     close(stdout_fd);
     close(stderr_fd);
-
+    
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::string proc_path = "/proc/" + std::to_string(pid) + "/task/" + std::to_string(pid) + "/children";
+    
+    std::ifstream proc_file(proc_path);
+    if (proc_file.is_open()) {
+      std::string line;
+      if (std::getline(proc_file, line)) {
+        std::istringstream iss(line);
+        pid_t child_pid;
+        if (iss >> child_pid) {
+          return child_pid;
+        }
+      }
+    }
+    
     return pid;
   }
   

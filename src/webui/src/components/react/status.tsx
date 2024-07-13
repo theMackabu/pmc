@@ -125,7 +125,7 @@ const Status = (props: { name: string; base: string }) => {
 			setItem(data);
 
 			memoryUsage.pushMax(data.raw.memory_usage.rss);
-			cpuPercentage.pushMax(data.raw.cpu_percent + 1);
+			cpuPercentage.pushMax(data.raw.cpu_percent);
 
 			if (!hasRun) {
 				setLoaded(true);
