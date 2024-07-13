@@ -157,7 +157,7 @@ const Index = (props: { base: string }) => {
 											src={getServerIcon(props.base, server.os.name)}
 											className={classNames(
 												server.daemon.running ? 'ring-emerald-400 bg-white' : 'ring-red-400 bg-red-500',
-												'h-8 w-8 rounded-full ring-1'
+												'h-8 w-8 rounded-full ring-2'
 											)}
 										/>
 										<div className="truncate text-sm font-medium leading-6 text-white">{server.name == 'local' ? 'Internal' : server.name}</div>
