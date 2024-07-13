@@ -148,9 +148,9 @@ const Index = (props: { base: string }) => {
 					<tbody className="divide-y divide-white/5 border-b border-white/5">
 						{items.value.sort().map((server) => (
 							<tr
-								className="hover:bg-zinc-800/30 transition cursor-pointer"
+								className={classNames(server.daemon.running && 'hover:bg-zinc-800/30 cursor-pointer', 'transition')}
 								key={server.name}
-								onClick={() => (window.location.href = props.base + '/status/' + server.name)}>
+								onClick={() => server.daemon.running && (window.location.href = props.base + '/status/' + server.name)}>
 								<td className="py-4 pl-4 pr-8 sm:pl-6 lg:pl-8">
 									<div className="flex items-center gap-x-4">
 										<img
