@@ -137,7 +137,7 @@ pub fn health(format: &String) {
 
     let cpu_percent = match cpu_percent {
         Some(percent) => format!("{:.2}%", percent),
-        None => string!("0%"),
+        None => string!("0.00%"),
     };
 
     let memory_usage = match memory_usage {

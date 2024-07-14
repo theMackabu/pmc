@@ -283,7 +283,7 @@ impl<'i> Internal<'i> {
 
                 let cpu_percent = match cpu_percent {
                     Some(percent) => format!("{:.2}%", percent),
-                    None => string!("0%"),
+                    None => string!("0.00%"),
                 };
 
                 let memory_usage = match memory_usage {
@@ -361,7 +361,7 @@ impl<'i> Internal<'i> {
 
                 let cpu_percent = match stats.cpu_percent {
                     Some(percent) => format!("{percent:.2}%"),
-                    None => string!("0%"),
+                    None => string!("0.00%"),
                 };
 
                 let memory_usage = match stats.memory_usage {
@@ -544,7 +544,7 @@ impl<'i> Internal<'i> {
 
                         cpu_percent = match usage_internals.0 {
                             Some(percent) => format!("{:.2}%", percent),
-                            None => string!("0%"),
+                            None => string!("0.00%"),
                         };
 
                         memory_usage = match usage_internals.1 {
@@ -559,7 +559,7 @@ impl<'i> Internal<'i> {
 
                             cpu_percent = match stats.cpu_percent {
                                 Some(percent) => format!("{:.2}%", percent),
-                                None => string!("0%"),
+                                None => string!("0.00%"),
                             };
 
                             memory_usage = match stats.memory_usage {

@@ -1,18 +1,19 @@
-#include <process.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <sys/wait.h>
-#include <signal.h>
-#include <chrono>
-#include <thread>
-#include <iostream>
+#include "include/process.h"
+
 #include <algorithm>
+#include <chrono>
+#include <fcntl.h>
 #include <fstream>
+#include <iostream>
+#include <signal.h>
 #include <sstream>
+#include <sys/wait.h>
+#include <thread>
+#include <unistd.h>
 
 #ifdef __APPLE__
-#include <sys/types.h>
 #include <sys/sysctl.h>
+#include <sys/types.h>
 #endif
 
 using namespace std;
@@ -21,18 +22,18 @@ namespace process {
 volatile sig_atomic_t childExitStatus = 0;
 
 std::string format(std::string text) {
-    std::replace(text.begin(), text.end(), ' ', '_');
-    return text;
+  std::replace(text.begin(), text.end(), ' ', '_');
+  return text;
 }
 
-pair<std::string, std::string> split(const std::string& str) {
-    size_t length = str.length();
-    size_t midpoint = length / 2;
+pair<std::string, std::string> split(const std::string &str) {
+  size_t length = str.length();
+  size_t midpoint = length / 2;
 
-    std::string firstHalf = str.substr(0, midpoint);
-    std::string secondHalf = str.substr(midpoint);
+  std::string firstHalf = str.substr(0, midpoint);
+  std::string secondHalf = str.substr(midpoint);
 
-    return make_pair(firstHalf, secondHalf);
+  return make_pair(firstHalf, secondHalf);
 }
 
 void sigchld_handler(int signo) {
@@ -47,7 +48,7 @@ void Runner::New(const std::string &name, const std::string &logPath) {
   std::string formattedName = format(name);
   std::string stdoutFileName = logPath + "/" + formattedName + "-out.log";
   std::string stderrFileName = logPath + "/" + formattedName + "-error.log";
-  
+
   stdout_fd = open(stdoutFileName.c_str(), O_WRONLY | O_CREAT | O_APPEND, 0644);
   stderr_fd = open(stderrFileName.c_str(), O_WRONLY | O_CREAT | O_APPEND, 0644);
 
@@ -87,9 +88,9 @@ int64_t Runner::Run(const std::string &command, const std::string &shell, Vec<St
 
     dup2(stdout_fd, STDOUT_FILENO);
     dup2(stderr_fd, STDERR_FILENO);
-    
-    std::vector<const char*> argsArray;
-    std::vector<const char*> envArray;
+
+    std::vector<const char *> argsArray;
+    std::vector<const char *> envArray;
     argsArray.push_back(shell.c_str());
 
     transform(args.begin(), args.end(), std::back_inserter(argsArray),
@@ -99,8 +100,8 @@ int64_t Runner::Run(const std::string &command, const std::string &shell, Vec<St
       [](rust::String& env) { return env.c_str(); });
 
     argsArray.push_back(command.c_str());
-    argsArray.push_back(nullptr); 
-    envArray.push_back(nullptr); 
+    argsArray.push_back(nullptr);
+    envArray.push_back(nullptr);
 
     if (execve(shell.c_str(), const_cast<char* const*>(argsArray.data()), const_cast<char* const*>(envArray.data())) == -1) {
       std::cerr << "[PMC] (cc) Unable to execute the command\n";
@@ -110,7 +111,7 @@ int64_t Runner::Run(const std::string &command, const std::string &shell, Vec<St
   } else {
     close(stdout_fd);
     close(stderr_fd);
-    
+
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     std::string proc_path = "/proc/" + std::to_string(pid) + "/task/" + std::to_string(pid) + "/children";
     
@@ -125,9 +126,9 @@ int64_t Runner::Run(const std::string &command, const std::string &shell, Vec<St
         }
       }
     }
-    
+
     return pid;
   }
-  
+
   return -1;
 }} 
