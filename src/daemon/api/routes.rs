@@ -903,30 +903,39 @@ pub async fn remote_metrics(name: String, _t: Token) -> Result<Json<MetricsRoot>
 #[get("/live/daemon/<server>/metrics")]
 pub async fn stream_metrics(server: String, _t: Token) -> EventStream![] {
     EventStream! {
-
-        if let Some(servers) = config::servers().servers {
-            let (address, (client, headers)) = match servers.get(&server) {
-                Some(server) => (&server.address, client(&server.token).await),
-                None => loop {
-                    let response = get_metrics().await;
-                    yield Event::data(serde_json::to_string(&response).unwrap());
-                    sleep(Duration::from_millis(500))
-                },
-            };
-
-            loop {
-                match client.get(fmtstr!("{address}/daemon/metrics")).headers(headers.clone()).send().await {
-                    Ok(data) => {
-                        if data.status() != 200 {
-                            break yield Event::data(data.text().await.unwrap());
-                        } else {
-                            yield Event::data(data.text().await.unwrap());
-                            sleep(Duration::from_millis(1500));
-                        }
+        match config::servers().servers {
+            Some(servers) => {
+                let (address, (client, headers)) = match servers.get(&server) {
+                    Some(server) => (&server.address, client(&server.token).await),
+                    None => match &*server {
+                        "local" | "internal" => loop {
+                            let response = get_metrics().await;
+                            yield Event::data(serde_json::to_string(&response).unwrap());
+                            sleep(Duration::from_millis(500));
+                        },
+                        _ => return yield Event::data(format!("{{\"error\": \"server does not exist\"}}")),
                     }
-                    Err(err) => break yield Event::data(format!("{{\"error\": \"{err}\"}}")),
+                };
+
+                loop {
+                    match client.get(fmtstr!("{address}/daemon/metrics")).headers(headers.clone()).send().await {
+                        Ok(data) => {
+                            if data.status() != 200 {
+                                break yield Event::data(data.text().await.unwrap());
+                            } else {
+                                yield Event::data(data.text().await.unwrap());
+                                sleep(Duration::from_millis(1500));
+                            }
+                        }
+                        Err(err) => break yield Event::data(format!("{{\"error\": \"{err}\"}}")),
+                    }
                 }
             }
+            None => loop {
+                let response = get_metrics().await;
+                yield Event::data(serde_json::to_string(&response).unwrap());
+                sleep(Duration::from_millis(500))
+            },
         };
     }
 }
@@ -936,28 +945,38 @@ pub async fn stream_info(server: String, id: usize, _t: Token) -> EventStream![]
     EventStream! {
         let runner = Runner::new();
 
-        if let Some(servers) = config::servers().servers {
-            let (address, (client, headers)) = match servers.get(&server) {
-                Some(server) => (&server.address, client(&server.token).await),
-                None => loop {
-                    let item = runner.refresh().get(id);
-                    yield Event::data(serde_json::to_string(&item.fetch()).unwrap());
-                    sleep(Duration::from_millis(1000))
-                },
-            };
-
-            loop {
-                match client.get(fmtstr!("{address}/process/{id}/info")).headers(headers.clone()).send().await {
-                    Ok(data) => {
-                        if data.status() != 200 {
-                            break yield Event::data(data.text().await.unwrap());
-                        } else {
-                            yield Event::data(data.text().await.unwrap());
-                            sleep(Duration::from_millis(1500));
-                        }
+        match config::servers().servers {
+            Some(servers) => {
+                let (address, (client, headers)) = match servers.get(&server) {
+                    Some(server) => (&server.address, client(&server.token).await),
+                    None => match &*server {
+                        "local" | "internal" => loop {
+                            let item = runner.refresh().get(id);
+                            yield Event::data(serde_json::to_string(&item.fetch()).unwrap());
+                            sleep(Duration::from_millis(1000));
+                        },
+                        _ => return yield Event::data(format!("{{\"error\": \"server does not exist\"}}")),
                     }
-                    Err(err) => break yield Event::data(format!("{{\"error\": \"{err}\"}}")),
+                };
+
+                loop {
+                    match client.get(fmtstr!("{address}/process/{id}/info")).headers(headers.clone()).send().await {
+                        Ok(data) => {
+                            if data.status() != 200 {
+                                break yield Event::data(data.text().await.unwrap());
+                            } else {
+                                yield Event::data(data.text().await.unwrap());
+                                sleep(Duration::from_millis(1500));
+                            }
+                        }
+                        Err(err) => break yield Event::data(format!("{{\"error\": \"{err}\"}}")),
+                    }
                 }
+            }
+            None => loop {
+                let item = runner.refresh().get(id);
+                yield Event::data(serde_json::to_string(&item.fetch()).unwrap());
+                sleep(Duration::from_millis(1000));
             }
         };
     }
