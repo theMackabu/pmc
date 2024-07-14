@@ -115,7 +115,7 @@ const Status = (props: { name: string; base: string }) => {
 		let retryTimeout;
 		let hasRun = false;
 
-		const source = new SSE(`${props.base}/live/daemon/${props.server}/metrics`, { headers });
+		const source = new SSE(`${props.base}/live/daemon/${props.name}/metrics`, { headers });
 
 		setLive(source);
 
@@ -124,7 +124,7 @@ const Status = (props: { name: string; base: string }) => {
 
 			setItem(data);
 
-			memoryUsage.pushMax(data.raw.memory_usage.rss);
+			memoryUsage.pushMax(data.raw.memory_usage);
 			cpuPercentage.pushMax(data.raw.cpu_percent);
 
 			if (!hasRun) {

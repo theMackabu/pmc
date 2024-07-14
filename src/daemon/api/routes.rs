@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use global_placeholders::global;
 use macros_rs::{fmtstr, string, ternary, then};
 use prometheus::{Encoder, TextEncoder};
-use psutil::process::{MemoryInfo, Process};
+use psutil::process::Process;
 use reqwest::header::HeaderValue;
 use tera::Context;
 use utoipa::ToSchema;
@@ -116,7 +116,7 @@ pub struct MetricsRoot {
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct Raw {
-    pub memory_usage: Option<MemoryInfo>,
+    pub memory_usage: Option<u64>,
     pub cpu_percent: Option<f64>,
 }
 
@@ -795,7 +795,7 @@ pub async fn get_metrics() -> MetricsRoot {
     let mut pid: Option<Pid> = None;
     let mut cpu_percent: Option<f64> = None;
     let mut uptime: Option<DateTime<Utc>> = None;
-    let mut memory_usage: Option<MemoryInfo> = None;
+    let mut memory_usage: Option<u64> = None;
     let mut runner: Runner = file::read_object(global!("pmc.dump"));
 
     HTTP_COUNTER.inc();
@@ -804,20 +804,20 @@ pub async fn get_metrics() -> MetricsRoot {
             if let Ok(process) = Process::new(process_id.get()) {
                 pid = Some(process_id);
                 uptime = Some(pid::uptime().unwrap());
-                memory_usage = process.memory_info().ok();
+                memory_usage = Some(process.memory_info().unwrap().rss());
                 cpu_percent = Some(pmc::service::get_process_cpu_usage_percentage(process_id.get::<i64>()));
             }
         }
     }
 
-    let memory_usage_fmt = match &memory_usage {
-        Some(usage) => helpers::format_memory(usage.rss()),
+    let memory_usage_fmt = match memory_usage {
+        Some(usage) => helpers::format_memory(usage),
         None => string!("0b"),
     };
 
     let cpu_percent_fmt = match cpu_percent {
         Some(percent) => format!("{:.2}%", percent),
-        None => string!("0%"),
+        None => string!("0.00%"),
     };
 
     let uptime_fmt = match uptime {

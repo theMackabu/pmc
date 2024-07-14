@@ -1,5 +1,6 @@
-#include <bridge.h>
-#include <process.h>
+#include "include/bridge.h"
+#include "include/process.h"
+
 #include <iostream>
 #include <signal.h>
 #include <stdio.h>
@@ -9,29 +10,27 @@
 #include <vector>
 
 #ifdef __linux__
-#include <cstring>
-#include <string>
 #include <cstdlib>
+#include <cstring>
 #include <dirent.h>
+#include <string>
 #include <sys/prctl.h>
 
 #elif __APPLE__
-#include <libproc.h>
-#include <sys/proc_info.h>
-#include <libproc.h>
-#include <sys/proc_info.h>
-#include <iostream>
 #include <crt_externs.h>
+#include <iostream>
+#include <libproc.h>
+#include <sys/proc_info.h>
 #endif
 
 using namespace std;
 
-void set_program_name(String name) {
-  #ifdef __linux__
+extern "C++" void set_program_name(String name) {
+#ifdef __linux__
   prctl(PR_SET_NAME, name.c_str());
-  #elif __APPLE__
+#elif __APPLE__
   setprogname(name.c_str());
-  #endif
+#endif
 }
 
 int64_t get_child_pid(int64_t parentPID) {
