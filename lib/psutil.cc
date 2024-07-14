@@ -124,15 +124,17 @@ double get_process_cpu_usage_percentage(int64_t pid) {
   uint64_t user_ticks = end_time.user - last_time.user;
   uint64_t system_ticks = end_time.system - last_time.system;
   uint64_t total_ticks = user_ticks + system_ticks;
-  double seconds = static_cast<double>(total_ticks) / 1e9;
+  
+  double seconds = static_cast<double>(total_ticks) / 1e7;
+  double cpu_usage = (seconds / elapsed_seconds) * 100.0;
 #else
   unsigned long long total_time = 
     (end_time.utime + end_time.stime + end_time.cutime + end_time.cstime) - 
     (last_time.utime + last_time.stime + last_time.cutime + last_time.cstime);
   
   double seconds = static_cast<double>(total_time) / sysconf(_SC_CLK_TCK);
-#endif
   double cpu_usage = 100.0 * (seconds / elapsed_seconds) / num_cores;
+#endif
   last_cpu_times[pid] = end_time;
 
   double& last_percentage = last_cpu_percentages[pid];
