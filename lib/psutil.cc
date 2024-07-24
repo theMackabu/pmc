@@ -1,5 +1,6 @@
 #include "include/psutil.h"
 
+#include <deque>
 #include <chrono>
 #include <thread>
 #include <unordered_map>
@@ -96,9 +97,21 @@ CPUTime get_cpu_time(int64_t pid) {
 #endif
 }
 
+static std::unordered_map<int64_t, CPUTime> last_cpu_times;
+static std::unordered_map<int64_t, double> last_cpu_percentages;
+static std::deque<int64_t> insertion_order;
+static const size_t max_items = 20;
+
+void cleanup_old_entries() {
+  while (last_cpu_times.size() > max_items) {
+    int64_t oldest_pid = insertion_order.front();
+    insertion_order.pop_front();
+    last_cpu_times.erase(oldest_pid);
+    last_cpu_percentages.erase(oldest_pid);
+  }
+}
+
 double get_process_cpu_usage_percentage(int64_t pid) {
-  static std::unordered_map<int64_t, CPUTime> last_cpu_times;
-  static std::unordered_map<int64_t, double> last_cpu_percentages;
   const std::chrono::milliseconds measurement_interval(200);
   static int num_cores = get_num_cores();
 
@@ -115,6 +128,8 @@ double get_process_cpu_usage_percentage(int64_t pid) {
   if (last_cpu_times.find(pid) == last_cpu_times.end()) {
     last_cpu_times[pid] = start_time;
     last_cpu_percentages[pid] = 0.0;
+    insertion_order.push_back(pid);
+    cleanup_old_entries();
     return 0.0;
   }
 
@@ -141,5 +156,6 @@ double get_process_cpu_usage_percentage(int64_t pid) {
   cpu_usage = (cpu_usage * 0.3) + (last_percentage * 0.2);
   last_percentage = cpu_usage;
 
+  cleanup_old_entries();
   return std::min(cpu_usage, 100.0 * num_cores);
 }
