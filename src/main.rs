@@ -90,6 +90,14 @@ enum Commands {
         /// Path of file to import
         path: String,
     },
+    /// Export environment file from process
+    #[command(visible_alias = "get")]
+    Export {
+        #[clap(value_parser = cli::validate::<Item>)]
+        item: Item,
+        /// Path to export file
+        path: Option<String>,
+    },
     /// Start/Restart a process
     #[command(visible_alias = "restart")]
     Start {
@@ -220,6 +228,7 @@ fn main() {
 
     match &cli.command {
         Commands::Import { path } => cli::import::read_hcl(path),
+        Commands::Export { item, path } => cli::import::export_hcl(item, path),
         Commands::Start { name, args, watch, server, reset_env } => cli::start(name, args, watch, reset_env, &defaults(server)),
         Commands::Stop { item, server } => cli::stop(item, &defaults(server)),
         Commands::Remove { item, server } => cli::remove(item, &defaults(server)),
@@ -250,6 +259,7 @@ fn main() {
         && !matches!(&cli.command, Commands::Server { .. })
         && !matches!(&cli.command, Commands::Save { .. })
         && !matches!(&cli.command, Commands::Env { .. })
+        && !matches!(&cli.command, Commands::Export { .. })
     {
         then!(!daemon::pid::exists(), daemon::restart(&false, &false, false));
     }

@@ -1,9 +1,16 @@
+use super::Item;
 use colored::Colorize;
 use macros_rs::{crashln, string};
-use serde::Deserialize;
-use std::{collections::HashMap, fs};
+use serde::{Deserialize, Serialize};
+
+use std::{
+    collections::HashMap,
+    fs::{self, OpenOptions},
+    io::prelude::*,
+};
 
 use pmc::{
+    file::Exists,
     helpers,
     process::{Env, Runner},
 };
@@ -14,7 +21,7 @@ struct ProcessWrapper {
     list: HashMap<String, Process>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 struct Process {
     script: String,
     server: Option<String>,
@@ -23,7 +30,7 @@ struct Process {
     env: Env,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 struct Watch {
     path: String,
 }
@@ -79,4 +86,65 @@ pub fn read_hcl(path: &String) {
 
     servers.iter().for_each(|server| super::Internal::list(&string!("default"), &server));
     println!("{} Applied startProcess to imported items", *helpers::SUCCESS);
+}
+
+pub fn export_hcl(item: &Item, path: &Option<String>) {
+    println!("{} Applying action exportProcess", *helpers::SUCCESS);
+
+    let runner = Runner::new();
+
+    let fetch_process = |id: usize| {
+        let process = runner.try_info(id);
+        let mut watch_parsed = None;
+        let mut env_parsed = HashMap::new();
+
+        let current_env: HashMap<String, String> = std::env::vars().collect();
+        let path = path.clone().unwrap_or(format!("{}.hcl", process.name.clone()));
+
+        if process.watch.enabled {
+            watch_parsed = Some(Watch { path: process.watch.path.clone() })
+        }
+
+        for (key, value) in process.env.clone() {
+            if let Some(current_value) = current_env.get(&key) {
+                if current_value != &value {
+                    env_parsed.insert(key, value);
+                }
+            } else {
+                env_parsed.insert(key, value);
+            }
+        }
+
+        let data = hcl::block! {
+            process (process.name.clone()) {
+                script = (process.script.clone())
+                server = ("")
+                watch = (watch_parsed)
+                env = (env_parsed)
+            }
+        };
+
+        let serialized = hcl::to_string(&data).unwrap();
+
+        if Exists::check(&path).file() {
+            let mut file = OpenOptions::new().write(true).append(true).open(path.clone()).unwrap();
+            if let Err(err) = writeln!(file, "{}", serialized) {
+                crashln!("{} Error writing to file.\n{}", *helpers::FAIL, string!(err).white())
+            }
+        } else {
+            if let Err(err) = fs::write(path.clone(), serialized) {
+                crashln!("{} Error writing file.\n{}", *helpers::FAIL, string!(err).white())
+            }
+        }
+
+        println!("{} Exported process {id} to {path}", *helpers::SUCCESS);
+    };
+
+    match item {
+        Item::Id(id) => fetch_process(*id),
+        Item::Name(name) => match runner.find(&name, &string!("internal")) {
+            Some(id) => fetch_process(id),
+            None => crashln!("{} Process ({name}) not found", *helpers::FAIL),
+        },
+    }
 }
