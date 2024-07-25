@@ -357,6 +357,8 @@ impl Runner {
 
     pub fn info(&self, id: usize) -> Option<&Process> { self.list.get(&id) }
 
+    pub fn try_info(&self, id: usize) -> &Process { self.list.get(&id).unwrap_or_else(|| crashln!("{} Process ({id}) not found", *helpers::FAIL)) }
+
     pub fn size(&self) -> Option<&usize> { self.list.iter().map(|(k, _)| k).max() }
 
     pub fn list<'l>(&'l mut self) -> impl Iterator<Item = (&'l usize, &'l mut Process)> { self.list.iter_mut().map(|(k, v)| (k, v)) }
