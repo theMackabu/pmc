@@ -1,6 +1,10 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
+pub mod prelude {
+    pub use super::{Config, Daemon, Runner, Secure, Server, Servers, Web};
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Config {
     pub default: String,

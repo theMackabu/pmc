@@ -10,9 +10,13 @@ use colored::Colorize;
 use macros_rs::{crashln, fmtstr, string};
 use reqwest::blocking::Client;
 use reqwest::header::{HeaderMap, HeaderValue};
-use std::fs::write;
-use std::net::{IpAddr, Ipv4Addr};
-use structs::{Config, Daemon, Runner, Secure, Servers, Web};
+use structs::prelude::*;
+
+use std::{
+    fs::write,
+    net::{IpAddr, Ipv4Addr},
+    path::Path,
+};
 
 pub fn from(address: &str, token: Option<&str>) -> Result<RemoteConfig, anyhow::Error> {
     let client = Client::new();
@@ -95,6 +99,8 @@ pub fn servers() -> Servers {
 }
 
 impl Config {
+    pub fn check_shell_absolute(&self) -> bool { Path::new(&self.runner.shell).is_absolute() }
+
     pub fn get_address(&self) -> rocket::figment::Figment {
         let config_split: Vec<u8> = match self.daemon.web.address.as_str() {
             "localhost" => vec![127, 0, 0, 1],
