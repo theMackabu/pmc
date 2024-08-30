@@ -1,5 +1,5 @@
 use global_placeholders::init;
-use macros_rs::crashln;
+use macros_rs::{crashln, then};
 use once_cell::sync::OnceCell;
 use pmc::{config, file::Exists, helpers};
 use serde::{Deserialize, Serialize};
@@ -32,12 +32,22 @@ pub(crate) fn init() {
     match home::home_dir() {
         Some(path) => {
             let path = path.display();
+
             if !Exists::check(&format!("{path}/.pmc/")).folder() {
                 fs::create_dir_all(format!("{path}/.pmc/")).unwrap();
                 log::info!("created pmc base dir");
             }
 
             let config = config::read();
+            then!(
+                !config.check_shell_absolute(),
+                println!(
+                    "{} Shell is not an absolute path.\n {1} Please update this in {path}/.pmc/config.toml\n {1} Failure to update will prevent programs from restarting",
+                    *helpers::WARN,
+                    *helpers::WARN_STAR
+                )
+            );
+
             if !Exists::check(&config.runner.log_path).folder() {
                 fs::create_dir_all(&config.runner.log_path).unwrap();
                 log::info!("created pmc log dir");

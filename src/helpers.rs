@@ -7,6 +7,7 @@ use regex::Regex;
 pub static SUCCESS: Lazy<colored::ColoredString> = Lazy::new(|| "[PMC]".green());
 pub static FAIL: Lazy<colored::ColoredString> = Lazy::new(|| "[PMC]".red());
 pub static WARN: Lazy<colored::ColoredString> = Lazy::new(|| "[PMC]".yellow());
+pub static WARN_STAR: Lazy<colored::ColoredString> = Lazy::new(|| "*".yellow());
 
 #[derive(Clone, Debug)]
 pub struct ColoredString(pub colored::ColoredString);
