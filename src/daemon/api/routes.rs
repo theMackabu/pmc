@@ -20,6 +20,7 @@ use rocket::{
 
 use super::{
     helpers::{generic_error, not_found, GenericError, NotFound},
+    render,
     structs::ErrorMessage,
     EnableWebUI, TeraState,
 };
@@ -156,34 +157,27 @@ fn attempt(done: bool, method: &str) -> ActionResponse {
     }
 }
 
-fn render(name: &str, state: &State<TeraState>, ctx: &mut Context) -> Result<String, NotFound> {
-    ctx.insert("base_path", &state.path);
-    ctx.insert("build_version", env!("CARGO_PKG_VERSION"));
-
-    state.tera.render(name, &ctx).or(Err(not_found("Page was not found")))
-}
-
 #[get("/")]
-pub async fn dashboard(state: &State<TeraState>, _webui: EnableWebUI) -> Result<(ContentType, String), NotFound> { Ok((ContentType::HTML, render("dashboard", &state, &mut Context::new())?)) }
+pub async fn dashboard(state: &State<TeraState>, _webui: EnableWebUI) -> Result<(ContentType, String), NotFound> { Ok((ContentType::HTML, render("dashboard", &state, &mut Context::new()).await?)) }
 
 #[get("/servers")]
-pub async fn servers(state: &State<TeraState>, _webui: EnableWebUI) -> Result<(ContentType, String), NotFound> { Ok((ContentType::HTML, render("servers", &state, &mut Context::new())?)) }
+pub async fn servers(state: &State<TeraState>, _webui: EnableWebUI) -> Result<(ContentType, String), NotFound> { Ok((ContentType::HTML, render("servers", &state, &mut Context::new()).await?)) }
 
 #[get("/login")]
-pub async fn login(state: &State<TeraState>, _webui: EnableWebUI) -> Result<(ContentType, String), NotFound> { Ok((ContentType::HTML, render("login", &state, &mut Context::new())?)) }
+pub async fn login(state: &State<TeraState>, _webui: EnableWebUI) -> Result<(ContentType, String), NotFound> { Ok((ContentType::HTML, render("login", &state, &mut Context::new()).await?)) }
 
 #[get("/view/<id>")]
 pub async fn view_process(id: usize, state: &State<TeraState>, _webui: EnableWebUI) -> Result<(ContentType, String), NotFound> {
     let mut ctx = Context::new();
     ctx.insert("process_id", &id);
-    Ok((ContentType::HTML, render("view", &state, &mut ctx)?))
+    Ok((ContentType::HTML, render("view", &state, &mut ctx).await?))
 }
 
 #[get("/status/<name>")]
 pub async fn server_status(name: String, state: &State<TeraState>, _webui: EnableWebUI) -> Result<(ContentType, String), NotFound> {
     let mut ctx = Context::new();
     ctx.insert("server_name", &name);
-    Ok((ContentType::HTML, render("status", &state, &mut ctx)?))
+    Ok((ContentType::HTML, render("status", &state, &mut ctx).await?))
 }
 
 #[get("/daemon/prometheus")]

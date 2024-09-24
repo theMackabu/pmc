@@ -1847,7 +1847,6 @@ dependencies = [
  "toml",
  "update-informer",
  "utoipa",
- "utoipa-rapidoc",
  "utoipa-swagger-ui",
 ]
 
@@ -3265,17 +3264,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.74",
-]
-
-[[package]]
-name = "utoipa-rapidoc"
-version = "2.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d331839f6de584865f20c8138b73868d515ba62349ae4c8c1f78ffa54069e78"
-dependencies = [
- "serde",
- "serde_json",
- "utoipa",
 ]
 
 [[package]]

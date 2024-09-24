@@ -1,20 +1,20 @@
+mod docs;
 mod fairing;
 mod helpers;
 mod routes;
 mod structs;
 
 use crate::webui::{self, assets::NamedFile};
-use helpers::create_status;
+use helpers::{create_status, NotFound};
 use include_dir::{include_dir, Dir};
 use lazy_static::lazy_static;
-use macros_rs::fmtstr;
 use pmc::{config, process};
 use prometheus::{opts, register_counter, register_gauge, register_histogram, register_histogram_vec};
 use prometheus::{Counter, Gauge, Histogram, HistogramVec};
 use serde_json::{json, Value};
 use std::sync::atomic::{AtomicBool, Ordering};
 use structs::ErrorMessage;
-use utoipa_rapidoc::RapiDoc;
+use tera::Context;
 
 use utoipa::{
     openapi::security::{ApiKey, ApiKeyValue, SecurityScheme},
@@ -27,6 +27,7 @@ use rocket::{
     outcome::Outcome,
     request::{self, FromRequest, Request},
     serde::json::Json,
+    State,
 };
 
 lazy_static! {
@@ -40,16 +41,6 @@ lazy_static! {
 #[derive(OpenApi)]
 #[openapi(
     modifiers(&SecurityAddon),
-    servers(
-        (url = "{ssl}://{address}:{port}/{path}", description = "Remote API",
-            variables(
-                ("ssl" = (default = "http", enum_values("http", "https"))),
-                ("address" = (default = "localhost", description = "Address for API")),
-                ("port" = (default = "5630", description = "Port for API")),
-                ("path" = (default = "", description = "Path for API"))
-            )
-        )
-    ),
     paths(
         routes::action_handler,
         routes::env_handler,
@@ -176,10 +167,12 @@ pub async fn start(webui: bool) {
     let s_path = config::read().get_path().trim_end_matches('/').to_string();
 
     let routes = rocket::routes![
-        docs,
+        embed,
+        scalar,
         health,
-        assets,
         docs_json,
+        static_assets,
+        dynamic_assets,
         routes::login,
         routes::servers,
         routes::dashboard,
@@ -222,26 +215,37 @@ pub async fn start(webui: bool) {
     }
 }
 
+async fn render(name: &str, state: &State<TeraState>, ctx: &mut Context) -> Result<String, NotFound> {
+    ctx.insert("base_path", &state.path);
+    ctx.insert("build_version", env!("CARGO_PKG_VERSION"));
+
+    state.tera.render(name, &ctx).or(Err(helpers::not_found("Page was not found")))
+}
+
 #[rocket::get("/assets/<name>")]
-pub async fn assets(name: String) -> Option<NamedFile> {
+async fn dynamic_assets(name: String) -> Option<NamedFile> {
     static DIR: Dir = include_dir!("src/webui/dist/assets");
     let file = DIR.get_file(&name)?;
 
     NamedFile::send(name, file.contents_utf8()).await.ok()
 }
 
-#[rocket::get("/docs")]
-pub async fn docs() -> (ContentType, String) {
-    const DOCS: &str = include_str!("docs/index.html");
+#[rocket::get("/static/<name>")]
+async fn static_assets(name: String) -> Option<NamedFile> {
+    static DIR: Dir = include_dir!("src/daemon/static");
+    let file = DIR.get_file(&name)?;
 
-    let s_path = config::read().get_path().trim_end_matches('/').to_string();
-    let docs_path = fmtstr!("{}/docs.json", s_path);
-
-    (ContentType::HTML, RapiDoc::new(docs_path).custom_html(DOCS).to_html())
+    NamedFile::send(name, file.contents_utf8()).await.ok()
 }
 
-#[rocket::get("/health")]
-pub async fn health() -> Value { json!({"healthy": true}) }
+#[rocket::get("/openapi.json")]
+async fn docs_json() -> Value { json!(ApiDoc::openapi()) }
 
-#[rocket::get("/docs.json")]
-pub async fn docs_json() -> Value { json!(ApiDoc::openapi()) }
+#[rocket::get("/docs/embed")]
+async fn embed() -> (ContentType, String) { (ContentType::HTML, docs::Docs::new().render()) }
+
+#[rocket::get("/docs")]
+async fn scalar(state: &State<TeraState>, _webui: EnableWebUI) -> Result<(ContentType, String), NotFound> { Ok((ContentType::HTML, render("docs", &state, &mut Context::new()).await?)) }
+
+#[rocket::get("/health")]
+async fn health() -> Value { json!({"healthy": true}) }
