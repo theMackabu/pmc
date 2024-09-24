@@ -12,7 +12,7 @@ const { active } = Astro.props;
         <div class="ml-6 flex sm:space-x-8 absolute left-5 top-1">
           <a href="{{base_path | safe}}/" class={`${active == "list" ? 'border-b-2 border-sky-200 text-sky-200' : 'border-b-2 border-transparent hover:border-zinc-300 text-zinc-500 hover:text-zinc-200'} px-1 pt-1 text-base font-medium inline-flex items-center p-[7.5px]`}>Process List</a>
           <a href="{{base_path | safe}}/servers" class={`${active == "servers" ? 'border-b-2 border-sky-200 text-sky-200' : 'border-b-2 border-transparent hover:border-zinc-300 text-zinc-500 hover:text-zinc-200'} px-1 pt-1 text-base font-medium inline-flex items-center p-[7.5px] ml-10 sm:ml-0`}>Servers</a>
-          <a href="{{base_path | safe}}/docs" class="inline-flex items-center border-b-2 border-transparent px-1 pt-1 text-base font-medium text-zinc-500 hover:border-zinc-300 hover:text-zinc-200 p-[7.5px] ml-10 sm:ml-0">API Docs</a>
+          <a href="{{base_path | safe}}/docs" class={`${active == "docs" ? 'border-b-2 border-sky-200 text-sky-200' : 'border-b-2 border-transparent hover:border-zinc-300 text-zinc-500 hover:text-zinc-200'} px-1 pt-1 text-base font-medium inline-flex items-center p-[7.5px] ml-10 sm:ml-0`}>API Docs</a>
         </div>
       </div>
    </div>

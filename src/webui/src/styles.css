@@ -8,3 +8,18 @@ html {
 	@apply h-full;
 	@apply bg-zinc-950;
 }
+
+.embed-container {
+	width: 100%;
+	height: 100%;
+	position: relative;
+}
+
+.embed-container iframe {
+	width: 100%;
+	height: 100%;
+	position: absolute;
+	top: 0;
+	left: 0;
+	border: 0;
+}

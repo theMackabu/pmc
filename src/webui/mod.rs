@@ -6,6 +6,7 @@ pub fn create_templates() -> (Tera, String) {
     let path = config::read().get_path();
 
     tera.add_raw_templates(vec![
+        ("docs", include_str!("dist/docs.html")),
         ("view", include_str!("dist/view.html")),
         ("login", include_str!("dist/login.html")),
         ("dashboard", include_str!("dist/index.html")),

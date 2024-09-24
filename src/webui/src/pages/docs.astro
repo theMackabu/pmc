@@ -1,0 +1,13 @@
+---
+import Layout from '@/components/base.astro';
+import Navbar from '@/components/navbar.astro';
+import ServersPage from '@/components/react/servers';
+import { SITE_TITLE, SITE_DESCRIPTION } from '@/consts';
+---
+
+<Layout title={SITE_TITLE + " - API Docs"} description={SITE_DESCRIPTION}>
+	<Navbar active={"docs"} />
+	<main class="embed-container">
+		<iframe src={"{{base_path | safe}}/docs/embed"} frameborder="0" allowfullscreen></iframe>
+	</main>
+</Layout>
