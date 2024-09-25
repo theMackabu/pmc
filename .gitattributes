@@ -1,0 +1,4 @@
+# hide pre-built files
+*.js linguist-detectable=false
+*.css linguist-detectable=false
+*.html linguist-detectable=false
