@@ -15,9 +15,9 @@ cxx-build = "1.0.126"
 [dependencies]
 ron = "0.8.1"
 log = "0.4.22"
-toml = "0.8.19"
 home = "0.5.9"
 ryu = "1.0.18"
+toml = "0.8.19"
 clap = "4.5.16"
 cxx = "1.0.126"
 bytes = "1.7.1"
@@ -28,6 +28,7 @@ anyhow = "1.0.86"
 colored = "2.1.0"
 inquire = "0.7.5"
 hcl-rs = "0.18.0"
+os_info = "3.8.2"
 macros-rs = "0.5.2"
 termcolor = "1.4.1"
 once_cell = "1.19.0"
@@ -52,7 +53,7 @@ chrono = { version = "0.4.38", features = ["serde"] }
 serde = { version = "1.0.208", features = ["derive"] }
 nix = { version = "0.27.1", features = ["process", "signal"] }
 utoipa = { version = "4.2.3", features = ["serde_yaml", "non_strict_integers"] }
-os_info = "3.8.2"
+
 
 [dependencies.reqwest]
 version = "0.11.27"
