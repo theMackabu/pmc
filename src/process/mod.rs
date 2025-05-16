@@ -12,6 +12,8 @@ use std::{
     fs::File,
     path::PathBuf,
     sync::{Arc, Mutex},
+    thread,
+    time::Duration,
 };
 
 use nix::{
@@ -412,11 +414,21 @@ impl Runner {
                 crashln!("{} Failed to stop process {id}\nError: {:#?}", *helpers::FAIL, err);
             };
         } else {
+            let process_to_stop = self.process(id);
+            let pid_to_check = process_to_stop.pid;
+
+            kill_children(process_to_stop.children.clone());
+            stop(pid_to_check);
+
+            // waiting until Process is terminated
+            for _ in 0..50 {
+                match psutil::process::Process::new(pid_to_check as u32) {
+                    Ok(_p) => thread::sleep(Duration::from_millis(100)),
+                    Err(_) => break,
+                }
+            }
+
             let process = self.process(id);
-
-            kill_children(process.children.clone());
-            stop(process.pid);
-
             process.running = false;
             process.crash.crashed = false;
             process.crash.value = 0;
