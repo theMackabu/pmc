@@ -141,14 +141,6 @@ fn main() {
             /* pre-build */
             let path = download_node();
             download_then_build(path);
-
-            /* cc linking (Deprecated) */
-            // cxx_build::bridge("src/lib.rs")
-            //     .file("lib/bridge.cc")
-            //     .file("lib/process.cc")
-            //     .include("lib/include")
-            //     .flag_if_supported("-std=c++17")
-            //     .compile("bridge");
         }
         _ => println!("cargo:rustc-env=PROFILE=none"),
     }
