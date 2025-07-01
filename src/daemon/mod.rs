@@ -18,7 +18,7 @@ use std::{process, thread::sleep, time::Duration};
 use pmc::{
     config, file,
     helpers::{self, ColoredString},
-    process::{hash, id::Id, Runner, Status},
+    process::{hash, id::Id, Runner, Status, get_process_cpu_usage_percentage},
 };
 
 use tabled::{
@@ -130,7 +130,7 @@ pub fn health(format: &String) {
                 pid = Some(process.pid() as i32);
                 uptime = Some(pid::uptime().unwrap());
                 memory_usage = process.memory_info().ok();
-                cpu_percent = Some(pmc::service::get_process_cpu_usage_percentage(process_id.get::<i64>()));
+                cpu_percent = Some(get_process_cpu_usage_percentage(process_id.get::<i64>()));
             }
         }
     }
@@ -250,7 +250,7 @@ pub fn start(verbose: bool) {
         loop {
             if api_enabled {
                 if let Ok(process) = Process::new(process::id()) {
-                    DAEMON_CPU_PERCENTAGE.observe(pmc::service::get_process_cpu_usage_percentage(process.pid() as i64));
+                    DAEMON_CPU_PERCENTAGE.observe(get_process_cpu_usage_percentage(process.pid() as i64));
                     DAEMON_MEM_USAGE.observe(process.memory_info().ok().unwrap().rss() as f64);
                 }
             }

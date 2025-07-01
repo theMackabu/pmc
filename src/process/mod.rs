@@ -504,7 +504,7 @@ impl Runner {
             if let Ok(process) = process::Process::new(item.pid as u32) {
                 let mem_info_psutil = process.memory_info().ok();
 
-                cpu_percent = Some(super::service::get_process_cpu_usage_percentage(item.pid as i64));
+                cpu_percent = Some(get_process_cpu_usage_percentage(item.pid as i64));
                 memory_usage = Some(MemoryInfo {
                     rss: mem_info_psutil.as_ref().unwrap().rss(),
                     vms: mem_info_psutil.as_ref().unwrap().vms(),
@@ -615,7 +615,7 @@ impl ProcessWrapper {
         if let Ok(process) = process::Process::new(item.pid as u32) {
             let mem_info_psutil = process.memory_info().ok();
 
-            cpu_percent = Some(super::service::get_process_cpu_usage_percentage(item.pid as i64));
+            cpu_percent = Some(get_process_cpu_usage_percentage(item.pid as i64));
             memory_usage = Some(MemoryInfo {
                 rss: mem_info_psutil.as_ref().unwrap().rss(),
                 vms: mem_info_psutil.as_ref().unwrap().vms(),
@@ -670,3 +670,18 @@ pub mod dump;
 pub mod hash;
 pub mod http;
 pub mod id;
+
+/// Rust implementation of CPU usage percentage calculation
+/// Replaces the C++ get_process_cpu_usage_percentage function
+pub fn get_process_cpu_usage_percentage(pid: i64) -> f64 {
+    match process::Process::new(pid as u32) {
+        Ok(mut process) => {
+            // CPU 사용률 계산을 위해 짧은 간격으로 두 번 측정
+            match process.cpu_percent() {
+                Ok(cpu_percent) => (cpu_percent as f64).min(100.0 * num_cpus::get() as f64),
+                Err(_) => 0.0,
+            }
+        },
+        Err(_) => 0.0,
+    }
+}

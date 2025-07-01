@@ -9,7 +9,7 @@ use pmc::{
     config, file,
     helpers::{self, ColoredString},
     log,
-    process::{http, ItemSingle, Runner},
+    process::{http, ItemSingle, Runner, get_process_cpu_usage_percentage},
 };
 
 use tabled::{
@@ -278,7 +278,7 @@ impl<'i> Internal<'i> {
 
                 if let Ok(process) = Process::new(item.pid as u32) {
                     memory_usage = process.memory_info().ok();
-                    cpu_percent = Some(pmc::service::get_process_cpu_usage_percentage(item.pid as i64));
+                    cpu_percent = Some(get_process_cpu_usage_percentage(item.pid as i64));
                 }
 
                 let cpu_percent = match cpu_percent {
@@ -539,7 +539,7 @@ impl<'i> Internal<'i> {
                         let mut usage_internals: (Option<f64>, Option<MemoryInfo>) = (None, None);
 
                         if let Ok(process) = Process::new(item.pid as u32) {
-                            usage_internals = (Some(pmc::service::get_process_cpu_usage_percentage(item.pid as i64)), process.memory_info().ok());
+                            usage_internals = (Some(get_process_cpu_usage_percentage(item.pid as i64)), process.memory_info().ok());
                         }
 
                         cpu_percent = match usage_internals.0 {
