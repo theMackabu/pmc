@@ -19,7 +19,7 @@ unsafe fn environ() -> *mut *const *const libc::c_char {
 
 #[cfg(not(target_os = "macos"))]
 unsafe fn environ() -> *mut *const *const libc::c_char {
-    extern "C" {
+    unsafe extern "C" {
         static mut environ: *const *const libc::c_char;
     }
     std::ptr::addr_of_mut!(environ)

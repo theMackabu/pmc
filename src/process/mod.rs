@@ -1,3 +1,8 @@
+pub mod dump;
+pub mod hash;
+pub mod http;
+pub mod id;
+
 mod unix;
 
 use crate::{
@@ -680,11 +685,6 @@ impl ProcessWrapper {
         }
     }
 }
-
-pub mod dump;
-pub mod hash;
-pub mod http;
-pub mod id;
 
 /// Get the CPU usage percentage of the process
 pub fn get_process_cpu_usage_percentage(pid: i64) -> f64 {
