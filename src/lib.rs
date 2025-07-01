@@ -25,16 +25,17 @@ pub mod service {
 
     unsafe extern "C++" {
         include!("pmc/lib/include/process.h");
-        include!("pmc/lib/include/psutil.h");
         include!("pmc/lib/include/bridge.h");
 
 
         pub fn stop(pid: i64) -> i64;
-        pub fn set_program_name(name: String);
-        pub fn get_child_pid(parentPID: i64) -> i64;
+
         pub fn run(metadata: ProcessMetadata) -> i64;
         pub fn find_chidren(parentPID: i64) -> Vec<i64>;
-        pub fn get_process_cpu_usage_percentage(pid: i64) -> f64;
+
 
     }
 }
+
+// Re-export Rust implementations outside of cxx bridge
+pub use process::get_process_cpu_usage_percentage;
