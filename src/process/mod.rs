@@ -4,7 +4,6 @@ use crate::{
     config,
     config::structs::Server,
     file, helpers,
-    service::{run, stop, ProcessMetadata},
 };
 
 use std::{
@@ -176,6 +175,22 @@ impl Status {
     }
 }
 
+/// Process metadata
+pub struct ProcessMetadata {
+    /// Process name
+    pub name: String,
+    /// Shell command
+    pub shell: String,
+    /// Command
+    pub command: String,
+    /// Log path
+    pub log_path: String,
+    /// Arguments
+    pub args: Vec<String>,
+    /// Environment variables
+    pub env: Vec<String>,
+}
+
 macro_rules! lock {
     ($runner:expr) => {{
         match $runner.lock() {
@@ -245,14 +260,14 @@ impl Runner {
                 },
             };
 
-            let pid = run(ProcessMetadata {
+            let pid = process_run(ProcessMetadata {
                 args: config.args,
                 name: name.clone(),
                 shell: config.shell,
                 command: command.clone(),
                 log_path: config.log_path,
                 env: unix::env(),
-            });
+            }).unwrap_or_else(|err| crashln!("Failed to run process: {err}"));
 
             self.list.insert(
                 id,
@@ -287,7 +302,7 @@ impl Runner {
             let Process { path, script, name, .. } = process.clone();
 
             kill_children(process.children.clone());
-            stop(process.pid);
+            process_stop(process.pid).unwrap_or_else(|err| crashln!("Failed to stop process: {err}"));
 
             if let Err(err) = std::env::set_current_dir(&path) {
                 process.running = false;
@@ -298,14 +313,14 @@ impl Runner {
                 let mut temp_env = process.env.iter().map(|(key, value)| format!("{}={}", key, value)).collect::<Vec<String>>();
                 temp_env.extend(unix::env());
 
-                process.pid = run(ProcessMetadata {
+                process.pid = process_run(ProcessMetadata {
                     args: config.args,
                     name: name.clone(),
                     shell: config.shell,
                     log_path: config.log_path,
                     command: script.to_string(),
                     env: temp_env,
-                });
+                }).unwrap_or_else(|err| crashln!("Failed to run process: {err}"));
 
                 process.running = true;
                 process.children = vec![];
@@ -418,7 +433,7 @@ impl Runner {
             let pid_to_check = process_to_stop.pid;
 
             kill_children(process_to_stop.children.clone());
-            stop(pid_to_check);
+            let _ = process_stop(pid_to_check); // Continue even if stopping fails
 
             // waiting until Process is terminated
             for _ in 0..50 {
@@ -671,12 +686,10 @@ pub mod hash;
 pub mod http;
 pub mod id;
 
-/// Rust implementation of CPU usage percentage calculation
-/// Replaces the C++ get_process_cpu_usage_percentage function
+/// Get the CPU usage percentage of the process
 pub fn get_process_cpu_usage_percentage(pid: i64) -> f64 {
     match process::Process::new(pid as u32) {
         Ok(mut process) => {
-            // CPU 사용률 계산을 위해 짧은 간격으로 두 번 측정
             match process.cpu_percent() {
                 Ok(cpu_percent) => (cpu_percent as f64).min(100.0 * num_cpus::get() as f64),
                 Err(_) => 0.0,
@@ -684,4 +697,85 @@ pub fn get_process_cpu_usage_percentage(pid: i64) -> f64 {
         },
         Err(_) => 0.0,
     }
+}
+
+/// Stop the process
+pub fn process_stop(pid: i64) -> Result<(), String> {
+    let children = process_find_children(pid);
+    
+    // Stop child processes first
+    for child_pid in children {
+        let _ = kill(Pid::from_raw(child_pid as i32), Signal::SIGTERM);
+        // Continue even if stopping child processes fails
+    }
+    
+    // Stop parent process
+    kill(Pid::from_raw(pid as i32), Signal::SIGTERM)
+        .map_err(|err| format!("Failed to stop process {}: {:?}", pid, err))
+}
+
+/// Find the children of the process
+pub fn process_find_children(parent_pid: i64) -> Vec<i64> {
+    let mut children = Vec::new();
+    
+    // Use psutil to check all processes
+    if let Ok(processes) = psutil::process::processes() {
+        for process in processes {
+            if let Ok(process) = process {
+                if let Ok(Some(ppid)) = process.ppid() {
+                    if ppid as i64 == parent_pid {
+                        children.push(process.pid() as i64);
+                        // Recursively find grandchildren
+                        let mut grandchildren = process_find_children(process.pid() as i64);
+                        children.append(&mut grandchildren);
+                    }
+                }
+            }
+        }
+    }
+    
+    children
+}
+
+/// Run the process
+pub fn process_run(metadata: ProcessMetadata) -> Result<i64, String> {
+    use std::process::{Command, Stdio};
+    use std::fs::OpenOptions;
+    
+    let log_base = format!("{}/{}", metadata.log_path, metadata.name.replace(' ', "_"));
+    let stdout_path = format!("{}-out.log", log_base);
+    let stderr_path = format!("{}-error.log", log_base);
+    
+    // Create log files
+    let stdout_file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&stdout_path)
+        .map_err(|err| format!("Failed to open stdout log file {}: {:?}", stdout_path, err))?;
+    
+    let stderr_file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&stderr_path)
+        .map_err(|err| format!("Failed to open stderr log file {}: {:?}", stderr_path, err))?;
+    
+    // Execute process
+    let mut cmd = Command::new(&metadata.shell);
+    cmd.args(&metadata.args)
+       .arg(&metadata.command)
+       .envs(metadata.env.iter().map(|env_var| {
+           let parts: Vec<&str> = env_var.splitn(2, '=').collect();
+           if parts.len() == 2 {
+               (parts[0], parts[1])
+           } else {
+               (env_var.as_str(), "")
+           }
+       }))
+       .stdout(Stdio::from(stdout_file))
+       .stderr(Stdio::from(stderr_file))
+       .stdin(Stdio::null());
+    
+    cmd.spawn()
+        .map(|child| child.id() as i64)
+        .map_err(|err| format!("Failed to spawn process: {:?}", err))
 }

@@ -43,7 +43,7 @@ extern "C" fn handle_termination_signal(_: libc::c_int) {
 fn restart_process() {
     for (id, item) in Runner::new().items_mut() {
         let mut runner = Runner::new();
-        let children = pmc::service::find_chidren(item.pid);
+        let children = pmc::process::process_find_children(item.pid);
 
         if !children.is_empty() && children != item.children {
             log!("[daemon] added", "children" => format!("{children:?}"));
@@ -194,7 +194,9 @@ pub fn stop() {
 
         match pid::read() {
             Ok(pid) => {
-                pmc::service::stop(pid.get());
+                if let Err(err) = pmc::process::process_stop(pid.get()) {
+                    log!("[daemon] failed to stop", "error" => err);
+                }
                 pid::remove();
                 log!("[daemon] stopped", "pid" => pid);
                 println!("{} PMC daemon stopped", *helpers::SUCCESS);

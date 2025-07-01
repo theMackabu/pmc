@@ -12,7 +12,10 @@ impl Iterator for Vars {
 }
 
 #[cfg(target_os = "macos")]
-unsafe fn environ() -> *mut *const *const libc::c_char { libc::_NSGetEnviron() as *mut *const *const libc::c_char }
+unsafe fn environ() -> *mut *const *const libc::c_char {
+    let environ = unsafe { libc::_NSGetEnviron() };
+    environ as *mut *const *const libc::c_char
+}
 
 #[cfg(not(target_os = "macos"))]
 unsafe fn environ() -> *mut *const *const libc::c_char {
