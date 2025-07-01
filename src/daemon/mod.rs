@@ -207,13 +207,7 @@ pub fn stop() {
 }
 
 pub fn start(verbose: bool) {
-    let external = match global!("pmc.daemon.kind").as_str() {
-        "external" => true,
-        "default" => false,
-        "rust" => false,
-        "cc" => true,
-        _ => false,
-    };
+
 
     println!("{} Spawning PMC daemon (pmc_base={})", *helpers::SUCCESS, global!("pmc.base"));
 
@@ -267,15 +261,10 @@ pub fn start(verbose: bool) {
     }
 
     println!("{} PMC Successfully daemonized (type={})", *helpers::SUCCESS, global!("pmc.daemon.kind"));
-    if external {
-        let callback = pmc::Callback(init);
-        pmc::service::try_fork(false, verbose, callback);
-    } else {
-        match daemon(false, verbose) {
-            Ok(Fork::Parent(_)) => {}
-            Ok(Fork::Child) => init(),
-            Err(err) => crashln!("{} Daemon creation failed with code {err}", *helpers::FAIL),
-        }
+    match daemon(false, verbose) {
+        Ok(Fork::Parent(_)) => {}
+        Ok(Fork::Child) => init(),
+        Err(err) => crashln!("{} Daemon creation failed with code {err}", *helpers::FAIL),
     }
 }
 
