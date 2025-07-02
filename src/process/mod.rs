@@ -214,9 +214,15 @@ macro_rules! lock {
 
 fn kill_children(children: Vec<i64>) {
     for pid in children {
-        if let Err(err) = kill(Pid::from_raw(pid as i32), Signal::SIGTERM) {
-            log::error!("Failed to stop pid {pid}: {err:?}");
-        };
+        match kill(Pid::from_raw(pid as i32), Signal::SIGTERM) {
+            Ok(_) => {},
+            Err(nix::errno::Errno::ESRCH) => {
+                // Process already terminated
+            },
+            Err(err) => {
+                log::error!("Failed to stop pid {}: {err:?}", pid);
+            }
+        }
     }
 }
 
@@ -574,12 +580,12 @@ impl Runner {
 impl LogInfo {
     pub fn flush(&self) {
         if let Err(err) = File::create(&self.out) {
-            log::debug!("{err}");
+            log::error!("{err}");
             crashln!("{} Failed to purge logs (path={})", *helpers::FAIL, self.error);
         }
 
         if let Err(err) = File::create(&self.error) {
-            log::debug!("{err}");
+            log::error!("{err}");
             crashln!("{} Failed to purge logs (path={})", *helpers::FAIL, self.error);
         }
     }
@@ -709,8 +715,14 @@ pub fn process_stop(pid: i64) -> Result<(), String> {
     }
     
     // Stop parent process
-    kill(Pid::from_raw(pid as i32), Signal::SIGTERM)
-        .map_err(|err| format!("Failed to stop process {}: {:?}", pid, err))
+    match kill(Pid::from_raw(pid as i32), Signal::SIGTERM) {
+        Ok(_) => Ok(()),
+        Err(nix::errno::Errno::ESRCH) => {
+            // Process already terminated
+            Ok(())
+        },
+        Err(err) => Err(format!("Failed to stop process {}: {:?}", pid, err))
+    }
 }
 
 /// Find the children of the process
