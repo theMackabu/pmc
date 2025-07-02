@@ -4,7 +4,8 @@ use chrono::{DateTime, Utc};
 use global_placeholders::global;
 use macros_rs::{fmtstr, string, ternary, then};
 use prometheus::{Encoder, TextEncoder};
-use psutil::process::Process;
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+use pmc::process::unix::NativeProcess as Process;
 use reqwest::header::HeaderValue;
 use tera::Context;
 use utoipa::ToSchema;

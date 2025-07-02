@@ -9,7 +9,8 @@ use colored::Colorize;
 use fork::{daemon, Fork};
 use global_placeholders::global;
 use macros_rs::{crashln, str, string, ternary, then};
-use psutil::process::{MemoryInfo, Process};
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+use pmc::process::{MemoryInfo, unix::NativeProcess as Process};
 use serde::Serialize;
 use serde_json::json;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -129,7 +130,7 @@ pub fn health(format: &String) {
             if let Ok(process) = Process::new(process_id.get::<u32>()) {
                 pid = Some(process.pid() as i32);
                 uptime = Some(pid::uptime().unwrap());
-                memory_usage = process.memory_info().ok();
+                memory_usage = process.memory_info().ok().map(MemoryInfo::from);
                 cpu_percent = Some(get_process_cpu_usage_percentage(process_id.get::<i64>()));
             }
         }
@@ -141,7 +142,7 @@ pub fn health(format: &String) {
     };
 
     let memory_usage = match memory_usage {
-        Some(usage) => helpers::format_memory(usage.rss()),
+        Some(usage) => helpers::format_memory(usage.rss),
         None => string!("0b"),
     };
 

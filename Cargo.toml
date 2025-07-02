@@ -10,7 +10,6 @@ description = "PMC is a simple and easy to use PM2 alternative"
 tar = "0.4.41"
 chrono = "0.4.38"
 flate2 = "1.0.31"
-cxx-build = "1.0.126"
 
 [dependencies]
 ron = "0.8.1"
@@ -48,7 +47,7 @@ num_cpus = "1.16.0"
 
 tokio = { version = "1.39.2", features = ["full"] }
 rocket = { version = "0.5.1", features = ["json"] }
-psutil = { version = "3.3.0", features = ["serde"] }
+
 tabled = { version = "0.15.0", features = ["ansi"] }
 chrono = { version = "0.4.38", features = ["serde"] }
 serde = { version = "1.0.208", features = ["derive"] }

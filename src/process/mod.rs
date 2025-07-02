@@ -2,8 +2,7 @@ pub mod dump;
 pub mod hash;
 pub mod http;
 pub mod id;
-
-mod unix;
+pub mod unix;
 
 use crate::{
     config,
@@ -29,7 +28,6 @@ use chrono::serde::ts_milliseconds;
 use chrono::{DateTime, Utc};
 use global_placeholders::global;
 use macros_rs::{crashln, string, ternary, then};
-use psutil::process;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use utoipa::ToSchema;
@@ -68,6 +66,15 @@ pub struct Stats {
 pub struct MemoryInfo {
     pub rss: u64,
     pub vms: u64,
+}
+
+impl From<unix::NativeMemoryInfo> for MemoryInfo {
+    fn from(native: unix::NativeMemoryInfo) -> Self {
+        MemoryInfo {
+            rss: native.rss(),
+            vms: native.vms(),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, ToSchema)]
@@ -442,7 +449,7 @@ impl Runner {
 
             // waiting until Process is terminated
             for _ in 0..50 {
-                match psutil::process::Process::new(pid_to_check as u32) {
+                match unix::NativeProcess::new(pid_to_check as u32) {
                     Ok(_p) => thread::sleep(Duration::from_millis(100)),
                     Err(_) => break,
                 }
@@ -521,14 +528,10 @@ impl Runner {
             let mut memory_usage: Option<MemoryInfo> = None;
             let mut cpu_percent: Option<f64> = None;
 
-            if let Ok(process) = process::Process::new(item.pid as u32) {
-                let mem_info_psutil = process.memory_info().ok();
-
+            if let Ok(process) = unix::NativeProcess::new(item.pid as u32) && 
+                let Ok(mem_info_native) = process.memory_info() {
                 cpu_percent = Some(get_process_cpu_usage_percentage(item.pid as i64));
-                memory_usage = Some(MemoryInfo {
-                    rss: mem_info_psutil.as_ref().unwrap().rss(),
-                    vms: mem_info_psutil.as_ref().unwrap().vms(),
-                });
+                memory_usage = Some(MemoryInfo::from(mem_info_native));
             }
 
             let cpu_percent = match cpu_percent {
@@ -632,14 +635,10 @@ impl ProcessWrapper {
         let mut memory_usage: Option<MemoryInfo> = None;
         let mut cpu_percent: Option<f64> = None;
 
-        if let Ok(process) = process::Process::new(item.pid as u32) {
-            let mem_info_psutil = process.memory_info().ok();
-
+        if let Ok(process) = unix::NativeProcess::new(item.pid as u32) &&
+            let Ok(mem_info_native) = process.memory_info() {
             cpu_percent = Some(get_process_cpu_usage_percentage(item.pid as i64));
-            memory_usage = Some(MemoryInfo {
-                rss: mem_info_psutil.as_ref().unwrap().rss(),
-                vms: mem_info_psutil.as_ref().unwrap().vms(),
-            });
+            memory_usage = Some(MemoryInfo::from(mem_info_native));
         }
 
         let status = if item.running {
@@ -688,10 +687,10 @@ impl ProcessWrapper {
 
 /// Get the CPU usage percentage of the process
 pub fn get_process_cpu_usage_percentage(pid: i64) -> f64 {
-    match process::Process::new(pid as u32) {
-        Ok(mut process) => {
+    match unix::NativeProcess::new(pid as u32) {
+        Ok(process) => {
             match process.cpu_percent() {
-                Ok(cpu_percent) => (cpu_percent as f64).min(100.0 * num_cpus::get() as f64),
+                Ok(cpu_percent) => cpu_percent.min(100.0 * num_cpus::get() as f64),
                 Err(_) => 0.0,
             }
         },
@@ -718,14 +717,33 @@ pub fn process_stop(pid: i64) -> Result<(), String> {
 pub fn process_find_children(parent_pid: i64) -> Vec<i64> {
     let mut children = Vec::new();
     
-    // Use psutil to check all processes
-    if let Ok(processes) = psutil::process::processes() {
-        for process in processes {
-            if let Ok(process) = process && let Ok(Some(ppid)) = process.ppid() {
+    // Use our native process implementation
+    match unix::native_processes() {
+        Ok(processes) => {
+            for process in processes {
+                if let Ok(Some(ppid)) = process.ppid() {
+                    if ppid as i64 == parent_pid {
+                        children.push(process.pid() as i64);
+                        // Recursively find grandchildren
+                        let mut grandchildren = process_find_children(process.pid() as i64);
+                        children.append(&mut grandchildren);
+                    }
+                }
+            }
+        },
+        Err(_) => {
+            log::warn!("Native process enumeration failed, using fallback method for finding children of PID {}", parent_pid);
+            
+            for test_pid in 1..65536 {
+                let ppid = match unix::get_parent_pid(test_pid) {
+                    Ok(Some(ppid)) => ppid,
+                    _ => continue,
+                };
+
                 if ppid as i64 == parent_pid {
-                    children.push(process.pid() as i64);
+                    children.push(test_pid as i64);
                     // Recursively find grandchildren
-                    let mut grandchildren = process_find_children(process.pid() as i64);
+                    let mut grandchildren = process_find_children(test_pid as i64);
                     children.append(&mut grandchildren);
                 }
             }
@@ -776,4 +794,142 @@ pub fn process_run(metadata: ProcessMetadata) -> Result<i64, String> {
     cmd.spawn()
         .map(|child| child.id() as i64)
         .map_err(|err| format!("Failed to spawn process: {:?}", err))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+    use std::thread;
+    use std::time::Duration;
+
+    fn setup_test_runner() -> Runner {
+        Runner {
+            id: id::Id::new(1),
+            list: BTreeMap::new(),
+            remote: None,
+        }
+    }
+
+    #[test]
+    fn test_environment_variables() {
+        let mut runner = setup_test_runner();
+        let id = runner.id.next();
+        
+        let process = Process {
+            id,
+            pid: 12345,
+            env: BTreeMap::new(),
+            name: "test_process".to_string(),
+            path: PathBuf::from("/tmp"),
+            script: "echo 'hello world'".to_string(),
+            restarts: 0,
+            running: true,
+            crash: Crash { crashed: false, value: 0 },
+            watch: Watch {
+                enabled: false,
+                path: String::new(),
+                hash: String::new(),
+            },
+            children: vec![],
+            started: Utc::now(),
+        };
+
+        runner.list.insert(id, process);
+        
+        // Test setting environment variables
+        let mut env = BTreeMap::new();
+        env.insert("TEST_VAR".to_string(), "test_value".to_string());
+        env.insert("ANOTHER_VAR".to_string(), "another_value".to_string());
+        
+        runner.set_env(id, env);
+        
+        let process_env = &runner.info(id).unwrap().env;
+        assert_eq!(process_env.get("TEST_VAR"), Some(&"test_value".to_string()));
+        assert_eq!(process_env.get("ANOTHER_VAR"), Some(&"another_value".to_string()));
+        
+        // Test clearing environment variables
+        runner.clear_env(id);
+        assert!(runner.info(id).unwrap().env.is_empty());
+    }
+
+    #[test]
+    fn test_children_processes() {
+        let mut runner = setup_test_runner();
+        let id = runner.id.next();
+        
+        let process = Process {
+            id,
+            pid: 12345,
+            env: BTreeMap::new(),
+            name: "test_process".to_string(),
+            path: PathBuf::from("/tmp"),
+            script: "echo 'hello world'".to_string(),
+            restarts: 0,
+            running: true,
+            crash: Crash { crashed: false, value: 0 },
+            watch: Watch {
+                enabled: false,
+                path: String::new(),
+                hash: String::new(),
+            },
+            children: vec![],
+            started: Utc::now(),
+        };
+
+        runner.list.insert(id, process);
+        
+        // Test setting children
+        let children = vec![12346, 12347, 12348];
+        runner.set_children(id, children.clone());
+        
+        assert_eq!(runner.info(id).unwrap().children, children);
+    }
+
+    #[test]
+    fn test_cpu_usage_measurement() {
+        // Test with current process (should return valid percentage)
+        let current_pid = std::process::id() as i64;
+        let cpu_usage = get_process_cpu_usage_percentage(current_pid);
+        
+        // CPU usage should be between 0 and 100 * number of cores
+        assert!(cpu_usage >= 0.0);
+        assert!(cpu_usage <= 100.0 * num_cpus::get() as f64);
+
+        println!("CPU usage: {}", cpu_usage);
+        
+        // Test with invalid PID (should return 0.0)
+        let invalid_pid = 999999;
+        let cpu_usage = get_process_cpu_usage_percentage(invalid_pid);
+        assert_eq!(cpu_usage, 0.0);
+    }
+
+    // Integration test for actual process operations
+    #[test]
+    #[ignore = "it requires actual process execution"]
+    fn test_real_process_execution() {
+        let metadata = ProcessMetadata {
+            name: "test_echo".to_string(),
+            shell: "/bin/sh".to_string(),
+            command: "echo 'Hello from test'".to_string(),
+            log_path: "/tmp".to_string(),
+            args: vec!["-c".to_string()],
+            env: vec!["TEST_ENV=test_value".to_string()],
+        };
+
+        match process_run(metadata) {
+            Ok(pid) => {
+                assert!(pid > 0);
+                
+                // Wait a bit for process to complete
+                thread::sleep(Duration::from_millis(100));
+                
+                // Try to stop it (might already be finished)
+                let _ = process_stop(pid);
+            }
+            Err(e) => {
+                panic!("Failed to run test process: {}", e);
+            }
+        }
+    }
 }
