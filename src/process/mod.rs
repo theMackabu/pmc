@@ -721,14 +721,12 @@ pub fn process_find_children(parent_pid: i64) -> Vec<i64> {
     // Use psutil to check all processes
     if let Ok(processes) = psutil::process::processes() {
         for process in processes {
-            if let Ok(process) = process {
-                if let Ok(Some(ppid)) = process.ppid() {
-                    if ppid as i64 == parent_pid {
-                        children.push(process.pid() as i64);
-                        // Recursively find grandchildren
-                        let mut grandchildren = process_find_children(process.pid() as i64);
-                        children.append(&mut grandchildren);
-                    }
+            if let Ok(process) = process && let Ok(Some(ppid)) = process.ppid() {
+                if ppid as i64 == parent_pid {
+                    children.push(process.pid() as i64);
+                    // Recursively find grandchildren
+                    let mut grandchildren = process_find_children(process.pid() as i64);
+                    children.append(&mut grandchildren);
                 }
             }
         }
