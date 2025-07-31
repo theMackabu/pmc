@@ -1,6 +1,7 @@
 use colored::Colorize;
 use macros_rs::{crashln, string, ternary, then};
-use psutil::process::{MemoryInfo, Process};
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+use pmc::process::{MemoryInfo, unix::NativeProcess as Process};
 use regex::Regex;
 use serde::Serialize;
 use serde_json::json;
@@ -9,7 +10,7 @@ use pmc::{
     config, file,
     helpers::{self, ColoredString},
     log,
-    process::{http, ItemSingle, Runner},
+    process::{http, ItemSingle, Runner, get_process_cpu_usage_percentage},
 };
 
 use tabled::{
@@ -277,8 +278,8 @@ impl<'i> Internal<'i> {
                 let children = if item.children.is_empty() { "none".to_string() } else { format!("{:?}", item.children) };
 
                 if let Ok(process) = Process::new(item.pid as u32) {
-                    memory_usage = process.memory_info().ok();
-                    cpu_percent = Some(pmc::service::get_process_cpu_usage_percentage(item.pid as i64));
+                    memory_usage = process.memory_info().ok().map(MemoryInfo::from);
+                    cpu_percent = Some(get_process_cpu_usage_percentage(item.pid as i64));
                 }
 
                 let cpu_percent = match cpu_percent {
@@ -287,7 +288,7 @@ impl<'i> Internal<'i> {
                 };
 
                 let memory_usage = match memory_usage {
-                    Some(usage) => helpers::format_memory(usage.rss()),
+                    Some(usage) => helpers::format_memory(usage.rss),
                     None => string!("0b"),
                 };
 
@@ -539,7 +540,7 @@ impl<'i> Internal<'i> {
                         let mut usage_internals: (Option<f64>, Option<MemoryInfo>) = (None, None);
 
                         if let Ok(process) = Process::new(item.pid as u32) {
-                            usage_internals = (Some(pmc::service::get_process_cpu_usage_percentage(item.pid as i64)), process.memory_info().ok());
+                            usage_internals = (Some(get_process_cpu_usage_percentage(item.pid as i64)), process.memory_info().ok().map(MemoryInfo::from));
                         }
 
                         cpu_percent = match usage_internals.0 {
@@ -548,7 +549,7 @@ impl<'i> Internal<'i> {
                         };
 
                         memory_usage = match usage_internals.1 {
-                            Some(usage) => helpers::format_memory(usage.rss()),
+                            Some(usage) => helpers::format_memory(usage.rss),
                             None => string!("0b"),
                         };
                     } else {

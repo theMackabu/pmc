@@ -9,7 +9,8 @@ use colored::Colorize;
 use fork::{daemon, Fork};
 use global_placeholders::global;
 use macros_rs::{crashln, str, string, ternary, then};
-use psutil::process::{MemoryInfo, Process};
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+use pmc::process::{MemoryInfo, unix::NativeProcess as Process};
 use serde::Serialize;
 use serde_json::json;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -18,7 +19,7 @@ use std::{process, thread::sleep, time::Duration};
 use pmc::{
     config, file,
     helpers::{self, ColoredString},
-    process::{hash, id::Id, Runner, Status},
+    process::{hash, id::Id, Runner, Status, get_process_cpu_usage_percentage},
 };
 
 use tabled::{
@@ -43,7 +44,7 @@ extern "C" fn handle_termination_signal(_: libc::c_int) {
 fn restart_process() {
     for (id, item) in Runner::new().items_mut() {
         let mut runner = Runner::new();
-        let children = pmc::service::find_chidren(item.pid);
+        let children = pmc::process::process_find_children(item.pid);
 
         if !children.is_empty() && children != item.children {
             log!("[daemon] added", "children" => format!("{children:?}"));
@@ -129,8 +130,8 @@ pub fn health(format: &String) {
             if let Ok(process) = Process::new(process_id.get::<u32>()) {
                 pid = Some(process.pid() as i32);
                 uptime = Some(pid::uptime().unwrap());
-                memory_usage = process.memory_info().ok();
-                cpu_percent = Some(pmc::service::get_process_cpu_usage_percentage(process_id.get::<i64>()));
+                memory_usage = process.memory_info().ok().map(MemoryInfo::from);
+                cpu_percent = Some(get_process_cpu_usage_percentage(process_id.get::<i64>()));
             }
         }
     }
@@ -141,7 +142,7 @@ pub fn health(format: &String) {
     };
 
     let memory_usage = match memory_usage {
-        Some(usage) => helpers::format_memory(usage.rss()),
+        Some(usage) => helpers::format_memory(usage.rss),
         None => string!("0b"),
     };
 
@@ -194,7 +195,9 @@ pub fn stop() {
 
         match pid::read() {
             Ok(pid) => {
-                pmc::service::stop(pid.get());
+                if let Err(err) = pmc::process::process_stop(pid.get()) {
+                    log!("[daemon] failed to stop", "error" => err);
+                }
                 pid::remove();
                 log!("[daemon] stopped", "pid" => pid);
                 println!("{} PMC daemon stopped", *helpers::SUCCESS);
@@ -207,13 +210,7 @@ pub fn stop() {
 }
 
 pub fn start(verbose: bool) {
-    let external = match global!("pmc.daemon.kind").as_str() {
-        "external" => true,
-        "default" => false,
-        "rust" => false,
-        "cc" => true,
-        _ => false,
-    };
+
 
     println!("{} Spawning PMC daemon (pmc_base={})", *helpers::SUCCESS, global!("pmc.base"));
 
@@ -256,7 +253,7 @@ pub fn start(verbose: bool) {
         loop {
             if api_enabled {
                 if let Ok(process) = Process::new(process::id()) {
-                    DAEMON_CPU_PERCENTAGE.observe(pmc::service::get_process_cpu_usage_percentage(process.pid() as i64));
+                    DAEMON_CPU_PERCENTAGE.observe(get_process_cpu_usage_percentage(process.pid() as i64));
                     DAEMON_MEM_USAGE.observe(process.memory_info().ok().unwrap().rss() as f64);
                 }
             }
@@ -267,15 +264,10 @@ pub fn start(verbose: bool) {
     }
 
     println!("{} PMC Successfully daemonized (type={})", *helpers::SUCCESS, global!("pmc.daemon.kind"));
-    if external {
-        let callback = pmc::Callback(init);
-        pmc::service::try_fork(false, verbose, callback);
-    } else {
-        match daemon(false, verbose) {
-            Ok(Fork::Parent(_)) => {}
-            Ok(Fork::Child) => init(),
-            Err(err) => crashln!("{} Daemon creation failed with code {err}", *helpers::FAIL),
-        }
+    match daemon(false, verbose) {
+        Ok(Fork::Parent(_)) => {}
+        Ok(Fork::Child) => init(),
+        Err(err) => crashln!("{} Daemon creation failed with code {err}", *helpers::FAIL),
     }
 }
 

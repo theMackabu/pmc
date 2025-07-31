@@ -12,11 +12,14 @@ impl Iterator for Vars {
 }
 
 #[cfg(target_os = "macos")]
-unsafe fn environ() -> *mut *const *const libc::c_char { libc::_NSGetEnviron() as *mut *const *const libc::c_char }
+unsafe fn environ() -> *mut *const *const libc::c_char {
+    let environ = unsafe { libc::_NSGetEnviron() };
+    environ as *mut *const *const libc::c_char
+}
 
 #[cfg(not(target_os = "macos"))]
 unsafe fn environ() -> *mut *const *const libc::c_char {
-    extern "C" {
+    unsafe extern "C" {
         static mut environ: *const *const libc::c_char;
     }
     std::ptr::addr_of_mut!(environ)
@@ -46,3 +49,16 @@ pub fn env() -> Vec<String> {
         Some(OsString::from_vec(input.to_vec()))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_env_parsing() {
+        let env_vars = env();
+        assert!(!env_vars.is_empty());
+        // Most systems should have PATH environment variable
+        assert!(env_vars.iter().any(|var| var.starts_with("PATH=")));
+    }
+} 

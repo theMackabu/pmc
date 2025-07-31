@@ -13,7 +13,7 @@ PMC (Process Management Controller) is a simple PM2 alternative written in Rust.
 
 ## Usage
 
-```bash
+```bas
 # Start/Restart a process
 pmc start <id/name> or <script> [--name <name>]
 

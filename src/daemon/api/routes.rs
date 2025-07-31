@@ -4,7 +4,8 @@ use chrono::{DateTime, Utc};
 use global_placeholders::global;
 use macros_rs::{fmtstr, string, ternary, then};
 use prometheus::{Encoder, TextEncoder};
-use psutil::process::Process;
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+use pmc::process::unix::NativeProcess as Process;
 use reqwest::header::HeaderValue;
 use tera::Context;
 use utoipa::ToSchema;
@@ -27,7 +28,7 @@ use super::{
 
 use pmc::{
     config, file, helpers,
-    process::{dump, http::client, ItemSingle, ProcessItem, Runner},
+    process::{dump, http::client, ItemSingle, ProcessItem, Runner, get_process_cpu_usage_percentage},
 };
 
 use crate::daemon::{
@@ -799,7 +800,7 @@ pub async fn get_metrics() -> MetricsRoot {
                 pid = Some(process_id);
                 uptime = Some(pid::uptime().unwrap());
                 memory_usage = Some(process.memory_info().unwrap().rss());
-                cpu_percent = Some(pmc::service::get_process_cpu_usage_percentage(process_id.get::<i64>()));
+                cpu_percent = Some(get_process_cpu_usage_percentage(process_id.get::<i64>()));
             }
         }
     }
