@@ -11,7 +11,7 @@ use crate::{
 };
 
 use std::{
-    collections::HashSet, env, fs::File, path::PathBuf, sync::{Arc, Mutex}, thread, time::Duration,
+    collections::{HashSet, HashMap}, env, fs::File, path::PathBuf, sync::{Arc, Mutex}, thread, time::Duration,
 };
 
 use nix::{
