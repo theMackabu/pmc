@@ -11,12 +11,7 @@ use crate::{
 };
 
 use std::{
-    env,
-    fs::File,
-    path::PathBuf,
-    sync::{Arc, Mutex},
-    thread,
-    time::Duration,
+    collections::HashSet, env, fs::File, path::PathBuf, sync::{Arc, Mutex}, thread, time::Duration,
 };
 
 use nix::{
@@ -728,40 +723,64 @@ pub fn process_stop(pid: i64) -> Result<(), String> {
 /// Find the children of the process
 pub fn process_find_children(parent_pid: i64) -> Vec<i64> {
     let mut children = Vec::new();
-    
-    // Use our native process implementation
-    match unix::native_processes() {
-        Ok(processes) => {
-            for process in processes {
-                if let Ok(Some(ppid)) = process.ppid() {
-                    if ppid as i64 == parent_pid {
-                        children.push(process.pid() as i64);
-                        // Recursively find grandchildren
-                        let mut grandchildren = process_find_children(process.pid() as i64);
-                        children.append(&mut grandchildren);
-                    }
-                }
-            }
-        },
-        Err(_) => {
-            log::warn!("Native process enumeration failed, using fallback method for finding children of PID {}", parent_pid);
-            
-            for test_pid in 1..65536 {
-                let ppid = match unix::get_parent_pid(test_pid) {
-                    Ok(Some(ppid)) => ppid,
-                    _ => continue,
-                };
+    let mut to_check = vec![parent_pid];
+    let mut checked = HashSet::new();
 
-                if ppid as i64 == parent_pid {
-                    children.push(test_pid as i64);
-                    // Recursively find grandchildren
-                    let mut grandchildren = process_find_children(test_pid as i64);
-                    children.append(&mut grandchildren);
+    #[cfg(target_os = "linux")]
+    {
+        while let Some(pid) = to_check.pop() {
+            if checked.contains(&pid) {
+                continue;
+            }
+            checked.insert(pid);
+
+            let proc_path = format!("/proc/{}/task/{}/children", pid, pid);
+            let Ok(contents) = std::fs::read_to_string(&proc_path) else {
+                continue;
+            };
+
+            for child_pid_str in contents.split_whitespace() {
+                if let Ok(child_pid) = child_pid_str.parse::<i64>() {
+                    children.push(child_pid);
+                    to_check.push(child_pid); // Check grandchildren
                 }
             }
         }
     }
-    
+
+    #[cfg(not(target_os = "linux"))]
+    {
+        match unix::native_processes() {
+            Ok(processes) => {
+                // Build parent->children map in single pass
+                let mut parent_map: HashMap<i64, Vec<i64>> = HashMap::new();
+
+                processes.iter().for_each(|process| {
+                    if let Ok(Some(ppid)) = process.ppid() {
+                        parent_map.entry(ppid as i64)
+                            .or_insert_with(Vec::new)
+                            .push(process.pid() as i64);
+                    }
+                });
+
+                while let Some(pid) = to_check.pop() &&
+                    let Some(direct_children) = parent_map.get(&pid) {
+
+                    for &child in direct_children {
+                        if !checked.contains(&child) {
+                            children.push(child);
+                            to_check.push(child);
+                            checked.insert(child);
+                        }
+                    }
+                }
+            },
+            Err(_) => {
+                log::warn!("Native process enumeration failed for PID {}", parent_pid);
+            }
+        }
+    }
+
     children
 }
 
@@ -769,24 +788,24 @@ pub fn process_find_children(parent_pid: i64) -> Vec<i64> {
 pub fn process_run(metadata: ProcessMetadata) -> Result<i64, String> {
     use std::process::{Command, Stdio};
     use std::fs::OpenOptions;
-    
+
     let log_base = format!("{}/{}", metadata.log_path, metadata.name.replace(' ', "_"));
     let stdout_path = format!("{}-out.log", log_base);
     let stderr_path = format!("{}-error.log", log_base);
-    
+
     // Create log files
     let stdout_file = OpenOptions::new()
         .create(true)
         .append(true)
         .open(&stdout_path)
         .map_err(|err| format!("Failed to open stdout log file {}: {:?}", stdout_path, err))?;
-    
+
     let stderr_file = OpenOptions::new()
         .create(true)
         .append(true)
         .open(&stderr_path)
         .map_err(|err| format!("Failed to open stderr log file {}: {:?}", stderr_path, err))?;
-    
+
     // Execute process
     let mut cmd = Command::new(&metadata.shell);
     cmd.args(&metadata.args)
@@ -802,10 +821,14 @@ pub fn process_run(metadata: ProcessMetadata) -> Result<i64, String> {
        .stdout(Stdio::from(stdout_file))
        .stderr(Stdio::from(stderr_file))
        .stdin(Stdio::null());
-    
-    cmd.spawn()
-        .map(|child| child.id() as i64)
-        .map_err(|err| format!("Failed to spawn process: {:?}", err))
+
+    let child = cmd.spawn()
+        .map_err(|err| format!("Failed to spawn process: {:?}", err))?;
+
+    let shell_pid = child.id() as i64;
+    let actual_pid = unix::get_actual_child_pid(shell_pid);
+
+    Ok(actual_pid)
 }
 
 #[cfg(test)]
