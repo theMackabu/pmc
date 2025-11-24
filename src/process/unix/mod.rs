@@ -1,5 +1,5 @@
 use std::thread;
-use std::time::{SystemTime, Duration};
+use std::time::{Duration, SystemTime};
 
 pub mod cpu;
 pub mod env;
@@ -8,8 +8,8 @@ pub mod process_info;
 pub mod process_list;
 
 pub use cpu::get_cpu_percent;
-pub use env::{env, Vars};
-pub use memory::{get_memory_info, NativeMemoryInfo};
+pub use env::{Vars, env};
+pub use memory::{NativeMemoryInfo, get_memory_info};
 pub use process_info::{get_parent_pid, get_process_name, get_process_start_time};
 pub use process_list::native_processes;
 
@@ -32,7 +32,7 @@ impl NativeProcess {
         let memory_info = get_memory_info(pid).ok();
         let cpu_percent = get_cpu_percent(pid);
         let create_time = get_process_start_time(pid)?;
-        
+
         Ok(NativeProcess {
             pid,
             ppid,
@@ -42,14 +42,24 @@ impl NativeProcess {
             create_time,
         })
     }
-    
-    pub fn pid(&self) -> u32 { self.pid }
-    pub fn ppid(&self) -> Result<Option<u32>, String> { Ok(self.ppid) }
-    pub fn name(&self) -> Result<String, String> { Ok(self.name.clone()) }
-    pub fn memory_info(&self) -> Result<NativeMemoryInfo, String> {
-        self.memory_info.clone().ok_or_else(|| "Memory info not available".to_string())
+
+    pub fn pid(&self) -> u32 {
+        self.pid
     }
-    pub fn cpu_percent(&self) -> Result<f64, String> { Ok(self.cpu_percent) }
+    pub fn ppid(&self) -> Result<Option<u32>, String> {
+        Ok(self.ppid)
+    }
+    pub fn name(&self) -> Result<String, String> {
+        Ok(self.name.clone())
+    }
+    pub fn memory_info(&self) -> Result<NativeMemoryInfo, String> {
+        self.memory_info
+            .clone()
+            .ok_or_else(|| "Memory info not available".to_string())
+    }
+    pub fn cpu_percent(&self) -> Result<f64, String> {
+        Ok(self.cpu_percent)
+    }
 }
 
 #[cfg(target_os = "linux")]
@@ -57,21 +67,24 @@ pub fn get_actual_child_pid(shell_pid: i64) -> i64 {
     thread::sleep(Duration::from_millis(PROCESS_OPERATION_DELAY_MS));
 
     let proc_path = format!("/proc/{}/task/{}/children", shell_pid, shell_pid);
-    if let Ok(contents) = std::fs::read_to_string(&proc_path) &&
-        let Some(child_pid_str) = contents.split_whitespace().next() &&
-        let Ok(child_pid) = child_pid_str.parse::<i64>() {
-         
+    if let Ok(contents) = std::fs::read_to_string(&proc_path)
+        && let Some(child_pid_str) = contents.split_whitespace().next()
+        && let Ok(child_pid) = child_pid_str.parse::<i64>()
+    {
         return child_pid;
     }
 
     let pid = if let Ok(processes) = native_processes() {
-        processes.iter().find(|process| {
-            if let Ok(Some(ppid)) = process.ppid() {
-                ppid as i64 == shell_pid
-            } else {
-                false
-            }
-        }).map_or(shell_pid, |p| p.pid() as i64)
+        processes
+            .iter()
+            .find(|process| {
+                if let Ok(Some(ppid)) = process.ppid() {
+                    ppid as i64 == shell_pid
+                } else {
+                    false
+                }
+            })
+            .map_or(shell_pid, |p| p.pid() as i64)
     } else {
         shell_pid
     };
@@ -91,7 +104,7 @@ pub fn get_actual_child_pid(shell_pid: i64) -> i64 {
                 Ok(Some(ppid)) => ppid as i64,
                 _ => continue,
             };
-            
+
             if ppid == shell_pid {
                 return process.pid() as i64;
             }
@@ -108,4 +121,4 @@ pub fn get_actual_child_pid(shell_pid: i64) -> i64 {
     }
 
     shell_pid
-} 
+}

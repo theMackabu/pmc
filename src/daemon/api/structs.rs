@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use utoipa::{
-    openapi::{KnownFormat, Object, ObjectBuilder, SchemaFormat, SchemaType},
     ToSchema,
+    openapi::{KnownFormat, Object, ObjectBuilder, SchemaFormat, SchemaType},
 };
 
 #[derive(Serialize, Deserialize, ToSchema)]

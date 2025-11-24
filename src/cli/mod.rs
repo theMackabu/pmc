@@ -11,7 +11,12 @@ use pmc::{helpers, process::Runner};
 use std::env;
 
 pub(crate) fn format(server_name: &String) -> (String, String) {
-    let kind = ternary!(matches!(&**server_name, "internal" | "local"), "", "remote ").to_string();
+    let kind = ternary!(
+        matches!(&**server_name, "internal" | "local"),
+        "",
+        "remote "
+    )
+    .to_string();
     return (kind, server_name.to_string());
 }
 
@@ -19,13 +24,29 @@ pub fn get_version(short: bool) -> String {
     return match short {
         true => format!("{} {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION")),
         false => match env!("GIT_HASH") {
-            "" => format!("{} ({}) [{}]", env!("CARGO_PKG_VERSION"), env!("BUILD_DATE"), env!("PROFILE")),
-            hash => format!("{} ({} {hash}) [{}]", env!("CARGO_PKG_VERSION"), env!("BUILD_DATE"), env!("PROFILE")),
+            "" => format!(
+                "{} ({}) [{}]",
+                env!("CARGO_PKG_VERSION"),
+                env!("BUILD_DATE"),
+                env!("PROFILE")
+            ),
+            hash => format!(
+                "{} ({} {hash}) [{}]",
+                env!("CARGO_PKG_VERSION"),
+                env!("BUILD_DATE"),
+                env!("PROFILE")
+            ),
         },
     };
 }
 
-pub fn start(name: &Option<String>, args: &Args, watch: &Option<String>, reset_env: &bool, server_name: &String) {
+pub fn start(
+    name: &Option<String>,
+    args: &Args,
+    watch: &Option<String>,
+    reset_env: &bool,
+    server_name: &String,
+) {
     let mut runner = Runner::new();
     let (kind, list_name) = format(server_name);
 
@@ -35,7 +56,10 @@ pub fn start(name: &Option<String>, args: &Args, watch: &Option<String>, reset_e
     };
 
     if arg == "all" {
-        println!("{} Applying {kind}action startAllProcess", *helpers::SUCCESS);
+        println!(
+            "{} Applying {kind}action startAllProcess",
+            *helpers::SUCCESS
+        );
 
         let largest = runner.size();
         match largest {
@@ -53,14 +77,32 @@ pub fn start(name: &Option<String>, args: &Args, watch: &Option<String>, reset_e
     } else {
         match args {
             Args::Id(id) => {
-                Internal { id: *id, runner, server_name, kind }.restart(name, watch, *reset_env, false);
+                Internal {
+                    id: *id,
+                    runner,
+                    server_name,
+                    kind,
+                }
+                .restart(name, watch, *reset_env, false);
             }
             Args::Script(script) => match runner.find(&script, server_name) {
                 Some(id) => {
-                    Internal { id, runner, server_name, kind }.restart(name, watch, *reset_env, false);
+                    Internal {
+                        id,
+                        runner,
+                        server_name,
+                        kind,
+                    }
+                    .restart(name, watch, *reset_env, false);
                 }
                 None => {
-                    Internal { id: 0, runner, server_name, kind }.create(script, name, watch, false);
+                    Internal {
+                        id: 0,
+                        runner,
+                        server_name,
+                        kind,
+                    }
+                    .create(script, name, watch, false);
                 }
             },
         }
@@ -97,11 +139,23 @@ pub fn stop(item: &Item, server_name: &String) {
     } else {
         match item {
             Item::Id(id) => {
-                Internal { id: *id, runner, server_name, kind }.stop(false);
+                Internal {
+                    id: *id,
+                    runner,
+                    server_name,
+                    kind,
+                }
+                .stop(false);
             }
             Item::Name(name) => match runner.find(&name, server_name) {
                 Some(id) => {
-                    Internal { id, runner, server_name, kind }.stop(false);
+                    Internal {
+                        id,
+                        runner,
+                        server_name,
+                        kind,
+                    }
+                    .stop(false);
                 }
                 None => crashln!("{} Process ({name}) not found", *helpers::FAIL),
             },
@@ -116,9 +170,21 @@ pub fn remove(item: &Item, server_name: &String) {
     let (kind, _) = format(server_name);
 
     match item {
-        Item::Id(id) => Internal { id: *id, runner, server_name, kind }.remove(),
+        Item::Id(id) => Internal {
+            id: *id,
+            runner,
+            server_name,
+            kind,
+        }
+        .remove(),
         Item::Name(name) => match runner.find(&name, server_name) {
-            Some(id) => Internal { id, runner, server_name, kind }.remove(),
+            Some(id) => Internal {
+                id,
+                runner,
+                server_name,
+                kind,
+            }
+            .remove(),
             None => crashln!("{} Process ({name}) not found", *helpers::FAIL),
         },
     }
@@ -131,9 +197,21 @@ pub fn info(item: &Item, format: &String, server_name: &String) {
     let (kind, _) = self::format(server_name);
 
     match item {
-        Item::Id(id) => Internal { id: *id, runner, server_name, kind }.info(format),
+        Item::Id(id) => Internal {
+            id: *id,
+            runner,
+            server_name,
+            kind,
+        }
+        .info(format),
         Item::Name(name) => match runner.find(&name, server_name) {
-            Some(id) => Internal { id, runner, server_name, kind }.info(format),
+            Some(id) => Internal {
+                id,
+                runner,
+                server_name,
+                kind,
+            }
+            .info(format),
             None => crashln!("{} Process ({name}) not found", *helpers::FAIL),
         },
     }
@@ -144,9 +222,21 @@ pub fn logs(item: &Item, lines: &usize, server_name: &String) {
     let (kind, _) = format(server_name);
 
     match item {
-        Item::Id(id) => Internal { id: *id, runner, server_name, kind }.logs(lines),
+        Item::Id(id) => Internal {
+            id: *id,
+            runner,
+            server_name,
+            kind,
+        }
+        .logs(lines),
         Item::Name(name) => match runner.find(&name, server_name) {
-            Some(id) => Internal { id, runner, server_name, kind }.logs(lines),
+            Some(id) => Internal {
+                id,
+                runner,
+                server_name,
+                kind,
+            }
+            .logs(lines),
             None => crashln!("{} Process ({name}) not found", *helpers::FAIL),
         },
     }
@@ -158,9 +248,21 @@ pub fn env(item: &Item, server_name: &String) {
     let (kind, _) = format(server_name);
 
     match item {
-        Item::Id(id) => Internal { id: *id, runner, server_name, kind }.env(),
+        Item::Id(id) => Internal {
+            id: *id,
+            runner,
+            server_name,
+            kind,
+        }
+        .env(),
         Item::Name(name) => match runner.find(&name, server_name) {
-            Some(id) => Internal { id, runner, server_name, kind }.env(),
+            Some(id) => Internal {
+                id,
+                runner,
+                server_name,
+                kind,
+            }
+            .env(),
             None => crashln!("{} Process ({name}) not found", *helpers::FAIL),
         },
     }
@@ -171,9 +273,21 @@ pub fn flush(item: &Item, server_name: &String) {
     let (kind, _) = format(server_name);
 
     match item {
-        Item::Id(id) => Internal { id: *id, runner, server_name, kind }.flush(),
+        Item::Id(id) => Internal {
+            id: *id,
+            runner,
+            server_name,
+            kind,
+        }
+        .flush(),
         Item::Name(name) => match runner.find(&name, server_name) {
-            Some(id) => Internal { id, runner, server_name, kind }.flush(),
+            Some(id) => Internal {
+                id,
+                runner,
+                server_name,
+                kind,
+            }
+            .flush(),
             None => crashln!("{} Process ({name}) not found", *helpers::FAIL),
         },
     }

@@ -36,7 +36,9 @@ struct Watch {
 }
 
 impl Process {
-    fn get_watch_path(&self) -> Option<String> { self.watch.as_ref().and_then(|w| Some(w.path.clone())) }
+    fn get_watch_path(&self) -> Option<String> {
+        self.watch.as_ref().and_then(|w| Some(w.path.clone()))
+    }
 }
 
 pub fn read_hcl(path: &String) {
@@ -46,12 +48,20 @@ pub fn read_hcl(path: &String) {
 
     let contents = match fs::read_to_string(path) {
         Ok(contents) => contents,
-        Err(err) => crashln!("{} Cannot read file to import.\n{}", *helpers::FAIL, string!(err).white()),
+        Err(err) => crashln!(
+            "{} Cannot read file to import.\n{}",
+            *helpers::FAIL,
+            string!(err).white()
+        ),
     };
 
     let hcl_parsed: ProcessWrapper = match hcl::from_str(&contents) {
         Ok(hcl) => hcl,
-        Err(err) => crashln!("{} Cannot parse imported file.\n{}", *helpers::FAIL, string!(err).white()),
+        Err(err) => crashln!(
+            "{} Cannot parse imported file.\n{}",
+            *helpers::FAIL,
+            string!(err).white()
+        ),
     };
 
     for (name, item) in hcl_parsed.list {
@@ -65,7 +75,12 @@ pub fn read_hcl(path: &String) {
             kind: kind.clone(),
             runner: runner.clone(),
         }
-        .create(&item.script, &Some(name.clone()), &item.get_watch_path(), true);
+        .create(
+            &item.script,
+            &Some(name.clone()),
+            &item.get_watch_path(),
+            true,
+        );
 
         println!("{} Imported {kind}process {name}", *helpers::SUCCESS);
 
@@ -84,8 +99,13 @@ pub fn read_hcl(path: &String) {
         }
     }
 
-    servers.iter().for_each(|server| super::Internal::list(&string!("default"), &server));
-    println!("{} Applied startProcess to imported items", *helpers::SUCCESS);
+    servers
+        .iter()
+        .for_each(|server| super::Internal::list(&string!("default"), &server));
+    println!(
+        "{} Applied startProcess to imported items",
+        *helpers::SUCCESS
+    );
 }
 
 pub fn export_hcl(item: &Item, path: &Option<String>) {
@@ -99,10 +119,14 @@ pub fn export_hcl(item: &Item, path: &Option<String>) {
         let mut env_parsed = HashMap::new();
 
         let current_env: HashMap<String, String> = std::env::vars().collect();
-        let path = path.clone().unwrap_or(format!("{}.hcl", process.name.clone()));
+        let path = path
+            .clone()
+            .unwrap_or(format!("{}.hcl", process.name.clone()));
 
         if process.watch.enabled {
-            watch_parsed = Some(Watch { path: process.watch.path.clone() })
+            watch_parsed = Some(Watch {
+                path: process.watch.path.clone(),
+            })
         }
 
         for (key, value) in process.env.clone() {
@@ -127,13 +151,25 @@ pub fn export_hcl(item: &Item, path: &Option<String>) {
         let serialized = hcl::to_string(&data).unwrap();
 
         if Exists::check(&path).file() {
-            let mut file = OpenOptions::new().write(true).append(true).open(path.clone()).unwrap();
+            let mut file = OpenOptions::new()
+                .write(true)
+                .append(true)
+                .open(path.clone())
+                .unwrap();
             if let Err(err) = writeln!(file, "{}", serialized) {
-                crashln!("{} Error writing to file.\n{}", *helpers::FAIL, string!(err).white())
+                crashln!(
+                    "{} Error writing to file.\n{}",
+                    *helpers::FAIL,
+                    string!(err).white()
+                )
             }
         } else {
             if let Err(err) = fs::write(path.clone(), serialized) {
-                crashln!("{} Error writing file.\n{}", *helpers::FAIL, string!(err).white())
+                crashln!(
+                    "{} Error writing file.\n{}",
+                    *helpers::FAIL,
+                    string!(err).white()
+                )
             }
         }
 

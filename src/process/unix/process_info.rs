@@ -1,14 +1,14 @@
 use std::time::SystemTime;
 #[cfg(target_os = "linux")]
-use std::time::{UNIX_EPOCH, Duration};
+use std::time::{Duration, UNIX_EPOCH};
 
 pub fn get_process_name(pid: u32) -> Result<String, String> {
     #[cfg(target_os = "macos")]
     {
         use std::mem;
-        
+
         const PROC_PIDTBSDINFO: i32 = 3;
-        
+
         #[repr(C)]
         struct ProcBsdInfo {
             pbi_flags: u32,
@@ -28,7 +28,7 @@ pub fn get_process_name(pid: u32) -> Result<String, String> {
             // ... rest of fields
             _padding: [u8; 200], // Simplified padding
         }
-        
+
         unsafe extern "C" {
             fn proc_pidinfo(
                 pid: libc::c_int,
@@ -38,7 +38,7 @@ pub fn get_process_name(pid: u32) -> Result<String, String> {
                 buffersize: libc::c_int,
             ) -> libc::c_int;
         }
-        
+
         let mut proc_info: ProcBsdInfo = unsafe { mem::zeroed() };
         let result = unsafe {
             proc_pidinfo(
@@ -49,24 +49,24 @@ pub fn get_process_name(pid: u32) -> Result<String, String> {
                 mem::size_of::<ProcBsdInfo>() as i32,
             )
         };
-        
+
         if result <= 0 {
             return Err(format!("Failed to get process info for PID {}", pid));
         }
-        
+
         let name = unsafe {
             std::ffi::CStr::from_ptr(proc_info.pbi_name.as_ptr())
                 .to_string_lossy()
                 .to_string()
         };
-        
+
         Ok(name)
     }
-    
+
     #[cfg(target_os = "linux")]
     {
         use std::fs;
-        
+
         let comm_path = format!("/proc/{}/comm", pid);
         fs::read_to_string(&comm_path)
             .map(|name| name.trim().to_string())
@@ -78,11 +78,11 @@ pub fn get_process_start_time(_pid: u32) -> Result<SystemTime, String> {
     #[cfg(target_os = "linux")]
     {
         use std::fs;
-        
+
         let stat_path = format!("/proc/{}/stat", _pid);
         let stat_content = fs::read_to_string(&stat_path)
             .map_err(|e| format!("Failed to read process stat: {}", e))?;
-        
+
         let parts: Vec<&str> = stat_content.split_whitespace().collect();
         if parts.len() > 21 {
             if let Ok(start_time) = parts[21].parse::<u64>() {
@@ -92,7 +92,7 @@ pub fn get_process_start_time(_pid: u32) -> Result<SystemTime, String> {
             }
         }
     }
-    
+
     // Fallback to current time for macOS and other systems
     Ok(SystemTime::now())
 }
@@ -101,10 +101,10 @@ pub fn get_process_start_time(_pid: u32) -> Result<SystemTime, String> {
 #[cfg(target_os = "macos")]
 pub fn get_parent_pid(pid: i32) -> Result<Option<i32>, String> {
     use std::mem;
-    
+
     // macOS specific constants and structures
     const PROC_PIDTBSDINFO: i32 = 3;
-    
+
     #[repr(C)]
     struct ProcBsdInfo {
         pbi_flags: u32,
@@ -130,7 +130,7 @@ pub fn get_parent_pid(pid: i32) -> Result<Option<i32>, String> {
         pbi_start_tvsec: u64,
         pbi_start_tvusec: u64,
     }
-    
+
     unsafe extern "C" {
         fn proc_pidinfo(
             pid: libc::c_int,
@@ -140,7 +140,7 @@ pub fn get_parent_pid(pid: i32) -> Result<Option<i32>, String> {
             buffersize: libc::c_int,
         ) -> libc::c_int;
     }
-    
+
     let mut proc_info: ProcBsdInfo = unsafe { mem::zeroed() };
     let result = unsafe {
         proc_pidinfo(
@@ -151,11 +151,11 @@ pub fn get_parent_pid(pid: i32) -> Result<Option<i32>, String> {
             mem::size_of::<ProcBsdInfo>() as i32,
         )
     };
-    
+
     if result <= 0 {
         return Err(format!("Failed to get process info for PID {}", pid));
     }
-    
+
     let ppid = proc_info.pbi_ppid as i32;
     if ppid == 0 {
         Ok(None) // No parent (e.g., init process)
@@ -168,21 +168,22 @@ pub fn get_parent_pid(pid: i32) -> Result<Option<i32>, String> {
 #[cfg(not(target_os = "macos"))]
 pub fn get_parent_pid(pid: i32) -> Result<Option<i32>, String> {
     use std::fs;
-    
+
     let stat_path = format!("/proc/{}/stat", pid);
     let stat_content = fs::read_to_string(&stat_path)
         .map_err(|e| format!("Failed to read {}: {}", stat_path, e))?;
-    
+
     // Parse /proc/pid/stat format
     // The format is: pid (comm) state ppid ...
     let parts: Vec<&str> = stat_content.split_whitespace().collect();
     if parts.len() < 4 {
         return Err(format!("Invalid stat format for PID {}", pid));
     }
-    
-    let ppid = parts[3].parse::<i32>()
+
+    let ppid = parts[3]
+        .parse::<i32>()
         .map_err(|e| format!("Failed to parse ppid: {}", e))?;
-    
+
     if ppid == 0 {
         Ok(None) // No parent (e.g., init process)
     } else {
@@ -198,22 +199,22 @@ mod tests {
     fn test_get_parent_pid_current_process() {
         let current_pid = std::process::id() as i32;
         let parent_result = get_parent_pid(current_pid);
-        
+
         assert!(parent_result.is_ok());
-        
+
         if let Ok(Some(ppid)) = parent_result {
             assert!(ppid > 0);
             println!("Current process PID: {}, Parent PID: {}", current_pid, ppid);
         }
     }
-    
+
     #[test]
     fn test_get_parent_pid_invalid() {
         let invalid_pid = 999999;
         let result = get_parent_pid(invalid_pid);
         assert!(result.is_err());
     }
-    
+
     #[test]
     fn test_get_parent_pid_init() {
         // Test with init process (PID 1) - should have no parent or parent 0
@@ -223,4 +224,4 @@ mod tests {
             }
         }
     }
-} 
+}

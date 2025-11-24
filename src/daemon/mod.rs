@@ -6,7 +6,7 @@ mod fork;
 use api::{DAEMON_CPU_PERCENTAGE, DAEMON_MEM_USAGE, DAEMON_START_TIME};
 use chrono::{DateTime, Utc};
 use colored::Colorize;
-use fork::{daemon, Fork};
+use fork::{Fork, daemon};
 use global_placeholders::global;
 use macros_rs::{crashln, str, string, ternary, then};
 #[cfg(any(target_os = "linux", target_os = "macos"))]
@@ -19,17 +19,17 @@ use std::{process, thread::sleep, time::Duration};
 use pmc::{
     config, file,
     helpers::{self, ColoredString},
-    process::{hash, id::Id, Runner, Status, get_process_cpu_usage_percentage},
+    process::{Runner, Status, get_process_cpu_usage_percentage, hash, id::Id},
 };
 
 use tabled::{
+    Table, Tabled,
     settings::{
+        Color, Rotate,
         object::Columns,
         style::{BorderColor, Style},
         themes::Colorization,
-        Color, Rotate,
     },
-    Table, Tabled,
 };
 
 static ENABLE_API: AtomicBool = AtomicBool::new(false);
@@ -165,7 +165,11 @@ pub fn health(format: &String) {
         external: global!("pmc.daemon.kind"),
         process_count: runner.count(),
         pid_file: format!("{}  ", global!("pmc.pid")),
-        status: ColoredString(ternary!(pid::exists(), "online".green().bold(), "stopped".red().bold())),
+        status: ColoredString(ternary!(
+            pid::exists(),
+            "online".green().bold(),
+            "stopped".red().bold()
+        )),
     }];
 
     let table = Table::new(data.clone())
@@ -180,9 +184,18 @@ pub fn health(format: &String) {
             "raw" => println!("{:?}", data[0]),
             "json" => println!("{json}"),
             "default" => {
-                println!("{}\n{table}\n", format!("PMC daemon information").on_bright_white().black());
-                println!(" {}", format!("Use `pmc daemon restart` to restart the daemon").white());
-                println!(" {}", format!("Use `pmc daemon reset` to clean process id values").white());
+                println!(
+                    "{}\n{table}\n",
+                    format!("PMC daemon information").on_bright_white().black()
+                );
+                println!(
+                    " {}",
+                    format!("Use `pmc daemon restart` to restart the daemon").white()
+                );
+                println!(
+                    " {}",
+                    format!("Use `pmc daemon reset` to clean process id values").white()
+                );
             }
             _ => {}
         };
@@ -210,9 +223,11 @@ pub fn stop() {
 }
 
 pub fn start(verbose: bool) {
-
-
-    println!("{} Spawning PMC daemon (pmc_base={})", *helpers::SUCCESS, global!("pmc.base"));
+    println!(
+        "{} Spawning PMC daemon (pmc_base={})",
+        *helpers::SUCCESS,
+        global!("pmc.base")
+    );
 
     if ENABLE_API.load(Ordering::Acquire) {
         println!(
@@ -253,7 +268,8 @@ pub fn start(verbose: bool) {
         loop {
             if api_enabled {
                 if let Ok(process) = Process::new(process::id()) {
-                    DAEMON_CPU_PERCENTAGE.observe(get_process_cpu_usage_percentage(process.pid() as i64));
+                    DAEMON_CPU_PERCENTAGE
+                        .observe(get_process_cpu_usage_percentage(process.pid() as i64));
                     DAEMON_MEM_USAGE.observe(process.memory_info().ok().unwrap().rss() as f64);
                 }
             }
@@ -263,7 +279,11 @@ pub fn start(verbose: bool) {
         }
     }
 
-    println!("{} PMC Successfully daemonized (type={})", *helpers::SUCCESS, global!("pmc.daemon.kind"));
+    println!(
+        "{} PMC Successfully daemonized (type={})",
+        *helpers::SUCCESS,
+        global!("pmc.daemon.kind")
+    );
     match daemon(false, verbose) {
         Ok(Fork::Parent(_)) => {}
         Ok(Fork::Child) => init(),
@@ -299,7 +319,11 @@ pub fn reset() {
         None => runner.set_id(Id::new(0)),
     }
 
-    println!("{} Successfully reset (index={})", *helpers::SUCCESS, runner.id);
+    println!(
+        "{} Successfully reset (index={})",
+        *helpers::SUCCESS,
+        runner.id
+    );
 }
 
 pub mod pid;

@@ -10,7 +10,12 @@ use std::{io, path::PathBuf};
 pub struct NamedFile(PathBuf, String);
 
 impl NamedFile {
-    pub async fn send(name: String, contents: Option<&str>) -> io::Result<NamedFile> { Ok(NamedFile(PathBuf::from(name), contents.unwrap().to_string())) }
+    pub async fn send(name: String, contents: Option<&str>) -> io::Result<NamedFile> {
+        Ok(NamedFile(
+            PathBuf::from(name),
+            contents.unwrap().to_string(),
+        ))
+    }
 }
 
 impl<'r> Responder<'r, 'static> for NamedFile {

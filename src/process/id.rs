@@ -9,8 +9,14 @@ pub struct Id {
 }
 
 impl Id {
-    pub fn new(start: usize) -> Self { Id { counter: AtomicUsize::new(start) } }
-    pub fn next(&self) -> usize { self.counter.fetch_add(1, Ordering::SeqCst) }
+    pub fn new(start: usize) -> Self {
+        Id {
+            counter: AtomicUsize::new(start),
+        }
+    }
+    pub fn next(&self) -> usize {
+        self.counter.fetch_add(1, Ordering::SeqCst)
+    }
 }
 
 impl Clone for Id {
@@ -43,5 +49,7 @@ impl From<&str> for Id {
 }
 
 impl fmt::Display for Id {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "{}", self.counter.load(Ordering::SeqCst)) }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.counter.load(Ordering::SeqCst))
+    }
 }

@@ -1,8 +1,7 @@
 use rocket::{
-    async_trait,
+    Data, Orbit, Request, Response, Rocket, async_trait,
     fairing::{Fairing, Info, Kind},
     http::{ContentType, Header},
-    Data, Orbit, Request, Response, Rocket,
 };
 
 #[async_trait]
@@ -57,8 +56,17 @@ impl Fairing for super::AddCORS {
     async fn on_response<'r>(&self, _request: &'r Request<'_>, response: &mut Response<'r>) {
         response.set_header(Header::new("Access-Control-Allow-Origin", "*"));
         response.set_header(Header::new("Access-Control-Allow-Credentials", "true"));
-        response.set_header(Header::new("Access-Control-Allow-Methods", "POST, GET, OPTIONS"));
-        response.set_header(Header::new("Access-Control-Allow-Headers", "token, Content-Type, Accept"));
-        response.set_header(Header::new("Access-Control-Expose-Headers", "Content-Encoding, Content-Type"));
+        response.set_header(Header::new(
+            "Access-Control-Allow-Methods",
+            "POST, GET, OPTIONS",
+        ));
+        response.set_header(Header::new(
+            "Access-Control-Allow-Headers",
+            "token, Content-Type, Accept",
+        ));
+        response.set_header(Header::new(
+            "Access-Control-Expose-Headers",
+            "Content-Encoding, Content-Type",
+        ));
     }
 }

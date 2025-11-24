@@ -27,7 +27,9 @@ pub fn get_cpu_percent(pid: u32) -> f64 {
                             let irq: u64 = cpu_parts[6].parse().ok()?;
                             let softirq: u64 = cpu_parts[7].parse().ok()?;
 
-                            let total_system_time = (user + nice + system + idle + iowait + irq + softirq) as f64 / 100.0;
+                            let total_system_time =
+                                (user + nice + system + idle + iowait + irq + softirq) as f64
+                                    / 100.0;
                             return Some((total_process_time, total_system_time));
                         }
                     }
@@ -102,14 +104,18 @@ fn get_cpu_percent_mach(pid: u32) -> Option<f64> {
 
     unsafe extern "C" {
         fn task_for_pid(target_tport: u32, pid: i32, task: *mut u32) -> i32;
-        fn task_info(target_task: u32, flavor: u32, task_info_out: *mut libc::c_void, task_info_outCnt: *mut u32) -> i32;
+        fn task_info(
+            target_task: u32,
+            flavor: u32,
+            task_info_out: *mut libc::c_void,
+            task_info_outCnt: *mut u32,
+        ) -> i32;
         fn mach_task_self() -> u32;
     }
 
     // Helper to convert TimeValue to seconds
-    let time_to_seconds = |tv: &TimeValue| -> f64 {
-        tv.seconds as f64 + tv.microseconds as f64 / 1_000_000.0
-    };
+    let time_to_seconds =
+        |tv: &TimeValue| -> f64 { tv.seconds as f64 + tv.microseconds as f64 / 1_000_000.0 };
 
     // Get task port for the process
     let mut task: u32 = 0;
@@ -120,7 +126,15 @@ fn get_cpu_percent_mach(pid: u32) -> Option<f64> {
     // Get first measurement
     let mut info: TaskBasicInfo = unsafe { mem::zeroed() };
     let mut count = TASK_BASIC_INFO_COUNT;
-    if unsafe { task_info(task, TASK_BASIC_INFO, &mut info as *mut _ as *mut libc::c_void, &mut count) } != 0 {
+    if unsafe {
+        task_info(
+            task,
+            TASK_BASIC_INFO,
+            &mut info as *mut _ as *mut libc::c_void,
+            &mut count,
+        )
+    } != 0
+    {
         return None;
     }
 
@@ -133,7 +147,15 @@ fn get_cpu_percent_mach(pid: u32) -> Option<f64> {
     // Get second measurement
     let mut info2: TaskBasicInfo = unsafe { mem::zeroed() };
     let mut count2 = TASK_BASIC_INFO_COUNT;
-    if unsafe { task_info(task, TASK_BASIC_INFO, &mut info2 as *mut _ as *mut libc::c_void, &mut count2) } != 0 {
+    if unsafe {
+        task_info(
+            task,
+            TASK_BASIC_INFO,
+            &mut info2 as *mut _ as *mut libc::c_void,
+            &mut count2,
+        )
+    } != 0
+    {
         return None;
     }
 
@@ -161,4 +183,4 @@ fn get_cpu_percent_ps(pid: u32) -> Option<f64> {
 
     let cpu_str = String::from_utf8(output.stdout).ok()?;
     cpu_str.trim().parse::<f64>().ok()
-} 
+}

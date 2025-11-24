@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
 use core::fmt;
 use global_placeholders::global;
@@ -21,11 +21,17 @@ impl Pid {
 }
 
 impl fmt::Display for Pid {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "{}", self.0) }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
 }
 
-pub fn exists() -> bool { fs::metadata(global!("pmc.pid")).is_ok() }
-pub fn running(pid: i32) -> bool { unsafe { libc::kill(pid, 0) == 0 } }
+pub fn exists() -> bool {
+    fs::metadata(global!("pmc.pid")).is_ok()
+}
+pub fn running(pid: i32) -> bool {
+    unsafe { libc::kill(pid, 0) == 0 }
+}
 
 pub fn uptime() -> io::Result<DateTime<Utc>> {
     let metadata = fs::metadata(global!("pmc.pid"))?;
@@ -70,7 +76,13 @@ pub fn name(new_name: &str) {
 
     unsafe {
         libc::setpgid(pid, 0);
-        libc::prctl(libc::PR_SET_NAME, name_cstr.as_ptr() as libc::c_ulong, 0, 0, 0);
+        libc::prctl(
+            libc::PR_SET_NAME,
+            name_cstr.as_ptr() as libc::c_ulong,
+            0,
+            0,
+            0,
+        );
     }
 }
 

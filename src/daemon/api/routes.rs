@@ -1,44 +1,45 @@
 #![allow(non_snake_case)]
 
 use chrono::{DateTime, Utc};
+use futures::{SinkExt, StreamExt};
 use global_placeholders::global;
 use macros_rs::{fmtstr, string, ternary, then};
-use prometheus::{Encoder, TextEncoder};
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 use pmc::process::unix::NativeProcess as Process;
+use prometheus::{Encoder, TextEncoder};
 use reqwest::header::HeaderValue;
-use futures::{SinkExt, StreamExt};
 use rocket_ws::{Message as WsOut, WebSocket};
 use serde_json::json;
 use std::io::SeekFrom;
+use tera::Context;
 use tokio::{
     fs::File as AsyncFile,
     io::{AsyncReadExt, AsyncSeekExt},
-    time::{sleep as tokio_sleep, Duration as TokioDuration},
+    time::{Duration as TokioDuration, sleep as tokio_sleep},
 };
 use tokio_tungstenite::{connect_async, tungstenite::Message as UpstreamMessage};
-use tera::Context;
 use utoipa::ToSchema;
 
 use rocket::{
-    get,
+    State, get,
     http::{ContentType, Status},
     post,
     response::stream::{Event, EventStream},
-    serde::{json::Json, Deserialize, Serialize},
-    State,
+    serde::{Deserialize, Serialize, json::Json},
 };
 
 use super::{
-    helpers::{generic_error, not_found, GenericError, NotFound},
+    EnableWebUI, TeraState,
+    helpers::{GenericError, NotFound, generic_error, not_found},
     render,
     structs::ErrorMessage,
-    EnableWebUI, TeraState,
 };
 
 use pmc::{
     config, file, helpers,
-    process::{dump, http::client, ItemSingle, ProcessItem, Runner, get_process_cpu_usage_percentage},
+    process::{
+        ItemSingle, ProcessItem, Runner, dump, get_process_cpu_usage_percentage, http::client,
+    },
 };
 
 use crate::daemon::{
@@ -170,23 +171,55 @@ fn attempt(done: bool, method: &str) -> ActionResponse {
 }
 
 #[get("/")]
-pub async fn dashboard(state: &State<TeraState>, _webui: EnableWebUI) -> Result<(ContentType, String), NotFound> { Ok((ContentType::HTML, render("dashboard", &state, &mut Context::new()).await?)) }
+pub async fn dashboard(
+    state: &State<TeraState>,
+    _webui: EnableWebUI,
+) -> Result<(ContentType, String), NotFound> {
+    Ok((
+        ContentType::HTML,
+        render("dashboard", &state, &mut Context::new()).await?,
+    ))
+}
 
 #[get("/servers")]
-pub async fn servers(state: &State<TeraState>, _webui: EnableWebUI) -> Result<(ContentType, String), NotFound> { Ok((ContentType::HTML, render("servers", &state, &mut Context::new()).await?)) }
+pub async fn servers(
+    state: &State<TeraState>,
+    _webui: EnableWebUI,
+) -> Result<(ContentType, String), NotFound> {
+    Ok((
+        ContentType::HTML,
+        render("servers", &state, &mut Context::new()).await?,
+    ))
+}
 
 #[get("/login")]
-pub async fn login(state: &State<TeraState>, _webui: EnableWebUI) -> Result<(ContentType, String), NotFound> { Ok((ContentType::HTML, render("login", &state, &mut Context::new()).await?)) }
+pub async fn login(
+    state: &State<TeraState>,
+    _webui: EnableWebUI,
+) -> Result<(ContentType, String), NotFound> {
+    Ok((
+        ContentType::HTML,
+        render("login", &state, &mut Context::new()).await?,
+    ))
+}
 
 #[get("/view/<id>")]
-pub async fn view_process(id: usize, state: &State<TeraState>, _webui: EnableWebUI) -> Result<(ContentType, String), NotFound> {
+pub async fn view_process(
+    id: usize,
+    state: &State<TeraState>,
+    _webui: EnableWebUI,
+) -> Result<(ContentType, String), NotFound> {
     let mut ctx = Context::new();
     ctx.insert("process_id", &id);
     Ok((ContentType::HTML, render("view", &state, &mut ctx).await?))
 }
 
 #[get("/status/<name>")]
-pub async fn server_status(name: String, state: &State<TeraState>, _webui: EnableWebUI) -> Result<(ContentType, String), NotFound> {
+pub async fn server_status(
+    name: String,
+    state: &State<TeraState>,
+    _webui: EnableWebUI,
+) -> Result<(ContentType, String), NotFound> {
     let mut ctx = Context::new();
     ctx.insert("server_name", &name);
     Ok((ContentType::HTML, render("status", &state, &mut ctx).await?))
@@ -225,7 +258,9 @@ pub async fn prometheus_handler(_t: Token) -> String {
     )
 )]
 pub async fn servers_handler(_t: Token) -> Result<Json<Vec<String>>, GenericError> {
-    let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["servers"]).start_timer();
+    let timer = HTTP_REQ_HISTOGRAM
+        .with_label_values(&["servers"])
+        .start_timer();
 
     if let Some(servers) = config::servers().servers {
         HTTP_COUNTER.inc();
@@ -233,7 +268,10 @@ pub async fn servers_handler(_t: Token) -> Result<Json<Vec<String>>, GenericErro
 
         Ok(Json(servers.into_keys().collect()))
     } else {
-        Err(generic_error(Status::BadRequest, string!("No servers have been added")))
+        Err(generic_error(
+            Status::BadRequest,
+            string!("No servers have been added"),
+        ))
     }
 }
 
@@ -250,18 +288,30 @@ pub async fn servers_handler(_t: Token) -> Result<Json<Vec<String>>, GenericErro
     )
 )]
 pub async fn remote_list(name: String, _t: Token) -> Result<Json<Vec<ProcessItem>>, GenericError> {
-    let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["list"]).start_timer();
+    let timer = HTTP_REQ_HISTOGRAM
+        .with_label_values(&["list"])
+        .start_timer();
 
     if let Some(servers) = config::servers().servers {
         let (address, (client, headers)) = match servers.get(&name) {
             Some(server) => (&server.address, client(&server.token).await),
-            None => return Err(generic_error(Status::NotFound, string!("Server was not found"))),
+            None => {
+                return Err(generic_error(
+                    Status::NotFound,
+                    string!("Server was not found"),
+                ));
+            }
         };
 
         HTTP_COUNTER.inc();
         timer.observe_duration();
 
-        match client.get(fmtstr!("{address}/list")).headers(headers).send().await {
+        match client
+            .get(fmtstr!("{address}/list"))
+            .headers(headers)
+            .send()
+            .await
+        {
             Ok(data) => {
                 if data.status() != 200 {
                     let err = data.json::<ErrorMessage>().await.unwrap();
@@ -273,7 +323,10 @@ pub async fn remote_list(name: String, _t: Token) -> Result<Json<Vec<ProcessItem
             Err(err) => Err(generic_error(Status::InternalServerError, err.to_string())),
         }
     } else {
-        Err(generic_error(Status::BadRequest, string!("No servers have been added")))
+        Err(generic_error(
+            Status::BadRequest,
+            string!("No servers have been added"),
+        ))
     }
 }
 
@@ -292,19 +345,35 @@ pub async fn remote_list(name: String, _t: Token) -> Result<Json<Vec<ProcessItem
         )
     )
 )]
-pub async fn remote_info(name: String, id: usize, _t: Token) -> Result<Json<ItemSingle>, GenericError> {
-    let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["info"]).start_timer();
+pub async fn remote_info(
+    name: String,
+    id: usize,
+    _t: Token,
+) -> Result<Json<ItemSingle>, GenericError> {
+    let timer = HTTP_REQ_HISTOGRAM
+        .with_label_values(&["info"])
+        .start_timer();
 
     if let Some(servers) = config::servers().servers {
         let (address, (client, headers)) = match servers.get(&name) {
             Some(server) => (&server.address, client(&server.token).await),
-            None => return Err(generic_error(Status::NotFound, string!("Server was not found"))),
+            None => {
+                return Err(generic_error(
+                    Status::NotFound,
+                    string!("Server was not found"),
+                ));
+            }
         };
 
         HTTP_COUNTER.inc();
         timer.observe_duration();
 
-        match client.get(fmtstr!("{address}/process/{id}/info")).headers(headers).send().await {
+        match client
+            .get(fmtstr!("{address}/process/{id}/info"))
+            .headers(headers)
+            .send()
+            .await
+        {
             Ok(data) => {
                 if data.status() != 200 {
                     let err = data.json::<ErrorMessage>().await.unwrap();
@@ -316,7 +385,10 @@ pub async fn remote_info(name: String, id: usize, _t: Token) -> Result<Json<Item
             Err(err) => Err(generic_error(Status::InternalServerError, err.to_string())),
         }
     } else {
-        Err(generic_error(Status::BadRequest, string!("No servers have been added")))
+        Err(generic_error(
+            Status::BadRequest,
+            string!("No servers have been added"),
+        ))
     }
 }
 
@@ -336,19 +408,36 @@ pub async fn remote_info(name: String, id: usize, _t: Token) -> Result<Json<Item
         )
     )
 )]
-pub async fn remote_logs(name: String, id: usize, kind: String, _t: Token) -> Result<Json<LogResponse>, GenericError> {
-    let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["info"]).start_timer();
+pub async fn remote_logs(
+    name: String,
+    id: usize,
+    kind: String,
+    _t: Token,
+) -> Result<Json<LogResponse>, GenericError> {
+    let timer = HTTP_REQ_HISTOGRAM
+        .with_label_values(&["info"])
+        .start_timer();
 
     if let Some(servers) = config::servers().servers {
         let (address, (client, headers)) = match servers.get(&name) {
             Some(server) => (&server.address, client(&server.token).await),
-            None => return Err(generic_error(Status::NotFound, string!("Server was not found"))),
+            None => {
+                return Err(generic_error(
+                    Status::NotFound,
+                    string!("Server was not found"),
+                ));
+            }
         };
 
         HTTP_COUNTER.inc();
         timer.observe_duration();
 
-        match client.get(fmtstr!("{address}/process/{id}/logs/{kind}")).headers(headers).send().await {
+        match client
+            .get(fmtstr!("{address}/process/{id}/logs/{kind}"))
+            .headers(headers)
+            .send()
+            .await
+        {
             Ok(data) => {
                 if data.status() != 200 {
                     let err = data.json::<ErrorMessage>().await.unwrap();
@@ -360,7 +449,10 @@ pub async fn remote_logs(name: String, id: usize, kind: String, _t: Token) -> Re
             Err(err) => Err(generic_error(Status::InternalServerError, err.to_string())),
         }
     } else {
-        Err(generic_error(Status::BadRequest, string!("No servers have been added")))
+        Err(generic_error(
+            Status::BadRequest,
+            string!("No servers have been added"),
+        ))
     }
 }
 
@@ -384,20 +476,38 @@ pub async fn remote_logs(name: String, id: usize, kind: String, _t: Token) -> Re
         )
     )
 )]
-pub async fn remote_rename(name: String, id: usize, body: String, _t: Token) -> Result<Json<ActionResponse>, GenericError> {
-    let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["rename"]).start_timer();
+pub async fn remote_rename(
+    name: String,
+    id: usize,
+    body: String,
+    _t: Token,
+) -> Result<Json<ActionResponse>, GenericError> {
+    let timer = HTTP_REQ_HISTOGRAM
+        .with_label_values(&["rename"])
+        .start_timer();
 
     if let Some(servers) = config::servers().servers {
         let (address, (client, mut headers)) = match servers.get(&name) {
             Some(server) => (&server.address, client(&server.token).await),
-            None => return Err(generic_error(Status::NotFound, string!("Server was not found"))),
+            None => {
+                return Err(generic_error(
+                    Status::NotFound,
+                    string!("Server was not found"),
+                ));
+            }
         };
 
         HTTP_COUNTER.inc();
         timer.observe_duration();
         headers.insert("content-type", HeaderValue::from_static("text/plain"));
 
-        match client.post(fmtstr!("{address}/process/{id}/rename")).body(body).headers(headers).send().await {
+        match client
+            .post(fmtstr!("{address}/process/{id}/rename"))
+            .body(body)
+            .headers(headers)
+            .send()
+            .await
+        {
             Ok(data) => {
                 if data.status() != 200 {
                     let err = data.json::<ErrorMessage>().await.unwrap();
@@ -409,7 +519,10 @@ pub async fn remote_rename(name: String, id: usize, body: String, _t: Token) -> 
             Err(err) => Err(generic_error(Status::InternalServerError, err.to_string())),
         }
     } else {
-        Err(generic_error(Status::BadRequest, string!("No servers have been added")))
+        Err(generic_error(
+            Status::BadRequest,
+            string!("No servers have been added"),
+        ))
     }
 }
 
@@ -429,19 +542,37 @@ pub async fn remote_rename(name: String, id: usize, body: String, _t: Token) -> 
         )
     )
 )]
-pub async fn remote_action(name: String, id: usize, body: Json<ActionBody>, _t: Token) -> Result<Json<ActionResponse>, GenericError> {
-    let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["action"]).start_timer();
+pub async fn remote_action(
+    name: String,
+    id: usize,
+    body: Json<ActionBody>,
+    _t: Token,
+) -> Result<Json<ActionResponse>, GenericError> {
+    let timer = HTTP_REQ_HISTOGRAM
+        .with_label_values(&["action"])
+        .start_timer();
 
     if let Some(servers) = config::servers().servers {
         let (address, (client, headers)) = match servers.get(&name) {
             Some(server) => (&server.address, client(&server.token).await),
-            None => return Err(generic_error(Status::NotFound, string!("Server was not found"))),
+            None => {
+                return Err(generic_error(
+                    Status::NotFound,
+                    string!("Server was not found"),
+                ));
+            }
         };
 
         HTTP_COUNTER.inc();
         timer.observe_duration();
 
-        match client.post(fmtstr!("{address}/process/{id}/action")).json(&body.0).headers(headers).send().await {
+        match client
+            .post(fmtstr!("{address}/process/{id}/action"))
+            .json(&body.0)
+            .headers(headers)
+            .send()
+            .await
+        {
             Ok(data) => {
                 if data.status() != 200 {
                     let err = data.json::<ErrorMessage>().await.unwrap();
@@ -453,7 +584,10 @@ pub async fn remote_action(name: String, id: usize, body: Json<ActionBody>, _t: 
             Err(err) => Err(generic_error(Status::InternalServerError, err.to_string())),
         }
     } else {
-        Err(generic_error(Status::BadRequest, string!("No servers have been added")))
+        Err(generic_error(
+            Status::BadRequest,
+            string!("No servers have been added"),
+        ))
     }
 }
 
@@ -468,7 +602,9 @@ pub async fn remote_action(name: String, id: usize, body: Json<ActionBody>, _t: 
     )
 )]
 pub async fn dump_handler(_t: Token) -> Vec<u8> {
-    let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["dump"]).start_timer();
+    let timer = HTTP_REQ_HISTOGRAM
+        .with_label_values(&["dump"])
+        .start_timer();
 
     HTTP_COUNTER.inc();
     timer.observe_duration();
@@ -487,7 +623,9 @@ pub async fn dump_handler(_t: Token) -> Vec<u8> {
     )
 )]
 pub async fn config_handler(_t: Token) -> Json<ConfigBody> {
-    let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["dump"]).start_timer();
+    let timer = HTTP_REQ_HISTOGRAM
+        .with_label_values(&["dump"])
+        .start_timer();
     let config = config::read().runner;
 
     HTTP_COUNTER.inc();
@@ -511,7 +649,9 @@ pub async fn config_handler(_t: Token) -> Json<ConfigBody> {
     )
 )]
 pub async fn list_handler(_t: Token) -> Json<Vec<ProcessItem>> {
-    let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["list"]).start_timer();
+    let timer = HTTP_REQ_HISTOGRAM
+        .with_label_values(&["list"])
+        .start_timer();
     let data = Runner::new().fetch();
 
     HTTP_COUNTER.inc();
@@ -536,7 +676,11 @@ pub async fn list_handler(_t: Token) -> Json<Vec<ProcessItem>> {
         )
     )
 )]
-pub async fn logs_handler(id: usize, kind: String, _t: Token) -> Result<Json<LogResponse>, NotFound> {
+pub async fn logs_handler(
+    id: usize,
+    kind: String,
+    _t: Token,
+) -> Result<Json<LogResponse>, NotFound> {
     let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["log"]).start_timer();
 
     HTTP_COUNTER.inc();
@@ -710,7 +854,9 @@ pub async fn logs_ws(
     )
 )]
 pub async fn info_handler(id: usize, _t: Token) -> Result<Json<ItemSingle>, NotFound> {
-    let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["info"]).start_timer();
+    let timer = HTTP_REQ_HISTOGRAM
+        .with_label_values(&["info"])
+        .start_timer();
     let runner = Runner::new();
 
     if runner.exists(id) {
@@ -739,7 +885,9 @@ pub async fn info_handler(id: usize, _t: Token) -> Result<Json<ItemSingle>, NotF
     )
 )]
 pub async fn create_handler(body: Json<CreateBody>, _t: Token) -> Result<Json<ActionResponse>, ()> {
-    let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["create"]).start_timer();
+    let timer = HTTP_REQ_HISTOGRAM
+        .with_label_values(&["create"])
+        .start_timer();
     let mut runner = Runner::new();
 
     HTTP_COUNTER.inc();
@@ -749,7 +897,9 @@ pub async fn create_handler(body: Json<CreateBody>, _t: Token) -> Result<Json<Ac
         None => string!(body.script.split_whitespace().next().unwrap_or_default()),
     };
 
-    runner.start(&name, &body.script, body.path.clone(), &body.watch).save();
+    runner
+        .start(&name, &body.script, body.path.clone(), &body.watch)
+        .save();
     timer.observe_duration();
 
     Ok(Json(attempt(true, "create")))
@@ -772,8 +922,14 @@ pub async fn create_handler(body: Json<CreateBody>, _t: Token) -> Result<Json<Ac
         )
     )
 )]
-pub async fn rename_handler(id: usize, body: String, _t: Token) -> Result<Json<ActionResponse>, NotFound> {
-    let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["rename"]).start_timer();
+pub async fn rename_handler(
+    id: usize,
+    body: String,
+    _t: Token,
+) -> Result<Json<ActionResponse>, NotFound> {
+    let timer = HTTP_REQ_HISTOGRAM
+        .with_label_values(&["rename"])
+        .start_timer();
     let runner = Runner::new();
 
     match runner.clone().info(id) {
@@ -836,8 +992,14 @@ pub async fn env_handler(id: usize, _t: Token) -> Result<EnvList, NotFound> {
         )
     )
 )]
-pub async fn action_handler(id: usize, body: Json<ActionBody>, _t: Token) -> Result<Json<ActionResponse>, NotFound> {
-    let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["action"]).start_timer();
+pub async fn action_handler(
+    id: usize,
+    body: Json<ActionBody>,
+    _t: Token,
+) -> Result<Json<ActionResponse>, NotFound> {
+    let timer = HTTP_REQ_HISTOGRAM
+        .with_label_values(&["action"])
+        .start_timer();
     let mut runner = Runner::new();
     let method = body.method.as_str();
 
@@ -880,7 +1042,9 @@ pub async fn action_handler(id: usize, body: Json<ActionBody>, _t: Token) -> Res
 }
 
 pub async fn get_metrics() -> MetricsRoot {
-    let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["metrics"]).start_timer();
+    let timer = HTTP_REQ_HISTOGRAM
+        .with_label_values(&["metrics"])
+        .start_timer();
     let os_info = crate::globals::get_os_info();
 
     let mut pid: Option<Pid> = None;
@@ -919,12 +1083,19 @@ pub async fn get_metrics() -> MetricsRoot {
     timer.observe_duration();
     MetricsRoot {
         os: os_info.clone(),
-        raw: Raw { memory_usage, cpu_percent },
+        raw: Raw {
+            memory_usage,
+            cpu_percent,
+        },
         version: Version {
             target: env!("PROFILE").into(),
             build_date: env!("BUILD_DATE").into(),
             pkg: format!("v{}", env!("CARGO_PKG_VERSION")),
-            hash: ternary!(env!("GIT_HASH_FULL") == "", None, Some(env!("GIT_HASH_FULL").into())),
+            hash: ternary!(
+                env!("GIT_HASH_FULL") == "",
+                None,
+                Some(env!("GIT_HASH_FULL").into())
+            ),
         },
         daemon: Daemon {
             pid,
@@ -950,7 +1121,9 @@ pub async fn get_metrics() -> MetricsRoot {
         )
     )
 )]
-pub async fn metrics_handler(_t: Token) -> Json<MetricsRoot> { Json(get_metrics().await) }
+pub async fn metrics_handler(_t: Token) -> Json<MetricsRoot> {
+    Json(get_metrics().await)
+}
 
 #[get("/remote/<name>/metrics")]
 #[utoipa::path(get, tag = "Remote", path = "/remote/{name}/metrics", security((), ("api_key" = [])),
@@ -964,18 +1137,30 @@ pub async fn metrics_handler(_t: Token) -> Json<MetricsRoot> { Json(get_metrics(
     )
 )]
 pub async fn remote_metrics(name: String, _t: Token) -> Result<Json<MetricsRoot>, GenericError> {
-    let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["info"]).start_timer();
+    let timer = HTTP_REQ_HISTOGRAM
+        .with_label_values(&["info"])
+        .start_timer();
 
     if let Some(servers) = config::servers().servers {
         let (address, (client, headers)) = match servers.get(&name) {
             Some(server) => (&server.address, client(&server.token).await),
-            None => return Err(generic_error(Status::NotFound, string!("Server was not found"))),
+            None => {
+                return Err(generic_error(
+                    Status::NotFound,
+                    string!("Server was not found"),
+                ));
+            }
         };
 
         HTTP_COUNTER.inc();
         timer.observe_duration();
 
-        match client.get(fmtstr!("{address}/daemon/metrics")).headers(headers).send().await {
+        match client
+            .get(fmtstr!("{address}/daemon/metrics"))
+            .headers(headers)
+            .send()
+            .await
+        {
             Ok(data) => {
                 if data.status() != 200 {
                     let err = data.json::<ErrorMessage>().await.unwrap();
@@ -987,7 +1172,10 @@ pub async fn remote_metrics(name: String, _t: Token) -> Result<Json<MetricsRoot>
             Err(err) => Err(generic_error(Status::InternalServerError, err.to_string())),
         }
     } else {
-        Err(generic_error(Status::BadRequest, string!("No servers have been added")))
+        Err(generic_error(
+            Status::BadRequest,
+            string!("No servers have been added"),
+        ))
     }
 }
 
@@ -1001,67 +1189,86 @@ pub async fn remote_logs_ws(
     ws: WebSocket,
     _t: Token,
 ) -> rocket_ws::Channel<'static> {
-    ws.channel(move |mut stream| Box::pin(async move {
-        let servers = if let Some(servers) = config::servers().servers {
-            servers
-        } else {
-            let _ = stream.send(WsOut::Text(json!({"type": "error", "message": "No servers have been added"}).to_string())).await;
-            return Ok(());
-        };
-
-        let (address, token_header) = match servers.get(&name) {
-            Some(server) => (&server.address, server.token.clone()),
-            None => {
-                let _ = stream.send(WsOut::Text(json!({"type": "error", "message": "Server was not found"}).to_string())).await;
+    ws.channel(move |mut stream| {
+        Box::pin(async move {
+            let servers = if let Some(servers) = config::servers().servers {
+                servers
+            } else {
+                let _ = stream
+                    .send(WsOut::Text(
+                        json!({"type": "error", "message": "No servers have been added"})
+                            .to_string(),
+                    ))
+                    .await;
                 return Ok(());
+            };
+
+            let (address, token_header) = match servers.get(&name) {
+                Some(server) => (&server.address, server.token.clone()),
+                None => {
+                    let _ = stream
+                        .send(WsOut::Text(
+                            json!({"type": "error", "message": "Server was not found"}).to_string(),
+                        ))
+                        .await;
+                    return Ok(());
+                }
+            };
+
+            let base = address.trim_end_matches('/');
+            let mut url = if base.starts_with("https://") {
+                base.replacen("https://", "wss://", 1)
+            } else if base.starts_with("http://") {
+                base.replacen("http://", "ws://", 1)
+            } else {
+                format!("ws://{base}")
+            };
+
+            url.push_str(&format!(
+                "/process/{id}/logs/{kind}/ws?tail={}",
+                tail.unwrap_or(WS_TAIL_DEFAULT)
+            ));
+
+            if let Some(token) = token_header {
+                url.push_str(&format!("&token={token}"));
             }
-        };
 
-        let base = address.trim_end_matches('/');
-        let mut url = if base.starts_with("https://") {
-            base.replacen("https://", "wss://", 1)
-        } else if base.starts_with("http://") {
-            base.replacen("http://", "ws://", 1)
-        } else {
-            format!("ws://{base}")
-        };
+            if let Some(token) = token {
+                url.push_str(&format!("&token={token}"));
+            }
 
-        url.push_str(&format!("/process/{id}/logs/{kind}/ws?tail={}", tail.unwrap_or(WS_TAIL_DEFAULT)));
-
-        if let Some(token) = token_header {
-            url.push_str(&format!("&token={token}"));
-        }
-
-        if let Some(token) = token {
-            url.push_str(&format!("&token={token}"));
-        }
-
-        match connect_async(url).await {
-            Ok((mut upstream, _)) => {
-                while let Some(msg) = upstream.next().await {
-                    match msg {
-                        Ok(UpstreamMessage::Text(text)) => {
-                            if stream.send(WsOut::Text(text.to_string())).await.is_err() {
-                                return Ok(());
+            match connect_async(url).await {
+                Ok((mut upstream, _)) => {
+                    while let Some(msg) = upstream.next().await {
+                        match msg {
+                            Ok(UpstreamMessage::Text(text)) => {
+                                if stream.send(WsOut::Text(text.to_string())).await.is_err() {
+                                    return Ok(());
+                                }
                             }
-                        }
-                        Ok(UpstreamMessage::Binary(bin)) => {
-                            if stream.send(WsOut::Binary(bin.to_vec())).await.is_err() {
-                                return Ok(());
+                            Ok(UpstreamMessage::Binary(bin)) => {
+                                if stream.send(WsOut::Binary(bin.to_vec())).await.is_err() {
+                                    return Ok(());
+                                }
                             }
+                            Ok(UpstreamMessage::Close(_)) => break,
+                            _ => {}
                         }
-                        Ok(UpstreamMessage::Close(_)) => break,
-                        _ => {}
                     }
                 }
+                Err(err) => {
+                    let _ = stream
+                        .send(WsOut::Text(
+                            json!({"type": "error", "message": format!("Upstream error: {err}")})
+                                .to_string(),
+                        ))
+                        .await;
+                }
             }
-            Err(err) => {
-                let _ = stream.send(WsOut::Text(json!({"type": "error", "message": format!("Upstream error: {err}")}).to_string())).await;
-            }
-        }
 
-        Ok(())
-    }))
+            Ok(())
+        })
+    })
 }
 
 #[get("/live/daemon/<server>/metrics")]

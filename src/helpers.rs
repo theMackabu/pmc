@@ -22,11 +22,15 @@ impl serde::Serialize for ColoredString {
 }
 
 impl From<colored::ColoredString> for ColoredString {
-    fn from(cs: colored::ColoredString) -> Self { ColoredString(cs) }
+    fn from(cs: colored::ColoredString) -> Self {
+        ColoredString(cs)
+    }
 }
 
 impl fmt::Display for ColoredString {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "{}", self.0) }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
 }
 
 pub fn format_duration(datetime: DateTime<Utc>) -> String {
@@ -53,7 +57,9 @@ pub fn format_memory(bytes: u64) -> String {
     }
 
     let mut buffer = ryu::Buffer::new();
-    let result = buffer.format((UNIT.powf(base - base.floor()) * 10.0).round() / 10.0).trim_end_matches(".0");
+    let result = buffer
+        .format((UNIT.powf(base - base.floor()) * 10.0).round() / 10.0)
+        .trim_end_matches(".0");
 
     [result, SUFFIX[base.floor() as usize]].join("")
 }
