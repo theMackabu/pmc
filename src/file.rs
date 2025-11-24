@@ -52,7 +52,7 @@ pub fn logs_internal(
         0
     };
 
-    for (_, line) in lines.iter().skip(start_index).enumerate() {
+    for line in lines.iter().skip(start_index) {
         println!(
             "{} {}",
             format!("{}|{} |", id, item_name).color(color),
@@ -127,7 +127,7 @@ pub fn read<T: serde::de::DeserializeOwned>(path: String) -> T {
 }
 
 pub fn from_object<T: serde::de::DeserializeOwned>(bytes: &[u8]) -> T {
-    match ron::de::from_bytes(&bytes) {
+    match ron::de::from_bytes(bytes) {
         Ok(parsed) => parsed,
         Err(err) => crashln!(
             "{} Cannot parse file.\n{}",

@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 pub fn create(path: PathBuf) -> String {
     log::info!("creating hash for {:?}", path);
-    let tree = match MerkleTree::builder(&path.to_str().unwrap())
+    let tree = match MerkleTree::builder(path.to_str().unwrap())
         .algorithm(Algorithm::Blake3)
         .hash_names(false)
         .build()

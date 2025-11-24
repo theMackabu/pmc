@@ -232,6 +232,12 @@ fn kill_children(children: Vec<i64>) {
     }
 }
 
+impl Default for Runner {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Runner {
     pub fn new() -> Self {
         dump::read()
@@ -336,7 +342,7 @@ impl Runner {
             );
         }
 
-        return self;
+        self
     }
 
     pub fn restart(&mut self, id: usize, dead: bool) -> &mut Self {
@@ -399,7 +405,7 @@ impl Runner {
             }
         }
 
-        return self;
+        self
     }
 
     pub fn remove(&mut self, id: usize) {
@@ -438,7 +444,7 @@ impl Runner {
     }
 
     pub fn save(&self) {
-        then!(self.remote.is_none(), dump::write(&self))
+        then!(self.remote.is_none(), dump::write(self))
     }
 
     pub fn count(&mut self) -> usize {
@@ -464,11 +470,11 @@ impl Runner {
     }
 
     pub fn size(&self) -> Option<&usize> {
-        self.list.iter().map(|(k, _)| k).max()
+        self.list.keys().max()
     }
 
-    pub fn list<'l>(&'l mut self) -> impl Iterator<Item = (&'l usize, &'l mut Process)> {
-        self.list.iter_mut().map(|(k, v)| (k, v))
+    pub fn list(&mut self) -> impl Iterator<Item = (&usize, &mut Process)> {
+        self.list.iter_mut()
     }
 
     pub fn process(&mut self, id: usize) -> &mut Process {
@@ -493,12 +499,12 @@ impl Runner {
 
     pub fn set_crashed(&mut self, id: usize) -> &mut Self {
         self.process(id).crash.crashed = true;
-        return self;
+        self
     }
 
     pub fn set_env(&mut self, id: usize, env: Env) -> &mut Self {
         self.process(id).env.extend(env);
-        return self;
+        self
     }
 
     pub fn clear_env(&mut self, id: usize) -> &mut Self {
@@ -514,17 +520,17 @@ impl Runner {
             self.process(id).env = BTreeMap::new();
         }
 
-        return self;
+        self
     }
 
     pub fn set_children(&mut self, id: usize, children: Vec<i64>) -> &mut Self {
         self.process(id).children = children;
-        return self;
+        self
     }
 
     pub fn new_crash(&mut self, id: usize) -> &mut Self {
         self.process(id).crash.value += 1;
-        return self;
+        self
     }
 
     pub fn stop(&mut self, id: usize) -> &mut Self {
@@ -558,7 +564,7 @@ impl Runner {
             process.children = vec![];
         }
 
-        return self;
+        self
     }
 
     pub fn flush(&mut self, id: usize) -> &mut Self {
@@ -574,7 +580,7 @@ impl Runner {
             self.process(id).logs().flush();
         }
 
-        return self;
+        self
     }
 
     pub fn rename(&mut self, id: usize, name: String) -> &mut Self {
@@ -590,7 +596,7 @@ impl Runner {
             self.process(id).name = name;
         }
 
-        return self;
+        self
     }
 
     pub fn watch(&mut self, id: usize, path: &str, enabled: bool) -> &mut Self {
@@ -601,7 +607,7 @@ impl Runner {
             hash: ternary!(enabled, hash::create(process.path.join(path)), string!("")),
         };
 
-        return self;
+        self
     }
 
     pub fn find(&self, name: &str, server_name: &String) -> Option<usize> {
@@ -643,7 +649,7 @@ impl Runner {
             if let Ok(process) = unix::NativeProcess::new(item.pid as u32)
                 && let Ok(mem_info_native) = process.memory_info()
             {
-                cpu_percent = Some(get_process_cpu_usage_percentage(item.pid as i64));
+                cpu_percent = Some(get_process_cpu_usage_percentage(item.pid));
                 memory_usage = Some(MemoryInfo::from(mem_info_native));
             }
 
@@ -680,7 +686,7 @@ impl Runner {
             });
         }
 
-        return processes;
+        processes
     }
 }
 
@@ -901,7 +907,7 @@ pub fn process_find_children(parent_pid: i64) -> Vec<i64> {
                     if let Ok(Some(ppid)) = process.ppid() {
                         parent_map
                             .entry(ppid as i64)
-                            .or_insert_with(Vec::new)
+                            .or_default()
                             .push(process.pid() as i64);
                     }
                 });

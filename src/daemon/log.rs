@@ -40,6 +40,6 @@ macro_rules! log {
     ($msg:expr, $($key:expr => $value:expr),* $(,)?) => {{
         let mut args = std::collections::HashMap::new();
         $(args.insert($key.to_string(), format!("{}", $value));)*
-        crate::daemon::log::Logger::new().unwrap().write($msg, args)
+        $crate::daemon::log::Logger::new().unwrap().write($msg, args)
     }}
 }

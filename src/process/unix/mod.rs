@@ -113,11 +113,10 @@ pub fn get_actual_child_pid(shell_pid: i64) -> i64 {
 
     // Fallback: try using sysctl or other macOS specific methods
     for test_pid in 1..32768 {
-        if let Ok(Some(ppid)) = get_parent_pid(test_pid) {
-            if ppid as i64 == shell_pid {
+        if let Ok(Some(ppid)) = get_parent_pid(test_pid)
+            && ppid as i64 == shell_pid {
                 return test_pid as i64;
             }
-        }
     }
 
     shell_pid

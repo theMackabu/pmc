@@ -283,7 +283,7 @@ async fn render(
 
     state
         .tera
-        .render(name, &ctx)
+        .render(name, ctx)
         .or(Err(helpers::not_found("Page was not found")))
 }
 
@@ -320,7 +320,7 @@ async fn scalar(
 ) -> Result<(ContentType, String), NotFound> {
     Ok((
         ContentType::HTML,
-        render("docs", &state, &mut Context::new()).await?,
+        render("docs", state, &mut Context::new()).await?,
     ))
 }
 

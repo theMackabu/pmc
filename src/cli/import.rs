@@ -37,7 +37,7 @@ struct Watch {
 
 impl Process {
     fn get_watch_path(&self) -> Option<String> {
-        self.watch.as_ref().and_then(|w| Some(w.path.clone()))
+        self.watch.as_ref().map(|w| w.path.clone())
     }
 }
 
@@ -101,7 +101,7 @@ pub fn read_hcl(path: &String) {
 
     servers
         .iter()
-        .for_each(|server| super::Internal::list(&string!("default"), &server));
+        .for_each(|server| super::Internal::list(&string!("default"), server));
     println!(
         "{} Applied startProcess to imported items",
         *helpers::SUCCESS
@@ -152,7 +152,7 @@ pub fn export_hcl(item: &Item, path: &Option<String>) {
 
         if Exists::check(&path).file() {
             let mut file = OpenOptions::new()
-                .write(true)
+                
                 .append(true)
                 .open(path.clone())
                 .unwrap();
@@ -163,14 +163,12 @@ pub fn export_hcl(item: &Item, path: &Option<String>) {
                     string!(err).white()
                 )
             }
-        } else {
-            if let Err(err) = fs::write(path.clone(), serialized) {
-                crashln!(
-                    "{} Error writing file.\n{}",
-                    *helpers::FAIL,
-                    string!(err).white()
-                )
-            }
+        } else if let Err(err) = fs::write(path.clone(), serialized) {
+            crashln!(
+                "{} Error writing file.\n{}",
+                *helpers::FAIL,
+                string!(err).white()
+            )
         }
 
         println!("{} Exported process {id} to {path}", *helpers::SUCCESS);
@@ -178,7 +176,7 @@ pub fn export_hcl(item: &Item, path: &Option<String>) {
 
     match item {
         Item::Id(id) => fetch_process(*id),
-        Item::Name(name) => match runner.find(&name, &string!("internal")) {
+        Item::Name(name) => match runner.find(name, &string!("internal")) {
             Some(id) => fetch_process(id),
             None => crashln!("{} Process ({name}) not found", *helpers::FAIL),
         },

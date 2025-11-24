@@ -177,7 +177,7 @@ fn get_cpu_percent_mach(pid: u32) -> Option<f64> {
 #[cfg(target_os = "macos")]
 fn get_cpu_percent_ps(pid: u32) -> Option<f64> {
     let output = std::process::Command::new("ps")
-        .args(&["-p", &pid.to_string(), "-o", "pcpu="])
+        .args(["-p", &pid.to_string(), "-o", "pcpu="])
         .output()
         .ok()?;
 

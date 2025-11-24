@@ -267,7 +267,7 @@ impl<'i> Internal<'i> {
             println!("{} {}Created ({name}) ✓", *helpers::SUCCESS, self.kind)
         );
 
-        return self.runner;
+        self.runner
     }
 
     pub fn restart(
@@ -297,8 +297,7 @@ impl<'i> Internal<'i> {
 
             then!(reset_env, item.clear_env());
 
-            name.as_ref()
-                .map(|n| item.rename(n.trim().replace("\n", "")));
+            if let Some(n) = name.as_ref() { item.rename(n.trim().replace("\n", "")) }
             item.restart();
 
             self.runner = item.get_runner().clone();
@@ -314,8 +313,7 @@ impl<'i> Internal<'i> {
 
                         then!(reset_env, item.clear_env());
 
-                        name.as_ref()
-                            .map(|n| item.rename(n.trim().replace("\n", "")));
+                        if let Some(n) = name.as_ref() { item.rename(n.trim().replace("\n", "")) }
                         item.restart();
                     }
                     None => crashln!(
@@ -344,7 +342,7 @@ impl<'i> Internal<'i> {
             log!("process started (id={})", self.id);
         }
 
-        return self.runner;
+        self.runner
     }
 
     pub fn stop(mut self, silent: bool) -> Runner {
@@ -391,7 +389,7 @@ impl<'i> Internal<'i> {
             log!("process stopped {}(id={})", self.kind, self.id);
         }
 
-        return self.runner;
+        self.runner
     }
 
     pub fn remove(mut self) {
@@ -583,7 +581,7 @@ impl<'i> Internal<'i> {
 
                 if let Ok(process) = Process::new(item.pid as u32) {
                     memory_usage = process.memory_info().ok().map(MemoryInfo::from);
-                    cpu_percent = Some(get_process_cpu_usage_percentage(item.pid as i64));
+                    cpu_percent = Some(get_process_cpu_usage_percentage(item.pid));
                 }
 
                 let cpu_percent = match cpu_percent {
@@ -839,8 +837,8 @@ impl<'i> Internal<'i> {
                 format!("Showing last {lines} lines for {}process [{}] (change the value with --lines option)", self.kind, self.id).yellow()
             );
 
-            for kind in vec!["error", "out"] {
-                let logs = http::logs(&self.runner.remote.as_ref().unwrap(), self.id, kind);
+            for kind in ["error", "out"] {
+                let logs = http::logs(self.runner.remote.as_ref().unwrap(), self.id, kind);
 
                 if let Ok(log) = logs {
                     if log.lines.is_empty() {
@@ -920,7 +918,7 @@ impl<'i> Internal<'i> {
         }
 
         Runner::new().list().for_each(|(id, p)| {
-            if p.running == true {
+            if p.running {
                 runner = Internal {
                     id: *id,
                     server_name,
@@ -989,7 +987,7 @@ impl<'i> Internal<'i> {
 
                         if let Ok(process) = Process::new(item.pid as u32) {
                             usage_internals = (
-                                Some(get_process_cpu_usage_percentage(item.pid as i64)),
+                                Some(get_process_cpu_usage_percentage(item.pid)),
                                 process.memory_info().ok().map(MemoryInfo::from),
                             );
                         }
@@ -1004,7 +1002,7 @@ impl<'i> Internal<'i> {
                             None => string!("0b"),
                         };
                     } else {
-                        let info = http::info(&runner.remote.as_ref().unwrap(), id);
+                        let info = http::info(runner.remote.as_ref().unwrap(), id);
 
                         if let Ok(info) = info {
                             let stats = info.json::<ItemSingle>().unwrap().stats;
@@ -1083,15 +1081,13 @@ impl<'i> Internal<'i> {
                         server.address
                     ),
                 }
-            } else {
-                if matches!(&**server_name, "internal" | "all" | "global" | "local") {
-                    if *server_name == "all" || *server_name == "global" {
-                        println!("{} Internal daemon", *helpers::SUCCESS);
-                    }
-                    render_list(&mut Runner::new(), true);
-                } else {
-                    crashln!("{} Server '{server_name}' does not exist", *helpers::FAIL);
+            } else if matches!(&**server_name, "internal" | "all" | "global" | "local") {
+                if *server_name == "all" || *server_name == "global" {
+                    println!("{} Internal daemon", *helpers::SUCCESS);
                 }
+                render_list(&mut Runner::new(), true);
+            } else {
+                crashln!("{} Server '{server_name}' does not exist", *helpers::FAIL);
             }
 
             if *server_name == "all" || *server_name == "global" {

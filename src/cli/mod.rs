@@ -17,11 +17,11 @@ pub(crate) fn format(server_name: &String) -> (String, String) {
         "remote "
     )
     .to_string();
-    return (kind, server_name.to_string());
+    (kind, server_name.to_string())
 }
 
 pub fn get_version(short: bool) -> String {
-    return match short {
+    match short {
         true => format!("{} {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION")),
         false => match env!("GIT_HASH") {
             "" => format!(
@@ -37,7 +37,7 @@ pub fn get_version(short: bool) -> String {
                 env!("PROFILE")
             ),
         },
-    };
+    }
 }
 
 pub fn start(
@@ -50,10 +50,7 @@ pub fn start(
     let mut runner = Runner::new();
     let (kind, list_name) = format(server_name);
 
-    let arg = match args.get_string() {
-        Some(arg) => arg,
-        None => "",
-    };
+    let arg = args.get_string().unwrap_or_default();
 
     if arg == "all" {
         println!(
@@ -85,7 +82,7 @@ pub fn start(
                 }
                 .restart(name, watch, *reset_env, false);
             }
-            Args::Script(script) => match runner.find(&script, server_name) {
+            Args::Script(script) => match runner.find(script, server_name) {
                 Some(id) => {
                     Internal {
                         id,
@@ -115,10 +112,7 @@ pub fn stop(item: &Item, server_name: &String) {
     let mut runner: Runner = Runner::new();
     let (kind, list_name) = format(server_name);
 
-    let arg = match item.get_string() {
-        Some(arg) => arg,
-        None => "",
-    };
+    let arg = item.get_string().unwrap_or_default();
 
     if arg == "all" {
         println!("{} Applying {kind}action stopAllProcess", *helpers::SUCCESS);
@@ -147,7 +141,7 @@ pub fn stop(item: &Item, server_name: &String) {
                 }
                 .stop(false);
             }
-            Item::Name(name) => match runner.find(&name, server_name) {
+            Item::Name(name) => match runner.find(name, server_name) {
                 Some(id) => {
                     Internal {
                         id,
@@ -177,7 +171,7 @@ pub fn remove(item: &Item, server_name: &String) {
             kind,
         }
         .remove(),
-        Item::Name(name) => match runner.find(&name, server_name) {
+        Item::Name(name) => match runner.find(name, server_name) {
             Some(id) => Internal {
                 id,
                 runner,
@@ -204,7 +198,7 @@ pub fn info(item: &Item, format: &String, server_name: &String) {
             kind,
         }
         .info(format),
-        Item::Name(name) => match runner.find(&name, server_name) {
+        Item::Name(name) => match runner.find(name, server_name) {
             Some(id) => Internal {
                 id,
                 runner,
@@ -229,7 +223,7 @@ pub fn logs(item: &Item, lines: &usize, server_name: &String) {
             kind,
         }
         .logs(lines),
-        Item::Name(name) => match runner.find(&name, server_name) {
+        Item::Name(name) => match runner.find(name, server_name) {
             Some(id) => Internal {
                 id,
                 runner,
@@ -255,7 +249,7 @@ pub fn env(item: &Item, server_name: &String) {
             kind,
         }
         .env(),
-        Item::Name(name) => match runner.find(&name, server_name) {
+        Item::Name(name) => match runner.find(name, server_name) {
             Some(id) => Internal {
                 id,
                 runner,
@@ -280,7 +274,7 @@ pub fn flush(item: &Item, server_name: &String) {
             kind,
         }
         .flush(),
-        Item::Name(name) => match runner.find(&name, server_name) {
+        Item::Name(name) => match runner.find(name, server_name) {
             Some(id) => Internal {
                 id,
                 runner,

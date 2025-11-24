@@ -1,6 +1,5 @@
 use chrono::Datelike;
 use flate2::read::GzDecoder;
-use reqwest;
 use tar::Archive;
 
 use std::{
@@ -19,7 +18,7 @@ fn extract_tar_gz(tar: &PathBuf, download_dir: &PathBuf) -> io::Result<()> {
     let mut archive = Archive::new(decoder);
 
     archive.unpack(download_dir)?;
-    Ok(fs::remove_file(tar)?)
+    fs::remove_file(tar)
 }
 
 fn download_file(url: String, destination: &PathBuf, download_dir: &PathBuf) {
@@ -73,7 +72,7 @@ fn download_node() -> PathBuf {
         node_extract_dir.to_str().unwrap()
     );
 
-    return node_extract_dir;
+    node_extract_dir
 }
 
 fn download_then_build(node_extract_dir: PathBuf) {
@@ -128,11 +127,11 @@ fn main() {
     let date = chrono::Utc::now();
     let profile = env::var("PROFILE").unwrap();
     let output = Command::new("git")
-        .args(&["rev-parse", "--short=10", "HEAD"])
+        .args(["rev-parse", "--short=10", "HEAD"])
         .output()
         .unwrap();
     let output_full = Command::new("git")
-        .args(&["rev-parse", "HEAD"])
+        .args(["rev-parse", "HEAD"])
         .output()
         .unwrap();
 
@@ -159,7 +158,7 @@ fn main() {
             println!("cargo:rustc-env=PROFILE=release");
 
             /* cleanup */
-            fs::remove_dir_all(format!("src/webui/dist")).ok();
+            fs::remove_dir_all("src/webui/dist".to_string()).ok();
 
             /* pre-build */
             let path = download_node();

@@ -125,16 +125,14 @@ pub fn health(format: &String) {
         }
     }
 
-    if pid::exists() {
-        if let Ok(process_id) = pid::read() {
-            if let Ok(process) = Process::new(process_id.get::<u32>()) {
+    if pid::exists()
+        && let Ok(process_id) = pid::read()
+            && let Ok(process) = Process::new(process_id.get::<u32>()) {
                 pid = Some(process.pid() as i32);
                 uptime = Some(pid::uptime().unwrap());
                 memory_usage = process.memory_info().ok().map(MemoryInfo::from);
                 cpu_percent = Some(get_process_cpu_usage_percentage(process_id.get::<i64>()));
             }
-        }
-    }
 
     let cpu_percent = match cpu_percent {
         Some(percent) => format!("{:.2}%", percent),
@@ -157,10 +155,10 @@ pub fn health(format: &String) {
     };
 
     let data = vec![Info {
-        pid: pid,
+        pid,
         cpu_percent,
         memory_usage,
-        uptime: uptime,
+        uptime,
         path: global!("pmc.base"),
         external: global!("pmc.daemon.kind"),
         process_count: runner.count(),
@@ -186,15 +184,15 @@ pub fn health(format: &String) {
             "default" => {
                 println!(
                     "{}\n{table}\n",
-                    format!("PMC daemon information").on_bright_white().black()
+                    "PMC daemon information".to_string().on_bright_white().black()
                 );
                 println!(
                     " {}",
-                    format!("Use `pmc daemon restart` to restart the daemon").white()
+                    "Use `pmc daemon restart` to restart the daemon".to_string().white()
                 );
                 println!(
                     " {}",
-                    format!("Use `pmc daemon reset` to clean process id values").white()
+                    "Use `pmc daemon reset` to clean process id values".to_string().white()
                 );
             }
             _ => {}
@@ -266,13 +264,12 @@ pub fn start(verbose: bool) {
         }
 
         loop {
-            if api_enabled {
-                if let Ok(process) = Process::new(process::id()) {
+            if api_enabled
+                && let Ok(process) = Process::new(process::id()) {
                     DAEMON_CPU_PERCENTAGE
                         .observe(get_process_cpu_usage_percentage(process.pid() as i64));
                     DAEMON_MEM_USAGE.observe(process.memory_info().ok().unwrap().rss() as f64);
                 }
-            }
 
             then!(!Runner::new().is_empty(), restart_process());
             sleep(Duration::from_millis(config.interval));

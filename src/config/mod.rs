@@ -103,15 +103,14 @@ pub fn servers() -> Servers {
             let path = path.display();
             let config_path = format!("{path}/.pmc/servers.toml");
 
-            if !Exists::check(&config_path).file() {
-                if let Err(err) = write(&config_path, "") {
+            if !Exists::check(&config_path).file()
+                && let Err(err) = write(&config_path, "") {
                     crashln!(
                         "{} Error writing servers.\n{}",
                         *helpers::FAIL,
                         string!(err).white()
                     )
                 }
-            }
 
             file::read(config_path)
         }

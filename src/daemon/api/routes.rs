@@ -177,7 +177,7 @@ pub async fn dashboard(
 ) -> Result<(ContentType, String), NotFound> {
     Ok((
         ContentType::HTML,
-        render("dashboard", &state, &mut Context::new()).await?,
+        render("dashboard", state, &mut Context::new()).await?,
     ))
 }
 
@@ -188,7 +188,7 @@ pub async fn servers(
 ) -> Result<(ContentType, String), NotFound> {
     Ok((
         ContentType::HTML,
-        render("servers", &state, &mut Context::new()).await?,
+        render("servers", state, &mut Context::new()).await?,
     ))
 }
 
@@ -199,7 +199,7 @@ pub async fn login(
 ) -> Result<(ContentType, String), NotFound> {
     Ok((
         ContentType::HTML,
-        render("login", &state, &mut Context::new()).await?,
+        render("login", state, &mut Context::new()).await?,
     ))
 }
 
@@ -211,7 +211,7 @@ pub async fn view_process(
 ) -> Result<(ContentType, String), NotFound> {
     let mut ctx = Context::new();
     ctx.insert("process_id", &id);
-    Ok((ContentType::HTML, render("view", &state, &mut ctx).await?))
+    Ok((ContentType::HTML, render("view", state, &mut ctx).await?))
 }
 
 #[get("/status/<name>")]
@@ -222,7 +222,7 @@ pub async fn server_status(
 ) -> Result<(ContentType, String), NotFound> {
     let mut ctx = Context::new();
     ctx.insert("server_name", &name);
-    Ok((ContentType::HTML, render("status", &state, &mut ctx).await?))
+    Ok((ContentType::HTML, render("status", state, &mut ctx).await?))
 }
 
 #[get("/daemon/prometheus")]
@@ -1054,16 +1054,14 @@ pub async fn get_metrics() -> MetricsRoot {
     let mut runner: Runner = file::read_object(global!("pmc.dump"));
 
     HTTP_COUNTER.inc();
-    if pid::exists() {
-        if let Ok(process_id) = pid::read() {
-            if let Ok(process) = Process::new(process_id.get()) {
+    if pid::exists()
+        && let Ok(process_id) = pid::read()
+            && let Ok(process) = Process::new(process_id.get()) {
                 pid = Some(process_id);
                 uptime = Some(pid::uptime().unwrap());
                 memory_usage = Some(process.memory_info().unwrap().rss());
                 cpu_percent = Some(get_process_cpu_usage_percentage(process_id.get::<i64>()));
             }
-        }
-    }
 
     let memory_usage_fmt = match memory_usage {
         Some(usage) => helpers::format_memory(usage),
@@ -1284,7 +1282,7 @@ pub async fn stream_metrics(server: String, _t: Token) -> EventStream![] {
                             yield Event::data(serde_json::to_string(&response).unwrap());
                             sleep(Duration::from_millis(500));
                         },
-                        _ => return yield Event::data(format!("{{\"error\": \"server does not exist\"}}")),
+                        _ => return yield Event::data("{\"error\": \"server does not exist\"}".to_string()),
                     }
                 };
 
@@ -1326,7 +1324,7 @@ pub async fn stream_info(server: String, id: usize, _t: Token) -> EventStream![]
                             yield Event::data(serde_json::to_string(&item.fetch()).unwrap());
                             sleep(Duration::from_millis(1000));
                         },
-                        _ => return yield Event::data(format!("{{\"error\": \"server does not exist\"}}")),
+                        _ => return yield Event::data("{\"error\": \"server does not exist\"}".to_string()),
                     }
                 };
 

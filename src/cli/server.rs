@@ -57,7 +57,7 @@ pub fn list(format: &String, log_level: Option<log::Level>) {
     let servers = config::servers()
         .servers
         .take()
-        .unwrap_or_else(BTreeMap::new);
+        .unwrap_or_default();
 
     let options: Vec<_> = servers
         .iter()
@@ -69,7 +69,7 @@ pub fn list(format: &String, log_level: Option<log::Level>) {
 
             ServerOption {
                 name: key.clone(),
-                formatted: format!("{} {}", format!("{key}").bright_yellow(), verbose.white()),
+                formatted: format!("{} {}", key.to_string().bright_yellow(), verbose.white()),
             }
         })
         .collect();
@@ -85,7 +85,7 @@ pub fn new() {
     let mut servers = config::servers()
         .servers
         .take()
-        .unwrap_or_else(BTreeMap::new);
+        .unwrap_or_default();
 
     match Text::new("Server Name:").prompt() {
         Ok(ans) => name = ans,
@@ -115,7 +115,7 @@ pub fn new() {
         Err(_) => crashln!("{}", "Canceled...".white()),
         Ok(false) => {}
         Ok(true) => {
-            if name == "" || address == "" {
+            if name.is_empty() || address.is_empty() {
                 crashln!("{} Failed to add new server", *helpers::FAIL)
             } else {
                 servers.insert(name, Server { address, token });
@@ -130,7 +130,7 @@ pub fn remove(name: &String) {
     let mut servers = config::servers()
         .servers
         .take()
-        .unwrap_or_else(BTreeMap::new);
+        .unwrap_or_default();
 
     if servers.contains_key(name) {
         match Confirm::new(&format!("Remove server {name}? (y/n)")).prompt() {
@@ -151,7 +151,7 @@ pub fn default(name: &Option<String>) {
     let servers = config::servers()
         .servers
         .take()
-        .unwrap_or_else(BTreeMap::new);
+        .unwrap_or_default();
 
     let name = match name {
         Some(name) => name.as_str(),

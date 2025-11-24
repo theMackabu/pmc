@@ -33,10 +33,10 @@ pub mod sync {
         let mut headers = HeaderMap::new();
 
         if let Some(token) = token {
-            headers.insert("token", HeaderValue::from_str(&token).unwrap());
+            headers.insert("token", HeaderValue::from_str(token).unwrap());
         }
 
-        return (client, headers);
+        (client, headers)
     }
 }
 
@@ -45,10 +45,10 @@ pub async fn client(token: &Option<String>) -> (Client, HeaderMap) {
     let mut headers = HeaderMap::new();
 
     if let Some(token) = token {
-        headers.insert("token", HeaderValue::from_str(&token).unwrap());
+        headers.insert("token", HeaderValue::from_str(token).unwrap());
     }
 
-    return (client, headers);
+    (client, headers)
 }
 
 pub fn info(
