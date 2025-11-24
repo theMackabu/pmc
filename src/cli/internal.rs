@@ -3,8 +3,11 @@ use macros_rs::{crashln, string, ternary, then};
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 use pmc::process::{MemoryInfo, unix::NativeProcess as Process};
 use regex::Regex;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
+use tokio::{runtime::Runtime, signal, sync::broadcast};
+use tokio_tungstenite::{connect_async, tungstenite::Message as WsMessage};
+use futures::{StreamExt, stream::FuturesUnordered};
 
 use pmc::{
     config, file,
@@ -29,6 +32,135 @@ pub struct Internal<'i> {
     pub kind: String,
     pub server_name: &'i str,
 }
+
+#[derive(Debug, Deserialize)]
+struct WsFrame {
+    #[serde(rename = "type")]
+    kind: String,
+    line: Option<String>,
+    lines: Option<Vec<String>>,
+    path: Option<String>,
+    message: Option<String>,
+}
+
+fn ws_scheme(address: &str) -> String {
+    if address.starts_with("https://") {
+        address.replacen("https://", "wss://", 1)
+    } else if address.starts_with("http://") {
+        address.replacen("http://", "ws://", 1)
+    } else {
+        format!("ws://{address}")
+    }
+}
+
+fn local_ws_url(id: usize, kind: &str, lines: usize) -> String {
+    let cfg = config::read();
+    let host = ternary!(cfg.daemon.web.address == "0.0.0.0", string!("127.0.0.1"), cfg.daemon.web.address.clone());
+    let base = cfg.get_path().trim_end_matches('/').to_string();
+    let token = cfg.daemon.web.secure.as_ref().filter(|s| s.enabled).map(|s| s.token.clone());
+    let mut url = format!("ws://{}:{}{}/process/{id}/logs/{kind}/ws?tail={lines}", host, cfg.daemon.web.port, base);
+
+    if let Some(token) = token {
+        url.push_str(&format!("&token={token}"));
+    }
+
+    url
+}
+
+fn remote_ws_url(address: &str, token: &Option<String>, id: usize, kind: &str, lines: usize) -> String {
+    let base = address.trim_end_matches('/');
+    let mut url = ws_scheme(base);
+    url.push_str(&format!("/process/{id}/logs/{kind}/ws?tail={lines}"));
+
+    if let Some(token) = token {
+        url.push_str(&format!("&token={token}"));
+    }
+
+    url
+}
+
+fn print_snapshot(id: usize, item_name: &str, kind: &str, path: &str, lines: &[String]) {
+    println!("{}", format!("\n{path} last {} lines ({kind}):", lines.len()).bright_black());
+    let color = ternary!(kind == "out" || kind == "stdout", "green", "red");
+    for line in lines {
+        println!("{} {}", format!("{}|{}|{kind} |", id, item_name).color(color), line);
+    }
+}
+
+fn print_line(id: usize, item_name: &str, kind: &str, line: &str) {
+    let color = ternary!(kind == "out" || kind == "stdout", "green", "red");
+    println!("{} {}", format!("{}|{}|{kind} |", id, item_name).color(color), line);
+}
+
+async fn stream_ws_once(url: String, id: usize, item_name: String, kind: String, mut shutdown: broadcast::Receiver<()>) -> anyhow::Result<()> {
+    let (mut ws, _) = connect_async(url).await?;
+
+    loop {
+        tokio::select! {
+            _ = shutdown.recv() => {
+                let _ = ws.close(None).await;
+                break;
+            }
+            msg = ws.next() => {
+                let Some(msg) = msg else { break };
+                match msg {
+                    Ok(WsMessage::Text(text)) => {
+                        if let Ok(frame) = serde_json::from_str::<WsFrame>(&text) {
+                            match frame.kind.as_str() {
+                                "snapshot" => {
+                                    if let (Some(path), Some(lines)) = (frame.path, frame.lines) {
+                                        print_snapshot(id, &item_name, &kind, &path, &lines);
+                                    }
+                                }
+                                "line" => {
+                                    if let Some(line) = frame.line {
+                                        print_line(id, &item_name, &kind, &line);
+                                    }
+                                }
+                                "error" => {
+                                    if let Some(message) = frame.message {
+                                        println!("{} {}", *helpers::FAIL, message);
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                    Ok(WsMessage::Binary(_)) => {}
+                    Ok(WsMessage::Close(_)) => break,
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+async fn stream_ws_multi(urls: Vec<(String, String)>, id: usize, item_name: String) -> anyhow::Result<()> {
+    let (tx, _) = broadcast::channel(2);
+    let mut tasks = FuturesUnordered::new();
+
+    for (kind, url) in urls {
+        tasks.push(tokio::spawn(stream_ws_once(url, id, item_name.clone(), kind, tx.subscribe())));
+    }
+
+    let joiner = async move {
+        while let Some(res) = tasks.next().await {
+            if let Err(err) = res {
+                println!("{} Log task ended unexpectedly: {err}", *helpers::FAIL);
+            }
+        }
+    };
+
+    tokio::select! {
+        _ = signal::ctrl_c() => { let _ = tx.send(()); }
+        _ = joiner => {}
+    }
+
+    Ok(())
+}
+
 
 impl<'i> Internal<'i> {
     pub fn create(mut self, script: &String, name: &Option<String>, watch: &Option<String>, silent: bool) -> Runner {
@@ -394,7 +526,10 @@ impl<'i> Internal<'i> {
     }
 
     pub fn logs(mut self, lines: &usize) {
-        if !matches!(self.server_name, "internal" | "local") {
+        let tail = *lines;
+        let mut urls: Vec<(String, String)> = Vec::new();
+
+        let item_name = if !matches!(self.server_name, "internal" | "local") {
             let Some(servers) = config::servers().servers else {
                 crashln!("{} Failed to read servers", *helpers::FAIL)
             };
@@ -408,6 +543,42 @@ impl<'i> Internal<'i> {
                 crashln!("{} Server '{}' does not exist", *helpers::FAIL, self.server_name)
             };
 
+            let item = self.runner.info(self.id).unwrap_or_else(|| crashln!("{} Process ({}) not found", *helpers::FAIL, self.id));
+            if let Some(remote) = &self.runner.remote {
+                for kind in ["error", "out"] {
+                    urls.push((kind.to_string(), remote_ws_url(remote.address(), remote.token(), self.id, kind, tail)));
+                }
+            }
+
+            Some(item.name.clone())
+        } else {
+            let item = self.runner.info(self.id).unwrap_or_else(|| crashln!("{} Process ({}) not found", *helpers::FAIL, self.id));
+
+            for kind in ["error", "out"] {
+                urls.push((kind.to_string(), local_ws_url(self.id, kind, tail)));
+            }
+
+            Some(item.name.clone())
+        };
+
+        if !urls.is_empty() {
+            println!(
+                "{}",
+                format!("Streaming last {tail} lines for {}process [{}] (Ctrl+C to stop)", self.kind, self.id).yellow()
+            );
+
+            let runtime = Runtime::new();
+            if let Err(err) = runtime
+                .expect("Failed to create tokio runtime")
+                .block_on(stream_ws_multi(urls, self.id, item_name.clone().unwrap_or_default())) {
+                println!("{} WebSocket streaming failed: {err}", *helpers::FAIL);
+            } else {
+                return;
+            }
+        }
+
+        // fallback to existing behavior
+        if !matches!(self.server_name, "internal" | "local") {
             let item = self.runner.info(self.id).unwrap_or_else(|| crashln!("{} Process ({}) not found", *helpers::FAIL, self.id));
             println!(
                 "{}",

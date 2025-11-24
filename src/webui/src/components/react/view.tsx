@@ -43,6 +43,7 @@ const LogViewer = (props: { liveReload; setLiveReload; server: string | null; ba
 	const [searchOpen, setSearchOpen] = useState(false);
 	const [componentHeight, setComponentHeight] = useState(0);
 	const filtered = (!searchQuery && logs) || matchSorter(logs, searchQuery);
+	const [socket, setSocket] = useState<WebSocket | null>(null);
 
 	useEffect(() => {
 		const updateComponentHeight = () => {
@@ -95,34 +96,73 @@ const LogViewer = (props: { liveReload; setLiveReload; server: string | null; ba
 		};
 	}, [searchOpen]);
 
-	const fetchLogs = () => {
-		const url =
-			props.server != 'local'
-				? `${props.base}/remote/${props.server}/logs/${props.id}/${logType.name}`
-				: `${props.base}/process/${props.id}/logs/${logType.name}`;
+	const wsUrl = () => {
+		const serverName = props.server ?? 'local';
+		const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+		const base = props.base.startsWith('http')
+			? props.base.replace(/^http/i, protocol)
+			: `${protocol}://${window.location.host}${props.base}`;
+		const tokenQuery = headers.token ? `&token=${headers.token}` : '';
 
-		api
-			.get(url)
-			.json()
-			.then((data) => setLogs(data.logs))
-			.finally(() => setLoaded(true));
+		return serverName != 'local'
+			? `${base}/remote/${serverName}/logs/${props.id}/${logType.name}/ws?tail=400${tokenQuery}`
+			: `${base}/process/${props.id}/logs/${logType.name}/ws?tail=400${tokenQuery}`;
 	};
 
 	useEffect(() => {
-		setLoaded(false);
-		fetchLogs();
-	}, [logType]);
+		let retryTimeout: number | null = null;
+		let ws: WebSocket | null = null;
 
-	useEffect(() => {
-		const fetchTime = setInterval(() => {
-			if (props.liveReload) {
-				fetchLogs();
-				lastRow.current?.scrollIntoView();
+		const openSocket = () => {
+			const url = wsUrl();
+			ws = new WebSocket(url);
+			setSocket(ws);
+			setLoaded(false);
+
+			ws.onmessage = (event) => {
+				try {
+					const payload = JSON.parse(event.data);
+					if (payload.type === 'snapshot') {
+						setLogs(payload.lines || []);
+						setLoaded(true);
+						lastRow.current?.scrollIntoView();
+						if (!props.liveReload) {
+							ws?.close();
+						}
+					}
+					if (payload.type === 'line' && props.liveReload && payload.line) {
+						setLogs((prev) => [...prev, payload.line]);
+						lastRow.current?.scrollIntoView();
+					}
+					if (payload.type === 'error') {
+						setLoaded(true);
+					}
+				} catch (err) {
+					console.error('Invalid websocket payload', err);
+				}
+			};
+
+			ws.onclose = () => {
+				setSocket(null);
+				if (props.liveReload) {
+					retryTimeout = window.setTimeout(() => openSocket(), 3000);
+				}
+			};
+
+			ws.onerror = () => {
+				ws?.close();
+			};
+		};
+
+		openSocket();
+
+		return () => {
+			ws && ws.close();
+			if (retryTimeout) {
+				clearTimeout(retryTimeout);
 			}
-		}, 5000);
-
-		return () => clearInterval(fetchTime);
-	}, [props.liveReload]);
+		};
+	}, [logType, props.liveReload, props.server]);
 
 	useEffect(() => {
 		lastRow.current?.scrollIntoView();

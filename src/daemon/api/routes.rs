@@ -7,6 +7,16 @@ use prometheus::{Encoder, TextEncoder};
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 use pmc::process::unix::NativeProcess as Process;
 use reqwest::header::HeaderValue;
+use futures::{SinkExt, StreamExt};
+use rocket_ws::{Message as WsOut, WebSocket};
+use serde_json::json;
+use std::io::SeekFrom;
+use tokio::{
+    fs::File as AsyncFile,
+    io::{AsyncReadExt, AsyncSeekExt},
+    time::{sleep as tokio_sleep, Duration as TokioDuration},
+};
+use tokio_tungstenite::{connect_async, tungstenite::Message as UpstreamMessage};
 use tera::Context;
 use utoipa::ToSchema;
 
@@ -48,6 +58,7 @@ use std::{
 
 pub(crate) struct Token;
 type EnvList = Json<BTreeMap<String, String>>;
+const WS_TAIL_DEFAULT: usize = 400;
 
 #[allow(dead_code)]
 #[derive(ToSchema)]
@@ -601,6 +612,91 @@ pub async fn logs_raw_handler(id: usize, kind: String, _t: Token) -> Result<Stri
     }
 }
 
+#[get("/process/<id>/logs/<kind>/ws?<tail>&<token>")]
+pub async fn logs_ws(
+    id: usize,
+    kind: String,
+    tail: Option<usize>,
+    token: Option<String>,
+    ws: WebSocket,
+    _t: Token,
+) -> rocket_ws::Channel<'static> {
+    ws.channel(move |mut stream| Box::pin(async move {
+        let _ = token.as_ref();
+        let runner = Runner::new();
+        let Some(item) = runner.info(id) else {
+            let _ = stream.send(WsOut::Text(json!({"type": "error", "message": "Process was not found"}).to_string())).await;
+            return Ok(());
+        };
+
+        let log_file = match kind.as_str() {
+            "out" | "stdout" => item.logs().out,
+            "error" | "stderr" => item.logs().error,
+            _ => item.logs().out,
+        };
+
+        let mut file = match AsyncFile::open(&log_file).await {
+            Ok(f) => f,
+            Err(_) => {
+                let _ = stream.send(WsOut::Text(json!({"type": "error", "message": "Log file not found"}).to_string())).await;
+                return Ok(());
+            }
+        };
+
+        let tail_lines = tail.unwrap_or(WS_TAIL_DEFAULT);
+        let mut buf = Vec::new();
+
+        if let Err(err) = file.read_to_end(&mut buf).await {
+            let _ = stream.send(WsOut::Text(json!({"type": "error", "message": format!("Failed to read log file: {err}")}).to_string())).await;
+            return Ok(());
+        }
+
+        let mut position = buf.len() as u64;
+        let lines: Vec<String> = String::from_utf8_lossy(&buf).lines().map(|line| line.to_string()).collect();
+        let start_index = lines.len().saturating_sub(tail_lines);
+
+        if stream.send(WsOut::Text(json!({
+            "type": "snapshot",
+            "path": log_file,
+            "lines": lines.iter().skip(start_index).cloned().collect::<Vec<String>>(),
+        }).to_string())).await.is_err() {
+            return Ok(());
+        }
+
+        loop {
+            tokio_sleep(TokioDuration::from_millis(500)).await;
+
+            if file.seek(SeekFrom::Start(position)).await.is_err() {
+                let _ = stream.send(WsOut::Text(json!({"type": "error", "message": "Failed to seek log file"}).to_string())).await;
+                break;
+            }
+
+            buf.clear();
+            let read = match file.read_to_end(&mut buf).await {
+                Ok(r) => r,
+                Err(err) => {
+                    let _ = stream.send(WsOut::Text(json!({"type": "error", "message": format!("Failed to read log file: {err}")}).to_string())).await;
+                    break;
+                }
+            };
+
+            if read == 0 {
+                continue;
+            }
+
+            position += read as u64;
+
+            for line in String::from_utf8_lossy(&buf).lines() {
+                if stream.send(WsOut::Text(json!({"type": "line", "line": line}).to_string())).await.is_err() {
+                    return Ok(());
+                }
+            }
+        }
+
+        Ok(())
+    }))
+}
+
 #[get("/process/<id>/info")]
 #[utoipa::path(get, tag = "Process", path = "/process/{id}/info", security((), ("api_key" = [])),
     params(("id" = usize, Path, description = "Process id to get information for", example = 0)),
@@ -893,6 +989,79 @@ pub async fn remote_metrics(name: String, _t: Token) -> Result<Json<MetricsRoot>
     } else {
         Err(generic_error(Status::BadRequest, string!("No servers have been added")))
     }
+}
+
+#[get("/remote/<name>/logs/<id>/<kind>/ws?<tail>&<token>")]
+pub async fn remote_logs_ws(
+    name: String,
+    id: usize,
+    kind: String,
+    tail: Option<usize>,
+    token: Option<String>,
+    ws: WebSocket,
+    _t: Token,
+) -> rocket_ws::Channel<'static> {
+    ws.channel(move |mut stream| Box::pin(async move {
+        let servers = if let Some(servers) = config::servers().servers {
+            servers
+        } else {
+            let _ = stream.send(WsOut::Text(json!({"type": "error", "message": "No servers have been added"}).to_string())).await;
+            return Ok(());
+        };
+
+        let (address, token_header) = match servers.get(&name) {
+            Some(server) => (&server.address, server.token.clone()),
+            None => {
+                let _ = stream.send(WsOut::Text(json!({"type": "error", "message": "Server was not found"}).to_string())).await;
+                return Ok(());
+            }
+        };
+
+        let base = address.trim_end_matches('/');
+        let mut url = if base.starts_with("https://") {
+            base.replacen("https://", "wss://", 1)
+        } else if base.starts_with("http://") {
+            base.replacen("http://", "ws://", 1)
+        } else {
+            format!("ws://{base}")
+        };
+
+        url.push_str(&format!("/process/{id}/logs/{kind}/ws?tail={}", tail.unwrap_or(WS_TAIL_DEFAULT)));
+
+        if let Some(token) = token_header {
+            url.push_str(&format!("&token={token}"));
+        }
+
+        if let Some(token) = token {
+            url.push_str(&format!("&token={token}"));
+        }
+
+        match connect_async(url).await {
+            Ok((mut upstream, _)) => {
+                while let Some(msg) = upstream.next().await {
+                    match msg {
+                        Ok(UpstreamMessage::Text(text)) => {
+                            if stream.send(WsOut::Text(text.to_string())).await.is_err() {
+                                return Ok(());
+                            }
+                        }
+                        Ok(UpstreamMessage::Binary(bin)) => {
+                            if stream.send(WsOut::Binary(bin.to_vec())).await.is_err() {
+                                return Ok(());
+                            }
+                        }
+                        Ok(UpstreamMessage::Close(_)) => break,
+                        _ => {}
+                    }
+                }
+            }
+            Err(err) => {
+                let _ = stream.send(WsOut::Text(json!({"type": "error", "message": format!("Upstream error: {err}")}).to_string())).await;
+            }
+        }
+
+        Ok(())
+    }))
 }
 
 #[get("/live/daemon/<server>/metrics")]

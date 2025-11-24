@@ -161,6 +161,11 @@ pub struct Remote {
     pub config: RemoteConfig,
 }
 
+impl Remote {
+    pub fn address(&self) -> &str { &self.address }
+    pub fn token(&self) -> &Option<String> { &self.token }
+}
+
 #[derive(Clone, Debug, Deserialize)]
 pub struct RemoteConfig {
     pub shell: String,

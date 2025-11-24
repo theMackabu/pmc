@@ -145,10 +145,14 @@ impl<'r> FromRequest<'r> for routes::Token {
                     return Outcome::Success(routes::Token);
                 }
 
-                if let Some(header_value) = request.headers().get_one("token") {
-                    if header_value == val.token {
-                        return Outcome::Success(routes::Token);
-                    }
+                let header_valid = request.headers().get_one("token").is_some_and(|header_value| header_value == val.token);
+                let query_valid = match request.query_value::<String>("token") {
+                    Some(Ok(query_token)) => query_token == val.token,
+                    _ => false,
+                };
+
+                if header_valid || query_valid {
+                    return Outcome::Success(routes::Token);
                 }
 
                 Outcome::Error((rocket::http::Status::Unauthorized, ()))
@@ -192,6 +196,7 @@ pub async fn start(webui: bool) {
         routes::list_handler,
         routes::logs_handler,
         routes::logs_raw_handler,
+        routes::logs_ws,
         routes::metrics_handler,
         routes::remote_metrics,
         routes::stream_info,
@@ -199,6 +204,7 @@ pub async fn start(webui: bool) {
         routes::prometheus_handler,
         routes::create_handler,
         routes::rename_handler,
+        routes::remote_logs_ws,
     ];
 
     let rocket = rocket::custom(config::read().get_address())
