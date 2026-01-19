@@ -1,6 +1,5 @@
 use chrono::Datelike;
 use flate2::read::GzDecoder;
-use reqwest;
 use tar::Archive;
 
 use std::{
@@ -19,7 +18,7 @@ fn extract_tar_gz(tar: &PathBuf, download_dir: &PathBuf) -> io::Result<()> {
     let mut archive = Archive::new(decoder);
 
     archive.unpack(download_dir)?;
-    Ok(fs::remove_file(tar)?)
+    fs::remove_file(tar)
 }
 
 fn download_file(url: String, destination: &PathBuf, download_dir: &PathBuf) {
@@ -46,11 +45,14 @@ fn download_node() -> PathBuf {
     #[cfg(all(target_arch = "aarch64"))]
     let target_arch = "arm64";
 
-    let download_url = format!("https://nodejs.org/dist/v{NODE_VERSION}/node-v{NODE_VERSION}-{target_os}-{target_arch}.tar.gz");
+    let download_url = format!(
+        "https://nodejs.org/dist/v{NODE_VERSION}/node-v{NODE_VERSION}-{target_os}-{target_arch}.tar.gz"
+    );
 
     /* paths */
     let download_dir = Path::new("target").join("downloads");
-    let node_extract_dir = download_dir.join(format!("node-v{NODE_VERSION}-{target_os}-{target_arch}"));
+    let node_extract_dir =
+        download_dir.join(format!("node-v{NODE_VERSION}-{target_os}-{target_arch}"));
 
     if node_extract_dir.is_dir() {
         return node_extract_dir;
@@ -65,9 +67,12 @@ fn download_node() -> PathBuf {
         panic!("Failed to extract Node.js: {:?}", err)
     }
 
-    println!("cargo:rustc-env=NODE_HOME={}", node_extract_dir.to_str().unwrap());
+    println!(
+        "cargo:rustc-env=NODE_HOME={}",
+        node_extract_dir.to_str().unwrap()
+    );
 
-    return node_extract_dir;
+    node_extract_dir
 }
 
 fn download_then_build(node_extract_dir: PathBuf) {
@@ -121,13 +126,30 @@ fn main() {
     /* version attributes */
     let date = chrono::Utc::now();
     let profile = env::var("PROFILE").unwrap();
-    let output = Command::new("git").args(&["rev-parse", "--short=10", "HEAD"]).output().unwrap();
-    let output_full = Command::new("git").args(&["rev-parse", "HEAD"]).output().unwrap();
+    let output = Command::new("git")
+        .args(["rev-parse", "--short=10", "HEAD"])
+        .output()
+        .unwrap();
+    let output_full = Command::new("git")
+        .args(["rev-parse", "HEAD"])
+        .output()
+        .unwrap();
 
     println!("cargo:rustc-env=TARGET={}", env::var("TARGET").unwrap());
-    println!("cargo:rustc-env=GIT_HASH={}", String::from_utf8(output.stdout).unwrap());
-    println!("cargo:rustc-env=GIT_HASH_FULL={}", String::from_utf8(output_full.stdout).unwrap());
-    println!("cargo:rustc-env=BUILD_DATE={}-{}-{}", date.year(), date.month(), date.day());
+    println!(
+        "cargo:rustc-env=GIT_HASH={}",
+        String::from_utf8(output.stdout).unwrap()
+    );
+    println!(
+        "cargo:rustc-env=GIT_HASH_FULL={}",
+        String::from_utf8(output_full.stdout).unwrap()
+    );
+    println!(
+        "cargo:rustc-env=BUILD_DATE={}-{}-{}",
+        date.year(),
+        date.month(),
+        date.day()
+    );
 
     /* profile matching */
     match profile.as_str() {
@@ -136,7 +158,7 @@ fn main() {
             println!("cargo:rustc-env=PROFILE=release");
 
             /* cleanup */
-            fs::remove_dir_all(format!("src/webui/dist")).ok();
+            fs::remove_dir_all("src/webui/dist").ok();
 
             /* pre-build */
             let path = download_node();
@@ -157,5 +179,7 @@ fn main() {
         "src/webui/tailwind.config.mjs",
     ];
 
-    watched.iter().for_each(|file| println!("cargo:rerun-if-changed={file}"));
+    watched
+        .iter()
+        .for_each(|file| println!("cargo:rerun-if-changed={file}"));
 }

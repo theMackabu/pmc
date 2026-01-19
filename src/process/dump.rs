@@ -1,7 +1,7 @@
 use crate::{
     file::{self, Exists},
     helpers, log,
-    process::{id::Id, Runner},
+    process::{Runner, id::Id},
 };
 
 use colored::Colorize;
@@ -16,10 +16,16 @@ pub fn from(address: &str, token: Option<&str>) -> Result<Runner, anyhow::Error>
     let mut headers = HeaderMap::new();
 
     if let Some(token) = token {
-        headers.insert("token", HeaderValue::from_static(Box::leak(Box::from(token))));
+        headers.insert(
+            "token",
+            HeaderValue::from_static(Box::leak(Box::from(token))),
+        );
     }
 
-    let response = client.get(fmtstr!("{address}/daemon/dump")).headers(headers).send()?;
+    let response = client
+        .get(fmtstr!("{address}/daemon/dump"))
+        .headers(headers)
+        .send()?;
     let bytes = response.bytes()?;
 
     Ok(file::from_object(&bytes))
@@ -58,10 +64,18 @@ pub fn raw() -> Vec<u8> {
 pub fn write(dump: &Runner) {
     let encoded = match ron::ser::to_string(&dump) {
         Ok(contents) => contents,
-        Err(err) => crashln!("{} Cannot encode dump.\n{}", *helpers::FAIL, string!(err).white()),
+        Err(err) => crashln!(
+            "{} Cannot encode dump.\n{}",
+            *helpers::FAIL,
+            string!(err).white()
+        ),
     };
 
     if let Err(err) = fs::write(global!("pmc.dump"), encoded) {
-        crashln!("{} Error writing dumpfile.\n{}", *helpers::FAIL, string!(err).white())
+        crashln!(
+            "{} Error writing dumpfile.\n{}",
+            *helpers::FAIL,
+            string!(err).white()
+        )
     }
 }

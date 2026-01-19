@@ -47,12 +47,15 @@ num_cpus = "1.16.0"
 
 tokio = { version = "1.39.2", features = ["full"] }
 rocket = { version = "0.5.1", features = ["json"] }
+rocket_ws = "0.1.1"
 
 tabled = { version = "0.15.0", features = ["ansi"] }
 chrono = { version = "0.4.38", features = ["serde"] }
 serde = { version = "1.0.208", features = ["derive"] }
 nix = { version = "0.27.1", features = ["process", "signal"] }
 utoipa = { version = "4.2.3", features = ["serde_yaml", "non_strict_integers"] }
+tokio-tungstenite = { version = "0.28.0", features = ["rustls-tls-webpki-roots", "url"] }
+futures = "0.3.30"
 
 
 [dependencies.reqwest]

@@ -15,7 +15,7 @@ pub fn create_templates() -> (Tera, String) {
     ])
     .unwrap();
 
-    return (tera, path.trim_end_matches('/').to_string());
+    (tera, path.trim_end_matches('/').to_string())
 }
 
 pub mod assets;

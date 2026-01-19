@@ -17,13 +17,23 @@ fn save(servers: BTreeMap<String, Server>) {
             let path = path.display();
             let config_path = format!("{path}/.pmc/servers.toml");
 
-            let contents = match toml::to_string(&Servers { servers: Some(servers) }) {
+            let contents = match toml::to_string(&Servers {
+                servers: Some(servers),
+            }) {
                 Ok(contents) => contents,
-                Err(err) => crashln!("{} Cannot parse servers.\n{}", *helpers::FAIL, string!(err).white()),
+                Err(err) => crashln!(
+                    "{} Cannot parse servers.\n{}",
+                    *helpers::FAIL,
+                    string!(err).white()
+                ),
             };
 
             if let Err(err) = write(&config_path, contents) {
-                crashln!("{} Error writing servers.\n{}", *helpers::FAIL, string!(err).white())
+                crashln!(
+                    "{} Error writing servers.\n{}",
+                    *helpers::FAIL,
+                    string!(err).white()
+                )
             }
         }
         None => crashln!("{} Impossible to get your home directory", *helpers::FAIL),
@@ -38,11 +48,13 @@ struct ServerOption {
 
 impl std::fmt::Display for ServerOption {
     #[inline]
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Display::fmt(&self.formatted, f) }
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self.formatted, f)
+    }
 }
 
 pub fn list(format: &String, log_level: Option<log::Level>) {
-    let servers = config::servers().servers.take().unwrap_or_else(BTreeMap::new);
+    let servers = config::servers().servers.take().unwrap_or_default();
 
     let options: Vec<_> = servers
         .iter()
@@ -54,7 +66,7 @@ pub fn list(format: &String, log_level: Option<log::Level>) {
 
             ServerOption {
                 name: key.clone(),
-                formatted: format!("{} {}", format!("{key}").bright_yellow(), verbose.white()),
+                formatted: format!("{} {}", key.to_string().bright_yellow(), verbose.white()),
             }
         })
         .collect();
@@ -67,7 +79,7 @@ pub fn list(format: &String, log_level: Option<log::Level>) {
 
 pub fn new() {
     let (name, address, token);
-    let mut servers = config::servers().servers.take().unwrap_or_else(BTreeMap::new);
+    let mut servers = config::servers().servers.take().unwrap_or_default();
 
     match Text::new("Server Name:").prompt() {
         Ok(ans) => name = ans,
@@ -97,7 +109,7 @@ pub fn new() {
         Err(_) => crashln!("{}", "Canceled...".white()),
         Ok(false) => {}
         Ok(true) => {
-            if name == "" || address == "" {
+            if name.is_empty() || address.is_empty() {
                 crashln!("{} Failed to add new server", *helpers::FAIL)
             } else {
                 servers.insert(name, Server { address, token });
@@ -109,7 +121,7 @@ pub fn new() {
 }
 
 pub fn remove(name: &String) {
-    let mut servers = config::servers().servers.take().unwrap_or_else(BTreeMap::new);
+    let mut servers = config::servers().servers.take().unwrap_or_default();
 
     if servers.contains_key(name) {
         match Confirm::new(&format!("Remove server {name}? (y/n)")).prompt() {
@@ -127,7 +139,7 @@ pub fn remove(name: &String) {
 }
 
 pub fn default(name: &Option<String>) {
-    let servers = config::servers().servers.take().unwrap_or_else(BTreeMap::new);
+    let servers = config::servers().servers.take().unwrap_or_default();
 
     let name = match name {
         Some(name) => name.as_str(),

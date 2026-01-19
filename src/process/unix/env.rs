@@ -7,8 +7,12 @@ pub struct Vars {
 
 impl Iterator for Vars {
     type Item = String;
-    fn next(&mut self) -> Option<String> { self.inner.next().map(|var| var.into_string().unwrap()) }
-    fn size_hint(&self) -> (usize, Option<usize>) { self.inner.size_hint() }
+    fn next(&mut self) -> Option<String> {
+        self.inner.next().map(|var| var.into_string().unwrap())
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -39,7 +43,10 @@ pub fn env() -> Vec<String> {
             }
         }
 
-        return Vars { inner: result.into_iter() }.collect();
+        return Vars {
+            inner: result.into_iter(),
+        }
+        .collect();
     }
 
     fn parse(input: &[u8]) -> Option<OsString> {
@@ -61,4 +68,4 @@ mod tests {
         // Most systems should have PATH environment variable
         assert!(env_vars.iter().any(|var| var.starts_with("PATH=")));
     }
-} 
+}

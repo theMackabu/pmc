@@ -6,7 +6,7 @@ mod fork;
 use api::{DAEMON_CPU_PERCENTAGE, DAEMON_MEM_USAGE, DAEMON_START_TIME};
 use chrono::{DateTime, Utc};
 use colored::Colorize;
-use fork::{daemon, Fork};
+use fork::{Fork, daemon};
 use global_placeholders::global;
 use macros_rs::{crashln, str, string, ternary, then};
 #[cfg(any(target_os = "linux", target_os = "macos"))]
@@ -19,17 +19,17 @@ use std::{process, thread::sleep, time::Duration};
 use pmc::{
     config, file,
     helpers::{self, ColoredString},
-    process::{hash, id::Id, Runner, Status, get_process_cpu_usage_percentage},
+    process::{Runner, Status, get_process_cpu_usage_percentage, hash, id::Id},
 };
 
 use tabled::{
+    Table, Tabled,
     settings::{
+        Color, Rotate,
         object::Columns,
         style::{BorderColor, Style},
         themes::Colorization,
-        Color, Rotate,
     },
-    Table, Tabled,
 };
 
 static ENABLE_API: AtomicBool = AtomicBool::new(false);
@@ -125,15 +125,14 @@ pub fn health(format: &String) {
         }
     }
 
-    if pid::exists() {
-        if let Ok(process_id) = pid::read() {
-            if let Ok(process) = Process::new(process_id.get::<u32>()) {
-                pid = Some(process.pid() as i32);
-                uptime = Some(pid::uptime().unwrap());
-                memory_usage = process.memory_info().ok().map(MemoryInfo::from);
-                cpu_percent = Some(get_process_cpu_usage_percentage(process_id.get::<i64>()));
-            }
-        }
+    if pid::exists()
+        && let Ok(process_id) = pid::read()
+        && let Ok(process) = Process::new(process_id.get::<u32>())
+    {
+        pid = Some(process.pid() as i32);
+        uptime = Some(pid::uptime().unwrap());
+        memory_usage = process.memory_info().ok().map(MemoryInfo::from);
+        cpu_percent = Some(get_process_cpu_usage_percentage(process_id.get::<i64>()));
     }
 
     let cpu_percent = match cpu_percent {
@@ -157,15 +156,19 @@ pub fn health(format: &String) {
     };
 
     let data = vec![Info {
-        pid: pid,
+        pid,
         cpu_percent,
         memory_usage,
-        uptime: uptime,
+        uptime,
         path: global!("pmc.base"),
         external: global!("pmc.daemon.kind"),
         process_count: runner.count(),
         pid_file: format!("{}  ", global!("pmc.pid")),
-        status: ColoredString(ternary!(pid::exists(), "online".green().bold(), "stopped".red().bold())),
+        status: ColoredString(ternary!(
+            pid::exists(),
+            "online".green().bold(),
+            "stopped".red().bold()
+        )),
     }];
 
     let table = Table::new(data.clone())
@@ -180,9 +183,25 @@ pub fn health(format: &String) {
             "raw" => println!("{:?}", data[0]),
             "json" => println!("{json}"),
             "default" => {
-                println!("{}\n{table}\n", format!("PMC daemon information").on_bright_white().black());
-                println!(" {}", format!("Use `pmc daemon restart` to restart the daemon").white());
-                println!(" {}", format!("Use `pmc daemon reset` to clean process id values").white());
+                println!(
+                    "{}\n{table}\n",
+                    "PMC daemon information"
+                        .to_string()
+                        .on_bright_white()
+                        .black()
+                );
+                println!(
+                    " {}",
+                    "Use `pmc daemon restart` to restart the daemon"
+                        .to_string()
+                        .white()
+                );
+                println!(
+                    " {}",
+                    "Use `pmc daemon reset` to clean process id values"
+                        .to_string()
+                        .white()
+                );
             }
             _ => {}
         };
@@ -210,9 +229,11 @@ pub fn stop() {
 }
 
 pub fn start(verbose: bool) {
-
-
-    println!("{} Spawning PMC daemon (pmc_base={})", *helpers::SUCCESS, global!("pmc.base"));
+    println!(
+        "{} Spawning PMC daemon (pmc_base={})",
+        *helpers::SUCCESS,
+        global!("pmc.base")
+    );
 
     if ENABLE_API.load(Ordering::Acquire) {
         println!(
@@ -221,6 +242,8 @@ pub fn start(verbose: bool) {
             config::read().fmt_address(),
             ENABLE_WEBUI.load(Ordering::Acquire)
         );
+    } else {
+        log!("[api] server disabled", "address" => config::read().fmt_address());
     }
 
     if pid::exists() {
@@ -251,11 +274,10 @@ pub fn start(verbose: bool) {
         }
 
         loop {
-            if api_enabled {
-                if let Ok(process) = Process::new(process::id()) {
-                    DAEMON_CPU_PERCENTAGE.observe(get_process_cpu_usage_percentage(process.pid() as i64));
-                    DAEMON_MEM_USAGE.observe(process.memory_info().ok().unwrap().rss() as f64);
-                }
+            if api_enabled && let Ok(process) = Process::new(process::id()) {
+                DAEMON_CPU_PERCENTAGE
+                    .observe(get_process_cpu_usage_percentage(process.pid() as i64));
+                DAEMON_MEM_USAGE.observe(process.memory_info().ok().unwrap().rss() as f64);
             }
 
             then!(!Runner::new().is_empty(), restart_process());
@@ -263,7 +285,11 @@ pub fn start(verbose: bool) {
         }
     }
 
-    println!("{} PMC Successfully daemonized (type={})", *helpers::SUCCESS, global!("pmc.daemon.kind"));
+    println!(
+        "{} PMC Successfully daemonized (type={})",
+        *helpers::SUCCESS,
+        global!("pmc.daemon.kind")
+    );
     match daemon(false, verbose) {
         Ok(Fork::Parent(_)) => {}
         Ok(Fork::Child) => init(),
@@ -299,7 +325,11 @@ pub fn reset() {
         None => runner.set_id(Id::new(0)),
     }
 
-    println!("{} Successfully reset (index={})", *helpers::SUCCESS, runner.id);
+    println!(
+        "{} Successfully reset (index={})",
+        *helpers::SUCCESS,
+        runner.id
+    );
 }
 
 pub mod pid;

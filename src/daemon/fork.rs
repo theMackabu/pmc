@@ -39,10 +39,10 @@ pub fn close_fd() -> Result<i32, i32> {
         res |= unsafe { libc::close(i) } == -1;
     }
 
-    return match res {
+    match res {
         true => Err(-1),
         false => Ok(1),
-    };
+    }
 }
 
 pub fn daemon(nochdir: bool, noclose: bool) -> Result<Fork, i32> {

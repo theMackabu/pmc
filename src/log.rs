@@ -9,13 +9,22 @@ pub struct Logger {
 
 impl Logger {
     pub fn new() -> io::Result<Self> {
-        let file = OpenOptions::new().create(true).append(true).open(global!("pmc.log"))?;
+        let file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(global!("pmc.log"))?;
         Ok(Logger { file })
     }
 
     pub fn write(&mut self, message: &str) {
         log::info!("{message}");
-        writeln!(&mut self.file, "[{}] {}", Local::now().format("%Y-%m-%d %H:%M:%S%.3f"), message).unwrap()
+        writeln!(
+            &mut self.file,
+            "[{}] {}",
+            Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
+            message
+        )
+        .unwrap()
     }
 }
 
