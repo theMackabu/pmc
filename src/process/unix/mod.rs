@@ -74,7 +74,7 @@ pub fn get_actual_child_pid(shell_pid: i64) -> i64 {
         return child_pid;
     }
 
-    let pid = if let Ok(processes) = native_processes() {
+    if let Ok(processes) = native_processes() {
         processes
             .iter()
             .find(|process| {
@@ -87,9 +87,7 @@ pub fn get_actual_child_pid(shell_pid: i64) -> i64 {
             .map_or(shell_pid, |p| p.pid() as i64)
     } else {
         shell_pid
-    };
-
-    pid
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -114,9 +112,10 @@ pub fn get_actual_child_pid(shell_pid: i64) -> i64 {
     // Fallback: try using sysctl or other macOS specific methods
     for test_pid in 1..32768 {
         if let Ok(Some(ppid)) = get_parent_pid(test_pid)
-            && ppid as i64 == shell_pid {
-                return test_pid as i64;
-            }
+            && ppid as i64 == shell_pid
+        {
+            return test_pid as i64;
+        }
     }
 
     shell_pid

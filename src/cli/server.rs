@@ -54,10 +54,7 @@ impl std::fmt::Display for ServerOption {
 }
 
 pub fn list(format: &String, log_level: Option<log::Level>) {
-    let servers = config::servers()
-        .servers
-        .take()
-        .unwrap_or_default();
+    let servers = config::servers().servers.take().unwrap_or_default();
 
     let options: Vec<_> = servers
         .iter()
@@ -82,10 +79,7 @@ pub fn list(format: &String, log_level: Option<log::Level>) {
 
 pub fn new() {
     let (name, address, token);
-    let mut servers = config::servers()
-        .servers
-        .take()
-        .unwrap_or_default();
+    let mut servers = config::servers().servers.take().unwrap_or_default();
 
     match Text::new("Server Name:").prompt() {
         Ok(ans) => name = ans,
@@ -127,10 +121,7 @@ pub fn new() {
 }
 
 pub fn remove(name: &String) {
-    let mut servers = config::servers()
-        .servers
-        .take()
-        .unwrap_or_default();
+    let mut servers = config::servers().servers.take().unwrap_or_default();
 
     if servers.contains_key(name) {
         match Confirm::new(&format!("Remove server {name}? (y/n)")).prompt() {
@@ -148,10 +139,7 @@ pub fn remove(name: &String) {
 }
 
 pub fn default(name: &Option<String>) {
-    let servers = config::servers()
-        .servers
-        .take()
-        .unwrap_or_default();
+    let servers = config::servers().servers.take().unwrap_or_default();
 
     let name = match name {
         Some(name) => name.as_str(),

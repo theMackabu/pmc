@@ -127,12 +127,13 @@ pub fn health(format: &String) {
 
     if pid::exists()
         && let Ok(process_id) = pid::read()
-            && let Ok(process) = Process::new(process_id.get::<u32>()) {
-                pid = Some(process.pid() as i32);
-                uptime = Some(pid::uptime().unwrap());
-                memory_usage = process.memory_info().ok().map(MemoryInfo::from);
-                cpu_percent = Some(get_process_cpu_usage_percentage(process_id.get::<i64>()));
-            }
+        && let Ok(process) = Process::new(process_id.get::<u32>())
+    {
+        pid = Some(process.pid() as i32);
+        uptime = Some(pid::uptime().unwrap());
+        memory_usage = process.memory_info().ok().map(MemoryInfo::from);
+        cpu_percent = Some(get_process_cpu_usage_percentage(process_id.get::<i64>()));
+    }
 
     let cpu_percent = match cpu_percent {
         Some(percent) => format!("{:.2}%", percent),
@@ -184,15 +185,22 @@ pub fn health(format: &String) {
             "default" => {
                 println!(
                     "{}\n{table}\n",
-                    "PMC daemon information".to_string().on_bright_white().black()
+                    "PMC daemon information"
+                        .to_string()
+                        .on_bright_white()
+                        .black()
                 );
                 println!(
                     " {}",
-                    "Use `pmc daemon restart` to restart the daemon".to_string().white()
+                    "Use `pmc daemon restart` to restart the daemon"
+                        .to_string()
+                        .white()
                 );
                 println!(
                     " {}",
-                    "Use `pmc daemon reset` to clean process id values".to_string().white()
+                    "Use `pmc daemon reset` to clean process id values"
+                        .to_string()
+                        .white()
                 );
             }
             _ => {}
@@ -234,6 +242,8 @@ pub fn start(verbose: bool) {
             config::read().fmt_address(),
             ENABLE_WEBUI.load(Ordering::Acquire)
         );
+    } else {
+        log!("[api] server disabled", "address" => config::read().fmt_address());
     }
 
     if pid::exists() {
@@ -264,12 +274,11 @@ pub fn start(verbose: bool) {
         }
 
         loop {
-            if api_enabled
-                && let Ok(process) = Process::new(process::id()) {
-                    DAEMON_CPU_PERCENTAGE
-                        .observe(get_process_cpu_usage_percentage(process.pid() as i64));
-                    DAEMON_MEM_USAGE.observe(process.memory_info().ok().unwrap().rss() as f64);
-                }
+            if api_enabled && let Ok(process) = Process::new(process::id()) {
+                DAEMON_CPU_PERCENTAGE
+                    .observe(get_process_cpu_usage_percentage(process.pid() as i64));
+                DAEMON_MEM_USAGE.observe(process.memory_info().ok().unwrap().rss() as f64);
+            }
 
             then!(!Runner::new().is_empty(), restart_process());
             sleep(Duration::from_millis(config.interval));

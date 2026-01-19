@@ -15,23 +15,22 @@ pub fn get_cpu_percent(pid: u32) -> f64 {
                 let total_process_time = (utime + stime) / 100.0; // Convert clock ticks to seconds
 
                 // Get system CPU time
-                if let Ok(stat_content) = fs::read_to_string("/proc/stat") {
-                    if let Some(cpu_line) = stat_content.lines().next() {
-                        let cpu_parts: Vec<&str> = cpu_line.split_whitespace().collect();
-                        if cpu_parts.len() > 7 {
-                            let user: u64 = cpu_parts[1].parse().ok()?;
-                            let nice: u64 = cpu_parts[2].parse().ok()?;
-                            let system: u64 = cpu_parts[3].parse().ok()?;
-                            let idle: u64 = cpu_parts[4].parse().ok()?;
-                            let iowait: u64 = cpu_parts[5].parse().ok()?;
-                            let irq: u64 = cpu_parts[6].parse().ok()?;
-                            let softirq: u64 = cpu_parts[7].parse().ok()?;
+                if let Ok(stat_content) = fs::read_to_string("/proc/stat")
+                    && let Some(cpu_line) = stat_content.lines().next()
+                {
+                    let cpu_parts: Vec<&str> = cpu_line.split_whitespace().collect();
+                    if cpu_parts.len() > 7 {
+                        let user: u64 = cpu_parts[1].parse().ok()?;
+                        let nice: u64 = cpu_parts[2].parse().ok()?;
+                        let system: u64 = cpu_parts[3].parse().ok()?;
+                        let idle: u64 = cpu_parts[4].parse().ok()?;
+                        let iowait: u64 = cpu_parts[5].parse().ok()?;
+                        let irq: u64 = cpu_parts[6].parse().ok()?;
+                        let softirq: u64 = cpu_parts[7].parse().ok()?;
 
-                            let total_system_time =
-                                (user + nice + system + idle + iowait + irq + softirq) as f64
-                                    / 100.0;
-                            return Some((total_process_time, total_system_time));
-                        }
+                        let total_system_time =
+                            (user + nice + system + idle + iowait + irq + softirq) as f64 / 100.0;
+                        return Some((total_process_time, total_system_time));
                     }
                 }
             }

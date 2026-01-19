@@ -60,7 +60,7 @@ pub fn read() -> Config {
                         kind: string!("default"),
                         web: Web {
                             ui: false,
-                            api: false,
+                            api: true,
                             address: string!("0.0.0.0"),
                             path: None,
                             port: 5630,
@@ -104,13 +104,14 @@ pub fn servers() -> Servers {
             let config_path = format!("{path}/.pmc/servers.toml");
 
             if !Exists::check(&config_path).file()
-                && let Err(err) = write(&config_path, "") {
-                    crashln!(
-                        "{} Error writing servers.\n{}",
-                        *helpers::FAIL,
-                        string!(err).white()
-                    )
-                }
+                && let Err(err) = write(&config_path, "")
+            {
+                crashln!(
+                    "{} Error writing servers.\n{}",
+                    *helpers::FAIL,
+                    string!(err).white()
+                )
+            }
 
             file::read(config_path)
         }

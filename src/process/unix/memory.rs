@@ -77,10 +77,10 @@ pub fn get_memory_info(pid: u32) -> Result<NativeMemoryInfo, String> {
                 if let Some(value) = line.split_whitespace().nth(1) {
                     rss = value.parse::<u64>().unwrap_or(0) * 1024; // Convert KB to bytes
                 }
-            } else if line.starts_with("VmSize:") {
-                if let Some(value) = line.split_whitespace().nth(1) {
-                    vms = value.parse::<u64>().unwrap_or(0) * 1024; // Convert KB to bytes
-                }
+            } else if line.starts_with("VmSize:")
+                && let Some(value) = line.split_whitespace().nth(1)
+            {
+                vms = value.parse::<u64>().unwrap_or(0) * 1024; // Convert KB to bytes
             }
         }
 

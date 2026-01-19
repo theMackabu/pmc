@@ -84,12 +84,12 @@ pub fn get_process_start_time(_pid: u32) -> Result<SystemTime, String> {
             .map_err(|e| format!("Failed to read process stat: {}", e))?;
 
         let parts: Vec<&str> = stat_content.split_whitespace().collect();
-        if parts.len() > 21 {
-            if let Ok(start_time) = parts[21].parse::<u64>() {
-                // Convert from clock ticks to seconds (simplified)
-                let uptime_secs = start_time / 100;
-                return Ok(UNIX_EPOCH + Duration::from_secs(uptime_secs));
-            }
+        if parts.len() > 21
+            && let Ok(start_time) = parts[21].parse::<u64>()
+        {
+            // Convert from clock ticks to seconds (simplified)
+            let uptime_secs = start_time / 100;
+            return Ok(UNIX_EPOCH + Duration::from_secs(uptime_secs));
         }
     }
 

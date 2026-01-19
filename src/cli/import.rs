@@ -151,11 +151,7 @@ pub fn export_hcl(item: &Item, path: &Option<String>) {
         let serialized = hcl::to_string(&data).unwrap();
 
         if Exists::check(&path).file() {
-            let mut file = OpenOptions::new()
-                
-                .append(true)
-                .open(path.clone())
-                .unwrap();
+            let mut file = OpenOptions::new().append(true).open(path.clone()).unwrap();
             if let Err(err) = writeln!(file, "{}", serialized) {
                 crashln!(
                     "{} Error writing to file.\n{}",

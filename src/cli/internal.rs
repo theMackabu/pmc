@@ -297,7 +297,9 @@ impl<'i> Internal<'i> {
 
             then!(reset_env, item.clear_env());
 
-            if let Some(n) = name.as_ref() { item.rename(n.trim().replace("\n", "")) }
+            if let Some(n) = name.as_ref() {
+                item.rename(n.trim().replace("\n", ""))
+            }
             item.restart();
 
             self.runner = item.get_runner().clone();
@@ -313,7 +315,9 @@ impl<'i> Internal<'i> {
 
                         then!(reset_env, item.clear_env());
 
-                        if let Some(n) = name.as_ref() { item.rename(n.trim().replace("\n", "")) }
+                        if let Some(n) = name.as_ref() {
+                            item.rename(n.trim().replace("\n", ""))
+                        }
                         item.restart();
                     }
                     None => crashln!(

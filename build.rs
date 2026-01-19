@@ -158,7 +158,7 @@ fn main() {
             println!("cargo:rustc-env=PROFILE=release");
 
             /* cleanup */
-            fs::remove_dir_all("src/webui/dist".to_string()).ok();
+            fs::remove_dir_all("src/webui/dist").ok();
 
             /* pre-build */
             let path = download_node();
